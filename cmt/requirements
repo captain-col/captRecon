@@ -1,2 +1,38 @@
 package captRecon
+# Calibrate and do the time clustering for raw data.
 
+# This is required for the documentation.
+manager Clark McGrew <clark.mcgrew@stonybrook.edu>
+author Clark McGrew <clark.mcgrew@stonybrook.edu>
+
+# The packages used by this one.  Only direct dependencies should be
+# included. 
+use elecSim
+use eventDisplay
+use captChanInfo
+use captEvent
+use testBase
+use captainPolicy 
+use ROOT * LCG_Interfaces
+
+# Build the documentation.
+document doxygen doxygen -group=documentation *.cxx *.hxx ../doc/*.dox
+
+# Build information used by packages that use this one.
+macro captRecon_cppflags " -DCAPTRECON_USED "
+macro captRecon_linkopts " -L$(CAPTRECONROOT)/$(captRecon_tag) "
+macro_append captRecon_linkopts " -lcaptRecon "
+macro captRecon_stamps " $(captReconstamp) $(linkdefstamp) "
+
+# The paths to find this library and it's executables
+path_remove LD_LIBRARY_PATH "$(CAPTRECONROOT)" 
+path_prepend LD_LIBRARY_PATH "$(CAPTRECONROOT)/$(captRecon_tag)"
+
+path_remove PATH "$(CAPTRECONROOT)"
+path_prepend PATH "$(CAPTRECONROOT)/$(captRecon_tag)"
+
+library captRecon *.cxx *.hxx 
+
+# The main application
+application CAPTRECON ../app/captRecon.cxx
+macro_append CAPTRECON_dependencies " captRecon " 
