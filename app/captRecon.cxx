@@ -1,4 +1,4 @@
-#include "TCaptRecon.hxx"
+#include "TCluster3D.hxx"
 
 #include <eventLoop.hxx>
 
@@ -19,20 +19,24 @@ public:
 
     bool operator () (CP::TEvent& event) {
         // Make sure the electronics simulated is created.
-        if (!fCaptRecon) fCaptRecon = new CP::TCaptRecon();
+        if (!fCaptRecon) fCaptRecon = new CP::TCluster3D();
+
+        CP::THandle<CP::THitSelection> drift(event.GetHitSelection("drift"));
 
         // Run the simulation on the event.
-        (*fCaptRecon)(event);
+        CP::THandle<CP::TAlgorithmResult> cluster3D
+            = fCaptRecon->Process(*drift);
+        event.AddFit(cluster3D);
 
         // Save everything.
         return true;
     }
 
 private:
-    CP::TCaptRecon* fCaptRecon;
+    CP::TCluster3D* fCaptRecon;
 };
 
 int main(int argc, char **argv) {
     TCaptReconLoop userCode;
-    CP::eventLoop(argc,argv,userCode,1);
+    CP::eventLoop(argc,argv,userCode);
 }
