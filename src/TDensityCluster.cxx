@@ -1,0 +1,88 @@
+#include "TDensityCluster.hxx"
+#include "TTmplDensityCluster.hxx"
+#include "HitUtilities.hxx"
+
+#include <THandle.hxx>
+#include <TReconCluster.hxx>
+#include <TCaptLog.hxx>
+#include <HEPUnits.hxx>
+#include <TRuntimeParameters.hxx>
+
+#include <memory>
+#include <cmath>
+
+namespace {
+    struct HitProximity {
+        double operator() (CP::THandle<CP::THit> lhs, 
+                           CP::THandle<CP::THit> rhs) {
+            return (lhs->GetPosition() - rhs->GetPosition()).Mag();
+        }
+    };
+};
+
+
+CP::TDensityCluster::TDensityCluster()
+    : TAlgorithm("TDensityCluster", "Find Simply Connected Hits") {
+}
+
+CP::TDensityCluster::~TDensityCluster() { }
+
+CP::THandle<CP::TAlgorithmResult>
+CP::TDensityCluster::Process(const CP::TAlgorithmResult& input,
+                             const CP::TAlgorithmResult&,
+                             const CP::TAlgorithmResult&) {
+
+    CP::THandle<CP::THitSelection> inputHits = input.GetHitSelection();
+    if (!inputHits) {
+        CaptError("No input hits");
+        return CP::THandle<CP::TAlgorithmResult>();
+    }
+
+    CaptLog("TDensityCluster Process " 
+            << GetEvent().GetContext()
+            << " w/ " <<  inputHits->size() << " hits");
+
+
+    CP::THandle<CP::TAlgorithmResult> result = CreateResult();
+    std::auto_ptr<CP::TReconObjectContainer> 
+        final(new CP::TReconObjectContainer("final"));
+    std::auto_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
+
+    typedef CP::THandle<CP::THit> Arg;
+    typedef CP::TTmplDensityCluster< Arg, HitProximity > ClusterAlgorithm;
+    int minPoints = 2;
+    int maxDist = 4*unit::mm;
+    std::auto_ptr<ClusterAlgorithm> 
+        clusterAlgorithm(new ClusterAlgorithm(minPoints,maxDist));
+ 
+    CaptError("Begin Clustering");
+    clusterAlgorithm->Cluster(inputHits->begin(), inputHits->end());
+    CaptError("End Clustering");
+    
+    int nClusters = clusterAlgorithm->GetClusterCount();
+    for (int i=0; i<nClusters; ++i) {
+        CaptError("Copy Cluster " << i);
+        const ClusterAlgorithm::Points& points 
+            = clusterAlgorithm->GetCluster(i);
+        CP::THandle<CP::TReconCluster> cluster(new CP::TReconCluster);
+        cluster->FillFromHits("TDensityCluster",points.begin(),points.end());
+        final->push_back(cluster);
+    }
+
+    CaptError("Collect hits");
+    // Copy all of the hits that got added to a reconstruction object into the
+    // used hit selection.
+    CP::THandle<CP::THitSelection> hits = CP::hits::ReconHits(*final);
+    if (hits) {
+        used->reserve(hits->size());
+        std::copy(hits->begin(), hits->end(), std::back_inserter(*used));
+    }
+
+    CaptError("Clusters " << final->size());
+    CaptError("Used Hits: " << used->size());
+
+    result->AddHitSelection(used.release());
+    result->AddResultsContainer(final.release());
+
+    return result;
+}

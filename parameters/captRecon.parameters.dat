@@ -1,0 +1,10 @@
+The parameters that control the reconstruction.
+
+
+The average drift velocity in the argon.
+< captRecon.driftVelocity = 1.6 mm/us >
+
+The maximum drift time in the TPC.  This is used to help find the time
+zero.  
+< captRecon.cluster3d.maxDrift = 1 m >
+

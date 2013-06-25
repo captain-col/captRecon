@@ -1,32 +1,27 @@
-#include <TDriftPosition.hxx>
+#include "TDriftPosition.hxx"
 
+#include <THit.hxx>
+
+#include <TLorentzVector.h>
 #include <TVector3.h>
+#include <TRuntimeParameters.hxx>
 
-CP::TDriftPosition::TDriftPosition(double z, double v)
-    : fZPlane(z), fDriftVelocity(v) {}
-
-TLorentzVector 
-CP::TDriftPosition::operator() (const CP::THandle<CP::THit>& hit) {
-    TVector3 p(hit->GetPosition());
-    double t(hit->GetTime());
-    double deltaZ = fZPlane-p.Z();
-    double deltaT = deltaZ/fDriftVelocity;
-    return TLorentzVector(p.X(), p.Y(), fZPlane, t + deltaT);
+CP::TDriftPosition::TDriftPosition() {
+    fDriftVelocity
+        = CP::TRuntimeParameters::Get().GetParameterD(
+            "captRecon.driftVelocity");
 }
 
 TLorentzVector 
-CP::TDriftPosition::operator() (const CP::THandle<CP::THit>& hit, double tNew) {
-    TVector3 p(hit->GetPosition());
-    double t(hit->GetTime());
-    double deltaT = tNew - t;
+CP::TDriftPosition::GetPosition(const CP::THit& hit, double tNew) {
+    TVector3 p(hit.GetPosition());
+    double deltaT = tNew - hit.GetTime();
     double deltaZ = deltaT * fDriftVelocity;
     return TLorentzVector(p.X(), p.Y(), p.Z() + deltaZ, tNew);
 }
 
-double CP::TDriftPosition::GetTime(const CP::THandle<CP::THit>& hit) {
-    TVector3 p(hit->GetPosition());
-    double t(hit->GetTime());
-    double deltaZ = fZPlane-p.Z();
+double CP::TDriftPosition::GetTime(const CP::THit& hit, double zPlane) {
+    double deltaZ = zPlane - hit.GetPosition().Z();
     double deltaT = deltaZ/fDriftVelocity;
-    return t + deltaT;
+    return hit.GetTime() + deltaT;
 }
