@@ -23,6 +23,14 @@ namespace {
 
 CP::TDensityCluster::TDensityCluster()
     : TAlgorithm("TDensityCluster", "Find Simply Connected Hits") {
+
+    fMinPoints = CP::TRuntimeParameters::Get().GetParameterI(
+        "captRecon.densityCluster.minPoints");
+
+    fMaxDist = CP::TRuntimeParameters::Get().GetParameterD(
+        "captRecon.densityCluster.maxDistance");
+
+
 }
 
 CP::TDensityCluster::~TDensityCluster() { }
@@ -50,10 +58,8 @@ CP::TDensityCluster::Process(const CP::TAlgorithmResult& input,
 
     typedef CP::THandle<CP::THit> Arg;
     typedef CP::TTmplDensityCluster< Arg, HitProximity > ClusterAlgorithm;
-    int minPoints = 2;
-    int maxDist = 4*unit::mm;
     std::auto_ptr<ClusterAlgorithm> 
-        clusterAlgorithm(new ClusterAlgorithm(minPoints,maxDist));
+        clusterAlgorithm(new ClusterAlgorithm(fMinPoints,fMaxDist));
  
     CaptError("Begin Clustering");
     clusterAlgorithm->Cluster(inputHits->begin(), inputHits->end());

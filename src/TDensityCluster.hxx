@@ -25,6 +25,13 @@ public:
             const CP::TAlgorithmResult& input2 = CP::TAlgorithmResult::Empty);
 
 private:
+    /// The minimum number of neighbors within the maximum distance of the
+    /// current point to consider the current point to be in a high density
+    /// region.
+    int fMinPoints;
 
+    /// The radius over which points are counted to determine if a point is in
+    /// a high density region.
+    int fMaxDist;
 };
 #endif
