@@ -1,6 +1,7 @@
 #include "TCaptainRecon.hxx"
 #include "TCluster3D.hxx"
 #include "TDensityCluster.hxx"
+#include "TClusterSlice.hxx"
 
 #include "HitUtilities.hxx"
 
@@ -72,6 +73,16 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
             = Run<CP::TDensityCluster>(*currentResult);
         if (!clustered) break;
         currentResult = clustered;
+        result->AddDatum(currentResult);
+#endif
+
+#define Apply_TClusterSlice
+#ifdef Apply_TClusterSlice
+        // Cluster the 3D hits by position to find object candidates. 
+        CP::THandle<CP::TAlgorithmResult> sliced
+            = Run<CP::TClusterSlice>(*currentResult);
+        if (!sliced) break;
+        currentResult = sliced;
         result->AddDatum(currentResult);
 #endif
 

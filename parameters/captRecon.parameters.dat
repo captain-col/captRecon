@@ -8,3 +8,16 @@ The maximum drift time in the TPC.  This is used to help find the time
 zero.  
 < captRecon.cluster3d.maxDrift = 1 m >
 
+The parameters for density clustering.  The minimum points is the number of
+neighbors in the region, and maxDistance is the radius of the region.
+< captRecon.densityCluster.minPoints = 2 >
+< captRecon.densityCluster.maxDistance = 5 mm >
+
+
+The parameters slicing the hits into first guess tracks. The minimum points
+is the number of neighbors in the region, and maxDistance is the radius of
+the region. 
+< captRecon.clusterSlice.minHits = 5 > 
+< captRecon.clusterSlice.minPoints = 2 >
+< captRecon.clusterSlice.maxDistance = 7 mm >
+< captRecon.clusterSlice.clusterStep = 1.6 mm > 
