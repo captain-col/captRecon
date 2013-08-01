@@ -20,7 +20,8 @@ namespace CP {
 /// TClusterMomentsFit.
 class CP::TClusterMomentsFit {
 public:
-    TClusterMomentsFit(const CP::TReconCluster& cluster);
+    /// Constructed with the cluster to be fit.
+    explicit TClusterMomentsFit(const CP::TReconCluster& cluster);
 
     /// Get the position of the best fit line.  The position is at the center
     /// of the cluster.
