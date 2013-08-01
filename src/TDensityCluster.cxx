@@ -61,13 +61,10 @@ CP::TDensityCluster::Process(const CP::TAlgorithmResult& input,
     std::auto_ptr<ClusterAlgorithm> 
         clusterAlgorithm(new ClusterAlgorithm(fMinPoints,fMaxDist));
  
-    CaptError("Begin Clustering");
     clusterAlgorithm->Cluster(inputHits->begin(), inputHits->end());
-    CaptError("End Clustering");
     
     int nClusters = clusterAlgorithm->GetClusterCount();
     for (int i=0; i<nClusters; ++i) {
-        CaptError("Copy Cluster " << i);
         const ClusterAlgorithm::Points& points 
             = clusterAlgorithm->GetCluster(i);
         CP::THandle<CP::TReconCluster> cluster(new CP::TReconCluster);
@@ -75,7 +72,6 @@ CP::TDensityCluster::Process(const CP::TAlgorithmResult& input,
         final->push_back(cluster);
     }
 
-    CaptError("Collect hits");
     // Copy all of the hits that got added to a reconstruction object into the
     // used hit selection.
     CP::THandle<CP::THitSelection> hits = CP::hits::ReconHits(*final);
@@ -83,9 +79,6 @@ CP::TDensityCluster::Process(const CP::TAlgorithmResult& input,
         used->reserve(hits->size());
         std::copy(hits->begin(), hits->end(), std::back_inserter(*used));
     }
-
-    CaptError("Clusters " << final->size());
-    CaptError("Used Hits: " << used->size());
 
     result->AddHitSelection(used.release());
     result->AddResultsContainer(final.release());

@@ -57,8 +57,6 @@ double CP::TCluster3D::TimeZero(const CP::THitSelection& pmts,
     std::vector<WeightTime> weightTimes;
     for (CP::THitSelection::const_iterator p = pmts.begin();
          p != pmts.end(); ++p) {
-        CaptError("pmt time " << (*p)->GetTime() 
-                  << " " << (*p)->GetConstituentCount());
         WeightTime tw((*p)->GetCharge(), (*p)->GetTime());
         for (CP::THitSelection::const_iterator w = wires.begin();
              w != wires.end(); ++w) {

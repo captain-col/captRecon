@@ -96,7 +96,6 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
     std::auto_ptr<CP::TReconObjectContainer> 
         finalObjects(new CP::TReconObjectContainer("final"));
 
-    CaptError("Copy Final Results");
     // Copy the reconstruction objects from the last algorithm result into the
     // final reconstruction objects for this result.
     CP::THandle<CP::TReconObjectContainer> currentObjects
@@ -109,17 +108,13 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
     std::auto_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
     std::auto_ptr<CP::THitSelection> unused(new CP::THitSelection("unused"));
     
-    CaptError("Copy used hits");
     // Get all of the hits in the final object and add them to used.
     CP::THandle<CP::THitSelection> hits = CP::hits::ReconHits(*finalObjects);
     if (hits) {
-        CaptError("   hits used " << hits->size());
         std::copy(hits->begin(), hits->end(), std::back_inserter(*used));
     }
 
-    CaptError("Copy unused hits");
     if (allHits) {
-        CaptError ("    All hits " << allHits->size());
         unused->reserve(allHits->size());
         std::copy(allHits->begin(), allHits->end(), 
                   std::back_inserter(*unused));
