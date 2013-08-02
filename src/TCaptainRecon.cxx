@@ -109,7 +109,8 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
     std::auto_ptr<CP::THitSelection> unused(new CP::THitSelection("unused"));
     
     // Get all of the hits in the final object and add them to used.
-    CP::THandle<CP::THitSelection> hits = CP::hits::ReconHits(*finalObjects);
+    CP::THandle<CP::THitSelection> hits 
+        = CP::hits::ReconHits(finalObjects->begin(), finalObjects->end());
     if (hits) {
         std::copy(hits->begin(), hits->end(), std::back_inserter(*used));
     }

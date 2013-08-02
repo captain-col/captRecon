@@ -74,7 +74,8 @@ CP::TDensityCluster::Process(const CP::TAlgorithmResult& input,
 
     // Copy all of the hits that got added to a reconstruction object into the
     // used hit selection.
-    CP::THandle<CP::THitSelection> hits = CP::hits::ReconHits(*final);
+    CP::THandle<CP::THitSelection> hits 
+        = CP::hits::ReconHits(final->begin(), final->end());
     if (hits) {
         used->reserve(hits->size());
         std::copy(hits->begin(), hits->end(), std::back_inserter(*used));

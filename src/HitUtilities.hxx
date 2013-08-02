@@ -22,8 +22,39 @@ namespace hits {
 
     /// Collect all of the hits used by TReconBase objects in a
     /// reconstruction object container into a single hit selection.
+    template<typename T>
     CP::THandle<CP::THitSelection> 
-    ReconHits(const CP::TReconObjectContainer& input);
+    ReconHits(T begin, T end) {
+        CP::THandle<CP::THitSelection> hits(new CP::THitSelection);
+        
+        while (begin != end) {
+            // Add the hits for the object.
+            CP::THandle<CP::THitSelection> objHits = (*begin)->GetHits();
+            if (objHits) {
+                for (CP::THitSelection::iterator hit = objHits->begin();
+                     hit != objHits->end();
+                     ++hit) {
+                    hits->AddHit(*hit);
+                }
+            }
+            // Add hits for the constituents.  
+            CP::THandle<CP::TReconObjectContainer> parts 
+                = (*begin)->GetConstituents();
+            if (parts) {
+                objHits = ReconHits(parts->begin(), parts->end());
+                if (objHits) {
+                    for (CP::THitSelection::iterator hit = objHits->begin();
+                         hit != objHits->end();
+                         ++hit) {
+                        hits->AddHit(*hit);
+                    }
+                }
+            }
+            ++begin;
+        }
+        
+        return hits;
+    }
 
 };
 };

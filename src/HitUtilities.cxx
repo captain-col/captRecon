@@ -108,36 +108,3 @@ void CP::hits::Unique(CP::THitSelection& a) {
     }
     if (result!=a.end()) a.erase(result,a.end());
 }
-
-CP::THandle<CP::THitSelection> 
-CP::hits::ReconHits(const CP::TReconObjectContainer& input) {
-    CP::THandle<CP::THitSelection> hits(new CP::THitSelection);
-
-    for (CP::TReconObjectContainer::const_iterator o = input.begin();
-         o != input.end();
-         ++o) {
-        // Add the hits for the object.
-        CP::THandle<CP::THitSelection> objHits = (*o)->GetHits();
-        if (objHits) {
-            for (CP::THitSelection::iterator hit = objHits->begin();
-                 hit != objHits->end();
-                 ++hit) {
-                hits->AddHit(*hit);
-            }
-        }
-        // Add hits for the constituents.  
-        CP::THandle<CP::TReconObjectContainer> parts = (*o)->GetConstituents();
-        if (parts) {
-            objHits = ReconHits(*parts);
-            if (objHits) {
-                for (CP::THitSelection::iterator hit = objHits->begin();
-                     hit != objHits->end();
-                     ++hit) {
-                    hits->AddHit(*hit);
-                }
-            }
-        }
-    }
-
-    return hits;
-}
