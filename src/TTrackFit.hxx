@@ -53,6 +53,11 @@ public:
     /// handle.
     virtual CP::THandle<CP::TReconTrack>
     Apply(CP::THandle<CP::TReconTrack>& input);
+
+private:
+    /// A pointer to the bootstrap fitter.  This only initialized if the
+    /// fitter is used.
+    CP::TTrackFitBase* fBootstrap;
 };
 
 #endif
