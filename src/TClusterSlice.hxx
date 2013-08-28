@@ -13,7 +13,7 @@ namespace CP {
 /// into tracks.  This means that 3D hits which are part of the same XY plane
 /// confusion region are all in the same cluster.  The track is then assumed
 /// to go through the center of each cluster.  This is intended as a first
-/// approximation to atrack.
+/// approximation to a track.
 class CP::TClusterSlice
     : public CP::TAlgorithm {
 public:
@@ -35,9 +35,18 @@ private:
     ClusterToTrack(CP::THandle<CP::TReconBase> input);
 
     /// Take a single cluster and break it into clusters based on the "Z
-    /// Confusion Distance".
+    /// Confusion Distance".  The output is an object container of clusters.
     CP::THandle<CP::TReconObjectContainer> 
     BreakCluster(CP::THandle<CP::TReconBase> input);
+
+    /// Take an object container of clusters created by slicing a cluster of
+    /// simply connected hits into "z-slices" (the output of BreakCluster) and
+    /// split them up into tracks.  The output is a object container that may
+    /// contain one or more tracks.  It can have more than one track when the
+    /// simply connected cluster is actually two tracks connected to a vertex
+    /// (or some other similar topology).
+    CP::THandle<CP::TReconObjectContainer> 
+    MakeTracks(CP::THandle<CP::TReconObjectContainer> input);
 
     /// The minimum number of neighbors within the maximum distance of the
     /// current point to consider the current point to be in a high density

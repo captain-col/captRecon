@@ -1,5 +1,9 @@
 #include "TLinearRoad.hxx"
 #include "TClusterMomentsFit.hxx"
+#include "HitUtilities.hxx"
+
+#include <ostreamTLorentzVector.hxx>
+#include <ostreamTVector3.hxx>
 
 #include <HEPUnits.hxx>
 
@@ -12,17 +16,44 @@
 #include <string>
 #include <memory>
 
-CP::TLinearRoad::TLinearRoad(const CP::TReconObjectContainer& clusters,
-                             const CP::TReconObjectContainer& seed,
-                             int maxClusters)
+CP::TLinearRoad::TLinearRoad(int maxClusters)
     : fMaxClusters(maxClusters),
       fRoadWidth(12*unit::mm), 
       fRoadStep(10*unit::mm),
       fOpeningAngle(0.15*unit::radian),
       fSeedSize(5),
-      fSeedLength(2.0*unit::cm) {
+      fSeedLength(2.0*unit::cm) { }
 
-    // Copy the input clusters and make sure the really are all clusters.
+void CP::TLinearRoad::FillRemains(CP::TReconObjectContainer& remains) const {
+    remains.clear();
+    std::copy(fRemainingClusters.begin(), fRemainingClusters.end(),
+              std::back_inserter(remains));
+}
+
+void CP::TLinearRoad::Process(const CP::TReconObjectContainer& seed,
+                              const CP::TReconObjectContainer& clusters) {
+
+    CaptLog("Follow road from " << seed.size() << " cluster seed"
+            << " with " << clusters.size() << " remaining clusters.");
+
+    // Check the inputs and internal structures to make sure things are OK.
+    if (!fRemainingClusters.empty()) {
+        CaptError("Remaining clusters not empty.");
+        std::abort();
+    }
+
+    if (!fOriginalClusters.empty()) {
+        CaptError("Original clusters not empty.");
+        std::abort();
+    }
+
+    if (!fTrackClusters.empty()) {
+        CaptError("Track clusters not empty.");
+        std::abort();
+    }
+
+    // Copy the input clusters and make sure they really are all clusters.
+    fRemainingClusters.clear();
     for (CP::TReconObjectContainer::const_iterator c = clusters.begin();
          c != clusters.end(); ++c) {
         CP::THandle<CP::TReconCluster> cluster = *c;
@@ -46,9 +77,7 @@ CP::TLinearRoad::TLinearRoad(const CP::TReconObjectContainer& clusters,
         fOriginalClusters.push_back(cluster);
         fTrackClusters.push_back(cluster);
     }
-}
 
-void CP::TLinearRoad::Process() {
     // Define a queue to hold the current key.
     SeedContainer currentSeed;
 
@@ -56,8 +85,12 @@ void CP::TLinearRoad::Process() {
     for (SeedContainer::iterator c = fTrackClusters.begin();
          c != fTrackClusters.end(); ++c) {
         currentSeed.push_back(*c);
-        double length = (currentSeed.front()->GetPosition()
-                         -currentSeed.back()->GetPosition()).Mag();
+        double length = (currentSeed.front()->GetPosition().Vect()
+                         -currentSeed.back()->GetPosition().Vect()).Mag();
+        CaptNamedDebug("road", "Add upstream " << 
+                       currentSeed.back()->GetPosition().Vect()
+                       << "   size: " << currentSeed.size() 
+                       << "   length: " << length);
         if (currentSeed.size() < fSeedSize) continue;
         if (length < fSeedLength) continue;
         break;
@@ -67,11 +100,11 @@ void CP::TLinearRoad::Process() {
     int collectedClusters = 0;
     while (!fRemainingClusters.empty() && currentSeed.size()>2) {
         CP::THandle<CP::TReconCluster> cluster
-            = NextCluster(fRemainingClusters, currentSeed, false);
+            = NextCluster(currentSeed, fRemainingClusters, false);
 
         // If a cluster wasn't found, then stop looking for more.
         if (!cluster) break;
-
+    
         // Find the cluster being added to the seed and remove it from the
         // remaining clusters.  This keeps the cluster from being found twice.
         RemainingContainer::iterator where =
@@ -84,8 +117,8 @@ void CP::TLinearRoad::Process() {
         currentSeed.push_front(cluster);
         
         while (currentSeed.size() > fSeedSize
-               && ((currentSeed.front()->GetPosition()
-                    -currentSeed.back()->GetPosition()).Mag()
+               && ((currentSeed.front()->GetPosition().Vect()
+                    -currentSeed.back()->GetPosition().Vect()).Mag()
                    >= fSeedLength)) {
             fTrackClusters.push_front(currentSeed.back());
             currentSeed.pop_back();
@@ -103,17 +136,22 @@ void CP::TLinearRoad::Process() {
          c != fTrackClusters.rend();
          ++c) {
         currentSeed.push_front(*c);
-        if (currentSeed.size()>=fSeedSize
-            && ((currentSeed.front()->GetPosition()
-                -currentSeed.back()->GetPosition()).Mag()
-                >= fSeedLength)) break;
+        double length = (currentSeed.front()->GetPosition().Vect()
+                         -currentSeed.back()->GetPosition().Vect()).Mag();
+        CaptNamedDebug("road", "Add downstream " << 
+                       currentSeed.front()->GetPosition().Vect()
+                       << "   size: " << currentSeed.size() 
+                       << "   length: " << length);
+        if (currentSeed.size() < fSeedSize) continue;
+        if (length < fSeedLength) continue;
+        break;
     }
 
     collectedClusters = 0;
     CaptNamedDebug("road", "Follow road downstream");
     while (!fRemainingClusters.empty() && currentSeed.size()>2) {
         CP::THandle<CP::TReconCluster> cluster
-            = NextCluster(fRemainingClusters, currentSeed, true);
+            = NextCluster(currentSeed, fRemainingClusters, true);
 
         // If a cluster wasn't found, then stop looking for more.
         if (!cluster) break;
@@ -130,8 +168,8 @@ void CP::TLinearRoad::Process() {
         currentSeed.push_back(cluster);
         
         while (currentSeed.size() > fSeedSize
-               && ((currentSeed.front()->GetPosition()
-                    -currentSeed.back()->GetPosition()).Mag()
+               && ((currentSeed.front()->GetPosition().Vect()
+                    -currentSeed.back()->GetPosition().Vect()).Mag()
                    >= fSeedLength)) {
             fTrackClusters.push_back(currentSeed.front());
             currentSeed.pop_front();
@@ -145,18 +183,34 @@ void CP::TLinearRoad::Process() {
 
 }
 
+double 
+CP::TLinearRoad::FindPositionPrincipal(TPrincipal& pca,
+                                       const TVector3& position) {
+    double X[3] = {position.X(), position.Y(), position.Z()};
+    double P[3] = {0,0,0};
+    pca.X2P(X,P);
+    return P[0];
+}
+
+TVector3 
+CP::TLinearRoad::FindPrincipalPosition(TPrincipal& pca,
+                                       double principal) {
+    double X[3] = {0,0,0};
+    double P[3] = {principal,0,0};
+    pca.P2X(P,X,3);
+    return TVector3(X[0],X[1],X[2]);
+}
+
 CP::THandle<CP::TReconCluster>
-CP::TLinearRoad::NextCluster(const RemainingContainer& clusters, 
-                             const SeedContainer& seed,
-                             bool downstream) {
+CP::TLinearRoad::NextCluster(const SeedContainer& seed,
+                             const RemainingContainer& clusters, 
+                             bool extendBack) {
     
     double bestDistance = 100*unit::meter;
     CP::THandle<CP::TReconCluster> bestCluster;
 
-    TVector3 seedPosition;
-    TVector3 seedDirection;
-
-    // Estimate the seed position and direction.
+    // The direction is estimated using a PCA analysis of the seed cluster
+    // positions.
     std::auto_ptr<TPrincipal> principal(new TPrincipal(3,""));
     for (SeedContainer::const_iterator s = seed.begin();s != seed.end(); ++s) {
         double row[3] = {(*s)->GetPosition().X(),
@@ -166,24 +220,41 @@ CP::TLinearRoad::NextCluster(const RemainingContainer& clusters,
     }
     principal->MakePrincipals();
 
-    // Find the extent of the seed (along the principal axis).
+    // Find the extent of the seed (along the principal axis).  The extent is
+    // calculated based on the min and max hit positions along the major axis.
+    // The extent is then used to find the seedPosition.
     std::pair<double,double> extent(0,0);
     for (SeedContainer::const_iterator s = seed.begin();s != seed.end(); ++s) {
         for (CP::THitSelection::const_iterator h = (*s)->GetHits()->begin();
              h != (*s)->GetHits()->end(); ++h) {
-            double X[3] = {(*h)->GetPosition().X(),
-                           (*h)->GetPosition().Y(),
-                           (*h)->GetPosition().Z()};
-            double P[3] = {0,0,0};
-            principal->X2P(X,P);
-            if (extent.first > P[0]) extent.first = P[0];
-            if (extent.second < P[0]) extent.second = P[0];
+            double p = FindPositionPrincipal(*principal,
+                                             (*h)->GetPosition());
+            if (extent.first > p) extent.first = p;
+            if (extent.second < p) extent.second = p;
         }
     }
 
-    
-    
-    double minDistance = 100*unit::meter;
+    // Find the position along the principal axis for the front and back of
+    // the seed and use that to determine the end of the seed to be extended.
+    double pFront = FindPositionPrincipal(*principal,
+                                          seed.front()->GetPosition().Vect());
+    double pBack = FindPositionPrincipal(*principal,
+                                         seed.back()->GetPosition().Vect());
+    double pPosition;
+
+    if (extendBack) {
+        if (pFront < pBack) pPosition = extent.second;
+        else pPosition = extent.first;
+    }
+    else {
+        if (pFront < pBack) pPosition = extent.first;
+        else pPosition = extent.second;
+    }
+    TVector3 seedPosition = FindPrincipalPosition(*principal,pPosition);
+    TVector3 seedDirection = FindPrincipalPosition(*principal,0.0);
+    seedDirection = (seedPosition - seedDirection).Unit();
+
+    // Check all of the clusters to see which one gets added next.
     for (RemainingContainer::const_iterator c = clusters.begin();
          c != clusters.end(); ++c) {
         CP::THandle<CP::TReconCluster> cluster = (*c);
@@ -193,7 +264,6 @@ CP::TLinearRoad::NextCluster(const RemainingContainer& clusters,
         // look equal to the road width.
         double dotProd = diff*seedDirection;
         if (dotProd < -0.5*fRoadWidth) {
-            CaptNamedDebug("road", "Backward step ");
             continue;
         }
 
@@ -215,32 +285,78 @@ CP::TLinearRoad::NextCluster(const RemainingContainer& clusters,
     }
     
     if (bestCluster) {
-        CaptNamedDebug("road", "Next cluster at " << minDistance
-                        << " at " 
-                        << " " << bestCluster->GetPosition().X()
-                        << " " << bestCluster->GetPosition().Y()
-                        << " " << bestCluster->GetPosition().Z());
+        CaptNamedDebug("road", "Next cluster at " << bestDistance
+                       << " at " << bestCluster->GetPosition().Vect());
     }
     return bestCluster;
 }
 
+// This method creates a TTrackState from a position and direction (with
+// covariance matrices) and a THit.
+CP::THandle<CP::TTrackState> 
+CP::TLinearRoad::CreateTrackState(CP::THandle<CP::TReconCluster> object,
+                                  const TVector3& direction) {
+    CP::THandle<CP::TTrackState> tstate(new CP::TTrackState);
+    
+    // Set the EDeposit
+    tstate->SetEDeposit(object->GetEDeposit());
+    tstate->SetEDepositVariance(object->GetEDeposit());
+    
+    // Set the value and covariance matrix for the position
+    tstate->SetPosition(object->GetPosition());      
+    tstate->SetPositionVariance(object->GetPositionVariance().X(),
+                                object->GetPositionVariance().Y(),
+                                object->GetPositionVariance().Z(),
+                                object->GetPositionVariance().T());
+    
+    tstate->SetDirection(direction);
+    tstate->SetDirectionVariance(0,0,0);
+    
+    // Set the curvature.  It should be zero and fixed, since we assume
+    // straight line.
+    tstate->SetCurvature(0.0);
+    tstate->SetCurvatureVariance(0.0);
+    
+    return tstate;
+}
 
 CP::THandle<CP::TReconTrack> CP::TLinearRoad::GetTrack()  {
-    
     CP::THandle<CP::TReconTrack> track(new CP::TReconTrack);
-#ifdef BOGUS
-    if (fTrackHits.empty()) return track;
+    if (fTrackClusters.size() < 2) return track;
 
-    CP::THitSelection* trackHits = new CP::THitSelection("trackHits");
-    std::copy(fTrackHits.begin(), fTrackHits.end(),
-              std::back_inserter(*trackHits));
-    
     track->SetAlgorithmName("TLinearRoad");
     track->SetStatus(CP::TReconBase::kSuccess);
     track->AddDetector(CP::TReconBase::kP0D);
+    track->SetName("track");
+
+    CP::THandle<CP::THitSelection> hits 
+        = CP::hits::ReconHits(fTrackClusters.begin(),fTrackClusters.end());
+    CP::THitSelection* trackHits = new CP::THitSelection("trackHits");
+    std::copy(hits->begin(), hits->end(),std::back_inserter(*trackHits));
     track->AddHits(trackHits);
-    track->SetName(fTrackSeed->GetName());
-#endif
     
+    TReconNodeContainer& nodes = track->GetNodes();
+    for (SeedContainer::iterator c = fTrackClusters.begin();
+         c != fTrackClusters.end(); ++c) {
+        CP::THandle<CP::TReconNode> node(new CP::TReconNode);
+        
+        TVector3 dir;
+        if ((c+1) != fTrackClusters.end()) {
+            dir = (*(c+1))->GetPosition().Vect()-(*c)->GetPosition().Vect();
+        }
+        else {
+            dir = (*c)->GetPosition().Vect()-(*(c-1))->GetPosition().Vect();
+        }
+        dir = dir.Unit();
+	CP::THandle<CP::TTrackState> nodeState = CreateTrackState((*c), dir);
+        
+        CP::THandle<CP::TReconState> castState = nodeState;
+        node->SetState(castState);
+        CP::THandle<CP::TReconBase> castObject = *c;
+        node->SetObject(castObject);
+        nodes.push_back(node);
+    }
+
+
     return track;     
 }

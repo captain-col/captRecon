@@ -5,6 +5,8 @@
 #include <TReconCluster.hxx>
 #include <TReconTrack.hxx>
 
+#include <TPrincipal.h>
+
 #include <deque>
 #include <list>
 
@@ -33,27 +35,30 @@ public:
     /// constructed for each track seed.  There is an optional parameter to
     /// limit the number of clusters added to the ends of the track during
     /// road following.
-    TLinearRoad(const CP::TReconObjectContainer& clusters,
-                const CP::TReconObjectContainer& seed,
-                int maxClusters = 100000);
+    explicit TLinearRoad(int maxClusters = 100000);
     virtual ~TLinearRoad() { }
     
-    /// Expand the track in both directions.  
-    void Process();
+    /// Expand the track seed in both directions using the clusters.  The
+    /// output of this can be gotten using the GetTrack, FillRemains and
+    /// FillSeed methods.
+    void Process(const CP::TReconObjectContainer& seed,
+                 const CP::TReconObjectContainer& clusters);
    
     /// Add the clusters found by Process into a (partially filled)
     /// TReconTrack object.  The track will have the clusters assigned to
     /// nodes and in the "proper" order, but it needs to be fit.
     CP::THandle<CP::TReconTrack> GetTrack();
 
-    ///@{Get any clusters that were not used in the road.
-    RemainingContainer::const_iterator BeginRemains() const {
-        return fRemainingClusters.begin();
-    }
-    RemainingContainer::const_iterator EndRemains() const {
-        return fRemainingClusters.end();
-    }
-    ///@}
+    /// Get any clusters that were not used in the road.  This mutates the
+    /// input TReconObjectContainer (first clears, and the fills).
+    void  FillRemains(CP::TReconObjectContainer& remains) const;
+
+    /// Get any clusters that were used in the road.  This mutates the input
+    /// TReconObjectContainer (first clears, and the fills).  The FillSeed
+    /// method is provided so that diagnostics can be run.  Usually, the
+    /// GetTrack method should be used to get the output of the road
+    /// following.
+    void  FillSeed(CP::TReconObjectContainer& seed) const;
 
     /// Set the full width (not the half width) of the road to be used in the
     /// road following.
@@ -84,18 +89,33 @@ public:
 private:
     /// Find the cluster to expand the track.  This assumes that the
     /// neighboring hits have already been found and just selects the best
-    /// neighbor.  The position is at the end of the track being expanded, and
-    /// the direction points in the directon of the expansion.
+    /// neighbor.  The clusters in the seed are assumed to be in order from
+    /// the front of the SeedContainer to the back.  If extendBack is true
+    /// (false), then the next cluster is found relative to the back (front)
+    /// of the seed.  The upstream end of the seed is defined as the front,
+    /// and the downstream end is defined as the back.
     CP::THandle<CP::TReconCluster> 
-    NextCluster(const RemainingContainer& neighbors,
-                const SeedContainer& seed,
-                bool downstream = true);
+    NextCluster(const SeedContainer& seed,
+                const RemainingContainer& neighbors,
+                bool extendBack = true);
+
+
+    /// Take a TVector3 and find it's "position" along the principal axis.  
+    double FindPositionPrincipal(TPrincipal& pca, const TVector3& pos);
+
+    /// Take a position along the principal axis and find the associated
+    /// TVector3.
+    TVector3 FindPrincipalPosition(TPrincipal& pca, double principal);
+
+    CP::THandle<CP::TTrackState> 
+    CreateTrackState(CP::THandle<CP::TReconCluster> object,
+                     const TVector3& direction);
 
     /// Clusters that belong to this track.
     SeedContainer fTrackClusters;
     
-    /// Clusters not currently associated with any track.  This is the source of
-    /// clusters to be added to the track.
+    /// Clusters not currently associated with any track.  This is the source
+    /// of clusters to be added to the track.
     RemainingContainer fRemainingClusters;
     
     /// The original clusters in the seed.  This makes sure that in the worst
@@ -120,6 +140,5 @@ private:
 
     /// The length of the road following segment.
     double fSeedLength;
-
 };
 #endif

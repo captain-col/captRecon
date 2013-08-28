@@ -1,9 +1,11 @@
 #include "TClusterSlice.hxx"
 #include "TTmplDensityCluster.hxx"
 #include "HitUtilities.hxx"
+#include "TLinearRoad.hxx"
+#include "TBestTube.hxx"
+#include "TTrackFit.hxx"
 
 #include <THandle.hxx>
-
 #include <TReconCluster.hxx>
 #include <TCaptLog.hxx>
 #include <HEPUnits.hxx>
@@ -120,6 +122,40 @@ CP::TClusterSlice::BreakCluster(CP::THandle<CP::TReconBase> in) {
     return result;
 }
 
+CP::THandle<CP::TReconObjectContainer>
+CP::TClusterSlice::MakeTracks(CP::THandle<CP::TReconObjectContainer> input) {
+    CP::THandle<CP::TReconObjectContainer> 
+        output(new CP::TReconObjectContainer);
+    CP::TReconObjectContainer remains;
+    CP::TReconObjectContainer seed;
+    std::copy(input->begin(), input->end(), std::back_inserter(remains));
+    CP::TTrackFit trackFitter;
+    for (int i=0; i<10; ++i) {
+        CaptSevere("Look for seed");
+        // Find a seed.
+        seed.clear();
+        std::auto_ptr<CP::TBestTube> bestTube(new CP::TBestTube);
+        bestTube->Process(remains);
+        bestTube->FillSeed(seed);
+        bestTube->FillRemains(remains);
+        if (seed.empty()) break;
+        // Make the track.
+        std::auto_ptr<CP::TLinearRoad> road(new CP::TLinearRoad);
+        road->Process(seed,remains);
+        CP::THandle<CP::TReconTrack> track = road->GetTrack();
+        if (track) {
+            // Fit the track and then save it to the output.
+            track = trackFitter(track);
+            output->push_back(track);
+        }
+        // Get the remaining hits.
+        road->FillRemains(remains);
+        // Check if we continue.
+        if (remains.empty()) break;
+    }
+    return output;
+}
+
 CP::THandle<CP::TAlgorithmResult>
 CP::TClusterSlice::Process(const CP::TAlgorithmResult& input,
                              const CP::TAlgorithmResult&,
@@ -145,20 +181,18 @@ CP::TClusterSlice::Process(const CP::TAlgorithmResult& input,
     for (CP::TReconObjectContainer::iterator obj = inputObjects->begin();
          obj != inputObjects->end(); ++obj) {
         CP::THandle<CP::TReconObjectContainer> newObjs = BreakCluster(*obj);
-        std::copy(newObjs->begin(), newObjs->end(), std::back_inserter(*final));
+        CP::THandle<CP::TReconObjectContainer> tracks = MakeTracks(newObjs);
+        std::copy(tracks->begin(), tracks->end(), std::back_inserter(*final));
     }
 
-    CaptError("Collect hits");
     // Copy all of the hits that got added to a reconstruction object into the
     // used hit selection.
-    CP::THandle<CP::THitSelection> hits = CP::hits::ReconHits(*final);
+    CP::THandle<CP::THitSelection> hits 
+        = CP::hits::ReconHits(final->begin(), final->end());
     if (hits) {
         used->reserve(hits->size());
         std::copy(hits->begin(), hits->end(), std::back_inserter(*used));
     }
-
-    CaptError("Clusters " << final->size());
-    CaptError("Used Hits: " << used->size());
 
     result->AddHitSelection(used.release());
     result->AddResultsContainer(final.release());
