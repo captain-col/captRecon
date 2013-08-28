@@ -13,7 +13,9 @@ use captChanInfo
 use captEvent
 use testBase
 use captainPolicy 
+
 use ROOT * LCG_Interfaces
+use orocos-bfl * LCG_Interfaces
 
 # Build the documentation.
 document doxygen doxygen -group=documentation *.cxx *.hxx ../doc/*.dox
