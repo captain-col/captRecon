@@ -326,7 +326,7 @@ CP::THandle<CP::TReconTrack> CP::TLinearRoad::GetTrack()  {
 
     track->SetAlgorithmName("TLinearRoad");
     track->SetStatus(CP::TReconBase::kSuccess);
-    track->AddDetector(CP::TReconBase::kP0D);
+    track->AddDetector(CP::TReconBase::kTPC);
     track->SetName("track");
 
     CP::THandle<CP::THitSelection> hits 
