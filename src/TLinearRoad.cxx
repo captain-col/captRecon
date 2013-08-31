@@ -16,6 +16,31 @@
 #include <string>
 #include <memory>
 
+bool 
+CheckUniqueInternal(std::vector< CP::THandle<CP::TReconCluster> >& vec) {
+    std::sort(vec.begin(),vec.end());
+    std::vector< CP::THandle<CP::TReconCluster> >::iterator 
+        end = std::unique(vec.begin(), vec.end());
+    if (end != vec.end()) {
+        CaptLog("Duplicate objects in container");
+        return false;
+    }
+    return true;
+}
+
+template <typename iterator>
+bool CheckUnique(iterator begin, iterator end) {
+    std::vector< CP::THandle<CP::TReconCluster> > vec;
+    std::copy(begin, end, std::back_inserter(vec));
+    if (!CheckUniqueInternal(vec)) {
+        for (iterator i = begin; i != end; ++i) {
+            CaptLog("   " << CP::GetPointer(*i));
+        }
+        return false;
+    }
+    return true;
+}
+
 CP::TLinearRoad::TLinearRoad(int maxClusters)
     : fMaxClusters(maxClusters),
       fRoadWidth(12*unit::mm), 
@@ -96,6 +121,18 @@ void CP::TLinearRoad::Process(const CP::TReconObjectContainer& seed,
         break;
     }
 
+    for (SeedContainer::iterator s = currentSeed.begin(); 
+         s != currentSeed.end(); ++s) {
+        SeedContainer::iterator where =
+            std::find(fTrackClusters.begin(), fTrackClusters.end(), 
+                      *s);
+        if (where ==  fTrackClusters.end()) {
+            CaptError("Seed not found in track.");
+            continue;
+        }
+        fTrackClusters.erase(where);
+    }
+
     CaptNamedDebug("road", "Follow road upstream");
     int collectedClusters = 0;
     while (!fRemainingClusters.empty() && currentSeed.size()>2) {
@@ -110,6 +147,9 @@ void CP::TLinearRoad::Process(const CP::TReconObjectContainer& seed,
         RemainingContainer::iterator where =
             std::find(fRemainingClusters.begin(), fRemainingClusters.end(), 
                       cluster);
+        if (where ==  fRemainingClusters.end()) {
+            CaptError("Upstream cluster not found in remaining clusters");
+        }
         fRemainingClusters.erase(where);
         
         // Add the cluster to the seed.  We are searching to the upstream end,
@@ -147,6 +187,18 @@ void CP::TLinearRoad::Process(const CP::TReconObjectContainer& seed,
         break;
     }
 
+    for (SeedContainer::iterator s = currentSeed.begin(); 
+         s != currentSeed.end(); ++s) {
+        SeedContainer::iterator where =
+            std::find(fTrackClusters.begin(), fTrackClusters.end(), 
+                      *s);
+        if (where ==  fTrackClusters.end()) {
+            CaptError("Seed not found in track.");
+            continue;
+        }
+        fTrackClusters.erase(where);
+    }
+
     collectedClusters = 0;
     CaptNamedDebug("road", "Follow road downstream");
     while (!fRemainingClusters.empty() && currentSeed.size()>2) {
@@ -161,6 +213,9 @@ void CP::TLinearRoad::Process(const CP::TReconObjectContainer& seed,
         RemainingContainer::iterator where 
             = std::find(fRemainingClusters.begin(), fRemainingClusters.end(), 
                         cluster);
+        if (where == fRemainingClusters.end()) {
+            CaptError("Downstream cluster not found in remaining clusters");
+        }
         fRemainingClusters.erase(where);
         
         // Add the cluster to the seed.  We are searching to the upstream end,
@@ -323,6 +378,8 @@ CP::TLinearRoad::CreateTrackState(CP::THandle<CP::TReconCluster> object,
 CP::THandle<CP::TReconTrack> CP::TLinearRoad::GetTrack()  {
     CP::THandle<CP::TReconTrack> track(new CP::TReconTrack);
     if (fTrackClusters.size() < 2) return track;
+
+    CheckUnique(fTrackClusters.begin(), fTrackClusters.end());
 
     track->SetAlgorithmName("TLinearRoad");
     track->SetStatus(CP::TReconBase::kSuccess);

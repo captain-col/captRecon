@@ -138,7 +138,7 @@ CP::TClusterSlice::MakeTracks(CP::THandle<CP::TReconObjectContainer> input) {
         bestTube->Process(remains);
         bestTube->FillSeed(seed);
         bestTube->FillRemains(remains);
-        if (seed.empty()) break;
+        if (seed.size()<2) break;
         // Make the track.
         std::auto_ptr<CP::TLinearRoad> road(new CP::TLinearRoad);
         road->Process(seed,remains);
@@ -153,6 +153,7 @@ CP::TClusterSlice::MakeTracks(CP::THandle<CP::TReconObjectContainer> input) {
         // Check if we continue.
         if (remains.empty()) break;
     }
+    std::copy(remains.begin(), remains.end(), std::back_inserter(*output));
     return output;
 }
 
