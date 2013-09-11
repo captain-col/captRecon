@@ -7,6 +7,7 @@
 #include <TCaptLog.hxx>
 #include <CaptGeomId.hxx>
 #include <HEPUnits.hxx>
+#include <TUnitsTable.hxx> 
 #include <TRuntimeParameters.hxx>
 
 #include <algorithm>
@@ -78,6 +79,13 @@ CP::TCluster3D::TCluster3D()
     fMaxDrift
         = CP::TRuntimeParameters::Get().GetParameterD(
             "captRecon.cluster3d.maxDrift");
+
+    // These need to be turned into parameters.
+    fXSeparation = 2.0;
+    fVSeparation = 2.0;
+    fUSeparation = 2.0;
+    fMinSeparation = 500*unit::ns;
+
 }
 
 CP::TCluster3D::~TCluster3D() { }
@@ -138,20 +146,47 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
 
     // The time must be drift corrected!
     double deltaT;
+    
     for (CP::THitSelection::iterator xh=xHits->begin();
          xh!=xHits->end(); ++xh) {
+        double xTime = drift.GetTime(**xh);
+        double xRMS = (*xh)->GetTimeRMS();
         for (CP::THitSelection::iterator vh=vHits->begin(); 
              vh!=vHits->end(); ++vh) {
-            deltaT = std::abs(drift.GetTime(**xh) - drift.GetTime(**vh));
-            if (deltaT > 1*unit::microsecond) continue;
+            double vTime = drift.GetTime(**vh);
+            deltaT = std::abs(vTime - xTime);
+            if (deltaT > 10*unit::microsecond) continue;
+            double vRMS = (*vh)->GetTimeRMS();
+
             for (CP::THitSelection::iterator uh=uHits->begin(); 
                  uh!=uHits->end(); ++uh) {
-                deltaT = std::abs(drift.GetTime(**xh) - drift.GetTime(**uh));
-                if (deltaT > 1*unit::microsecond) continue;
-                deltaT = std::abs(drift.GetTime(**vh) - drift.GetTime(**uh));
-                if (deltaT > 1*unit::microsecond) continue;
+                double uTime = drift.GetTime(**uh);
+                deltaT = std::abs(uTime - xTime);
+                if (deltaT > 10*unit::microsecond) continue;
+                double uRMS = (*uh)->GetTimeRMS();
 
-                /// Find the points at which the wires cross.
+                // Check that the X and U wires overlap in time.
+                if (deltaT > (fXSeparation*xRMS
+                              + fUSeparation*uRMS
+                              + fMinSeparation)) continue;
+                
+                // Check that the X and V wires overlap in time.
+                deltaT = std::abs(vTime - xTime);                
+                if (deltaT > (fXSeparation*xRMS
+                              + fVSeparation*vRMS
+                              + fMinSeparation)) continue;
+
+                // Check that the U and V wires overlap in time.
+                deltaT = std::abs(vTime - uTime);                
+                if (deltaT > (fUSeparation*uRMS
+                              + fVSeparation*vRMS
+                              + fMinSeparation)) continue;
+
+                // Find the points at which the wires cross and check that the
+                // wires all cross and one "point".  Two millimeters is a
+                // "magic number chosen based on the geometry for a 3mm
+                // separation between the wires.  It needs to change if the
+                // wire spacing changes.
                 TVector3 p1(PositionXY(*xh,*vh));
                 TVector3 p2(PositionXY(*xh,*uh));
                 double dist = (p2-p1).Mag();
@@ -160,7 +195,7 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 CP::TWritableReconHit hit(*xh,*vh,*uh);
                 TVector3 p3(PositionXY(*vh,*uh));
 
-                // These three wire hits make a 3D point.
+                // These three wire hits make a 3D point.a
                 used->AddHit(*xh);
                 unused->RemoveHit(*xh);
 
@@ -170,36 +205,17 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 used->AddHit(*uh);
                 unused->RemoveHit(*uh);
 
-                // Find the position for the 3D hit.  Take the average
-                // position of the crossing points as the hit position.  It's
-                // at Z=0 with a time offset relative to that position.  This
-                // should probably be charge weighted, but this is a
-                // conservative "average" point.
-                TVector3 pos = p1 + p2 + p3;
-                pos *= 1.0/3.0;
-                pos.SetZ(0.0);
-                hit.SetPosition(pos);
-
-                // Set the RMS and Uncertainty.  This is not being done
-                // correctly, but this should be an acceptable approximation
-                // for now.
-                double rms = dist*dist;
-                rms += (*xh)->GetRMS().X()*(*xh)->GetRMS().X();
-                rms += (*vh)->GetRMS().X()*(*vh)->GetRMS().X();
-                rms += (*uh)->GetRMS().X()*(*uh)->GetRMS().X();
-                rms /= 4.0;
-                rms = std::sqrt(rms);
-                hit.SetRMS(TVector3(rms,rms,rms));
-                hit.SetUncertainty(hit.GetRMS());
-
-                /// Set the time.  It's the average of the wire hit times.
+                // Set the time.  It's the average of the wire hit times after
+                // drifting to Z = 0.0.
                 double t1 = drift.GetTime(**xh);
                 double t2 = drift.GetTime(**vh);
                 double t3 = drift.GetTime(**uh);
                 double tAvg = (t1+t2+t3)/3.0;
-                hit.SetTime(tAvg);
+                hit.SetTime(tAvg); // This will be overridden to be time zero.
 
-                // Find the RMS of the time.
+                // Find the RMS of the hit time.  This takes into account the
+                // RMS of the individual hits as well as the offset of the
+                // hits from the average of their times.
                 double tRMS = (t1-tAvg)*(t1-tAvg);
                 tRMS += (*xh)->GetTimeRMS()*(*xh)->GetTimeRMS();
                 tRMS += (t2-tAvg)*(t2-tAvg);
@@ -210,22 +226,58 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 tRMS = std::sqrt(tRMS);
                 hit.SetTimeRMS(tRMS);
                 
-                // This isn't right, but it's good enough for now.
-                hit.SetTimeUncertainty(tRMS/std::sqrt(3.0));
+                // This isn't exactly right, but it's a pretty good estimate.
+                double tUnc = (t1-tAvg)*(t1-tAvg);
+                tUnc += (t2-tAvg)*(t2-tAvg);
+                tUnc += (t3-tAvg)*(t3-tAvg);
+                tUnc /= 3.0;
+                tUnc = std::sqrt(tUnc);
+                hit.SetTimeUncertainty(tUnc);
 
-                hit.SetCharge((*xh)->GetCharge() 
-                              + (*vh)->GetCharge()
-                              + (*uh)->GetCharge());
-
-                double qSig = 
-                    (*xh)->GetChargeUncertainty()*(*xh)->GetChargeUncertainty();
-                qSig += 
-                    (*vh)->GetChargeUncertainty()*(*vh)->GetChargeUncertainty();
-                qSig += 
-                    (*uh)->GetChargeUncertainty()*(*uh)->GetChargeUncertainty();
-                qSig = std::sqrt(qSig);
-                hit.SetChargeUncertainty(qSig);
+                // For now set the charge to X wire charge.  This doesn't work
+                // for overlapping hits but gives a reasonable estimate of the
+                // energy deposition otherwise.  The U and V wires don't
+                // measure the total charge very well.
+                hit.SetCharge((*xh)->GetCharge());
+                hit.SetChargeUncertainty((*xh)->GetChargeUncertainty());
                 
+                // Find the position for the 3D hit.  Take the average
+                // position of the crossing points as the hit position.  It's
+                // at Z=0 with a time offset relative to that position.  This
+                // should probably be charge weighted, but this is a
+                // conservative "average" point.  It's possible that it should
+                // be charged weighted, but I suspect not.  That needs to be
+                // answered based on fit residuals and pulls.
+                TVector3 pos = p1 + p2 + p3;
+                pos *= 1.0/3.0;
+                pos.SetZ(0.0);
+                hit.SetPosition(pos);
+
+                // Find the xyRMS and xyUncertainty.  This is not being done
+                // correctly, but this should be an acceptable approximation
+                // for now.  The approximation is based on the idea that the X
+                // rms of the three 2D hits is perpendicular to the wire, and
+                // takes that as an estimate of the hit size.  The Z RMS is
+                // calculated based on the time RMS of the three hits.
+                double xyRMS = 0.0;
+                xyRMS += (*xh)->GetRMS().X()*(*xh)->GetRMS().X();
+                xyRMS += (*vh)->GetRMS().X()*(*vh)->GetRMS().X();
+                xyRMS += (*uh)->GetRMS().X()*(*uh)->GetRMS().X();
+                xyRMS /= 3.0;
+                xyRMS += xyRMS + dist*dist;
+                xyRMS = std::sqrt(xyRMS);
+
+                hit.SetRMS(
+                    TVector3(xyRMS,xyRMS,
+                             drift.GetAverageDriftVelocity()*tRMS));
+
+                // For the XY uncertainty, assume a uniform position
+                // distribution.  For the Z uncertainty, just use the time
+                // uncertainty.
+                hit.SetUncertainty(
+                    TVector3(2.0*xyRMS/std::sqrt(12.),2.0*xyRMS/std::sqrt(12.),
+                             drift.GetAverageDriftVelocity()*tUnc));
+
                 // Correct for the time zero.
                 TLorentzVector driftedPosition = drift.GetPosition(hit,t0);
                 hit.SetTime(t0);
