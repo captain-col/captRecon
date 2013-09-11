@@ -18,10 +18,13 @@ public:
     /// Return the x,y,z,t for a hit after drifting to a time, t.  The time is
     /// "absolute" (relative to the trigger), not a delta time.  The total
     /// drift time will be (t-hit->GetTime()).
-    TLorentzVector GetPosition(const CP::THit& hit, double t);
+    TLorentzVector GetPosition(const CP::THit& hit, double t) const;
 
     /// Return the corrected time for a hit after drifting to a Z-plane.
-    double GetTime(const CP::THit& hit, double z = 0.0);
+    double GetTime(const CP::THit& hit, double z = 0.0) const;
+
+    /// Return the drift velocity.
+    double GetAverageDriftVelocity() const {return fDriftVelocity;}
 
 private:
         
