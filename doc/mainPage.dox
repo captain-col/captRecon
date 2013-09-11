@@ -1,0 +1,7 @@
+/*! \mainpage Reconstruct events in CAPTAIN 
+
+\section captRecon The CAPTAIN Event Reconstruction
+
+This takes calibrated data and applies the event reconstruction.
+
+*/
