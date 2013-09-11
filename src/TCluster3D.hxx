@@ -55,5 +55,21 @@ private:
     /// The maximum drift distance in the TPC.  This is set using the
     /// captRecon.Cluster3D.maxDrift
     double fMaxDrift;
+
+    /// The time around the central time of the X hit where a V or U hit is
+    /// considered to overlap.  This is in units of the time RMS.
+    double fXSeparation;
+
+    /// The time around the central time of the V hit where a X or U hit is
+    /// considered to overlap.  This is in units of the time RMS.
+    double fVSeparation;
+
+    /// The time around the central time of the U hit where a V or X hit is
+    /// considered to overlap.  This is in units of the time RMS.
+    double fUSeparation;
+
+    /// Hits that are closer than this in time are considered to overlap.
+    /// This protects against unreasonably small RMSs for the hit times.
+    double fMinSeparation;
 };
 #endif
