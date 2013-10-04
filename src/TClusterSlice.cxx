@@ -1,9 +1,9 @@
 #include "TClusterSlice.hxx"
-#include "TTmplDensityCluster.hxx"
 #include "HitUtilities.hxx"
 #include "TLinearRoad.hxx"
 #include "TBestTube.hxx"
 #include "TTrackFit.hxx"
+#include "THitProximityCluster.hxx"
 
 #include <THandle.hxx>
 #include <TReconCluster.hxx>
@@ -15,13 +15,6 @@
 #include <cmath>
 
 namespace {
-    struct HitProximity {
-        double operator() (CP::THandle<CP::THit> lhs, 
-                           CP::THandle<CP::THit> rhs) {
-            return (lhs->GetPosition() - rhs->GetPosition()).Mag();
-        }
-    };
-
     struct HitZSort {
         bool operator() (CP::THandle<CP::THit> lhs, 
                            CP::THandle<CP::THit> rhs) {
@@ -78,6 +71,9 @@ CP::TClusterSlice::BreakCluster(CP::THandle<CP::TReconBase> in) {
     // The adjusted step size so that each step is the same "thickness" in Z.
     double zStep = deltaZ / (steps+1);
     
+    std::auto_ptr<CP::HitProximity::Cluster> 
+        clusterAlgorithm(new CP::HitProximity::Cluster(1,6*unit::mm));
+
     CP::THitSelection::iterator curr = hits->begin();
     CP::THitSelection::iterator end = hits->end();
     CP::THitSelection::iterator first = curr;
@@ -100,12 +96,18 @@ CP::TClusterSlice::BreakCluster(CP::THandle<CP::TReconBase> in) {
         // then add all the remaining points to this cluster. (not really a
         // good plan, but it's got to suffice for now...}
         if (end-curr < 2*fMinPoints) break;
-        CP::THandle<CP::TReconCluster> cluster(new TReconCluster);
         // The hits between first and curr should be run through the density
-        // cluster again since it's possible (not unlikely) for the track to
-        // have curved back in Z.
-        cluster->FillFromHits("zCluster", first,curr);
-        result->push_back(cluster);
+        // cluster again since it's very likely that the hits are disjoint in
+        // the Z slice.
+        clusterAlgorithm->Cluster(first,curr);
+        int nClusters = clusterAlgorithm->GetClusterCount();
+        for (int i=0; i<nClusters; ++i) {
+            const CP::HitProximity::Cluster::Points& points 
+                = clusterAlgorithm->GetCluster(i);
+            CP::THandle<CP::TReconCluster> cluster(new CP::TReconCluster);
+            cluster->FillFromHits("zCluster",points.begin(),points.end());
+            result->push_back(cluster);
+        }
         // Reset first to start looking for a new set of hits.
         first = curr;
     }
@@ -159,8 +161,8 @@ CP::TClusterSlice::MakeTracks(CP::THandle<CP::TReconObjectContainer> input) {
 
 CP::THandle<CP::TAlgorithmResult>
 CP::TClusterSlice::Process(const CP::TAlgorithmResult& input,
-                             const CP::TAlgorithmResult&,
-                             const CP::TAlgorithmResult&) {
+                           const CP::TAlgorithmResult&,
+                           const CP::TAlgorithmResult&) {
 
     CP::THandle<CP::TReconObjectContainer> inputObjects 
         = input.GetResultsContainer();
@@ -177,12 +179,16 @@ CP::TClusterSlice::Process(const CP::TAlgorithmResult& input,
     CP::THandle<CP::TAlgorithmResult> result = CreateResult();
     std::auto_ptr<CP::TReconObjectContainer> 
         final(new CP::TReconObjectContainer("final"));
+    std::auto_ptr<CP::TReconObjectContainer> 
+        clusters(new CP::TReconObjectContainer("clusters"));
     std::auto_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
 
     for (CP::TReconObjectContainer::iterator obj = inputObjects->begin();
          obj != inputObjects->end(); ++obj) {
         CP::THandle<CP::TReconObjectContainer> newObjs = BreakCluster(*obj);
         CP::THandle<CP::TReconObjectContainer> tracks = MakeTracks(newObjs);
+        std::copy(newObjs->begin(), newObjs->end(),
+                  std::back_inserter(*clusters));
         std::copy(tracks->begin(), tracks->end(), std::back_inserter(*final));
     }
 
@@ -196,6 +202,7 @@ CP::TClusterSlice::Process(const CP::TAlgorithmResult& input,
     }
 
     result->AddHitSelection(used.release());
+    result->AddResultsContainer(clusters.release());
     result->AddResultsContainer(final.release());
 
     return result;
