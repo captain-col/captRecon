@@ -1,5 +1,5 @@
 #include "TDensityCluster.hxx"
-#include "TTmplDensityCluster.hxx"
+#include "THitProximityCluster.hxx"
 #include "HitUtilities.hxx"
 
 #include <THandle.hxx>
@@ -10,16 +10,6 @@
 
 #include <memory>
 #include <cmath>
-
-namespace {
-    struct HitProximity {
-        double operator() (CP::THandle<CP::THit> lhs, 
-                           CP::THandle<CP::THit> rhs) {
-            return (lhs->GetPosition() - rhs->GetPosition()).Mag();
-        }
-    };
-};
-
 
 CP::TDensityCluster::TDensityCluster()
     : TAlgorithm("TDensityCluster", "Find Simply Connected Hits") {
@@ -56,21 +46,27 @@ CP::TDensityCluster::Process(const CP::TAlgorithmResult& input,
         final(new CP::TReconObjectContainer("final"));
     std::auto_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
 
-    typedef CP::THandle<CP::THit> Arg;
-    typedef CP::TTmplDensityCluster< Arg, HitProximity > ClusterAlgorithm;
-    std::auto_ptr<ClusterAlgorithm> 
-        clusterAlgorithm(new ClusterAlgorithm(fMinPoints,fMaxDist));
- 
+#ifdef USE_DENSITY_CLUSTER
+    std::auto_ptr<CP::HitProximity::Cluster> 
+        clusterAlgorithm(new CP::HitProximity::Cluster(fMinPoints,fMaxDist));
+
     clusterAlgorithm->Cluster(inputHits->begin(), inputHits->end());
-    
+
     int nClusters = clusterAlgorithm->GetClusterCount();
     for (int i=0; i<nClusters; ++i) {
-        const ClusterAlgorithm::Points& points 
+        const CP::HitProximity::Cluster::Points& points 
             = clusterAlgorithm->GetCluster(i);
         CP::THandle<CP::TReconCluster> cluster(new CP::TReconCluster);
         cluster->FillFromHits("TDensityCluster",points.begin(),points.end());
         final->push_back(cluster);
     }
+#else
+    CP::THandle<CP::TReconCluster> cluster(new CP::TReconCluster);
+    cluster->FillFromHits("TDensityCluster",
+                          inputHits->begin(),
+                          inputHits->end());
+    final->push_back(cluster);
+#endif
 
     // Copy all of the hits that got added to a reconstruction object into the
     // used hit selection.
