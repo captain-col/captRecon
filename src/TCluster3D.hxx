@@ -71,5 +71,11 @@ private:
     /// Hits that are closer than this in time are considered to overlap.
     /// This protects against unreasonably small RMSs for the hit times.
     double fMinSeparation;
+
+    /// Take the "size" of each hit, and the minimum separation (basically the
+    /// time bin size), and return an overlap time.  If hits are within the
+    /// overlap time of each other, then they are considered to overlap.
+    double OverlapTime(double rms1, double rms2, double step) const;
+
 };
 #endif
