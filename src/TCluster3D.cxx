@@ -103,14 +103,14 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                         const CP::TAlgorithmResult& pmts,
                         const CP::TAlgorithmResult&) {
     CaptLog("TCluster3D Process " << GetEvent().GetContext());
-    CP::THandle<CP::THitSelection> wireHits = wires.GetHitSelection();
+    CP::THandle<CP::THitSelection> wireHits = wires.GetHits();
     if (!wireHits) {
         CaptError("No input hits");
         return CP::THandle<CP::TAlgorithmResult>();
     }
     CaptLog("Hits in event " << wireHits->size());
 
-    CP::THandle<CP::THitSelection> pmtHits = pmts.GetHitSelection();
+    CP::THandle<CP::THitSelection> pmtHits = pmts.GetHits();
     if (!pmtHits) {
         CaptError("No PMT hits provide so time 0 can not be found");
         return CP::THandle<CP::TAlgorithmResult>();
@@ -307,9 +307,9 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     final->push_back(usedCluster);
     result->AddResultsContainer(final);
 
-    result->AddHitSelection(unused.release());
-    result->AddHitSelection(used.release());
-    result->AddHitSelection(clustered.release());
+    result->AddHits(unused.release());
+    result->AddHits(used.release());
+    result->AddHits(clustered.release());
 
     return result;
 }

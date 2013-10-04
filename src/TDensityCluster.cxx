@@ -30,7 +30,7 @@ CP::TDensityCluster::Process(const CP::TAlgorithmResult& input,
                              const CP::TAlgorithmResult&,
                              const CP::TAlgorithmResult&) {
 
-    CP::THandle<CP::THitSelection> inputHits = input.GetHitSelection();
+    CP::THandle<CP::THitSelection> inputHits = input.GetHits();
     if (!inputHits) {
         CaptError("No input hits");
         return CP::THandle<CP::TAlgorithmResult>();
@@ -77,7 +77,7 @@ CP::TDensityCluster::Process(const CP::TAlgorithmResult& input,
         std::copy(hits->begin(), hits->end(), std::back_inserter(*used));
     }
 
-    result->AddHitSelection(used.release());
+    result->AddHits(used.release());
     result->AddResultsContainer(final.release());
 
     return result;

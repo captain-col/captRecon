@@ -33,13 +33,13 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
     // Get the  input hits.
     ///////////////////////////////////////////////////////////////////
 
-    CP::THandle<CP::THitSelection> wires = driftInput.GetHitSelection();
+    CP::THandle<CP::THitSelection> wires = driftInput.GetHits();
     if (!wires) {
         CaptError("No wire hits");
         return CP::THandle<CP::TAlgorithmResult>();
     }
 
-    CP::THandle<CP::THitSelection> pmts = pmtInput.GetHitSelection();
+    CP::THandle<CP::THitSelection> pmts = pmtInput.GetHits();
     if (!pmts) {
         CaptError("No PMT hits");
         return CP::THandle<CP::TAlgorithmResult>();
@@ -63,7 +63,7 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
             = Run<CP::TCluster3D>(*wires,*pmts);
         if (!cluster3D) break;
         currentResult = cluster3D;
-        allHits = cluster3D->GetHitSelection();
+        allHits = cluster3D->GetHits();
         result->AddDatum(currentResult);
 
 #define Apply_TDensityCluster
@@ -122,8 +122,8 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         CP::hits::Subtract(*unused,*used);
     }
     
-    result->AddHitSelection(unused.release());
-    result->AddHitSelection(used.release());
+    result->AddHits(unused.release());
+    result->AddHits(used.release());
     result->AddResultsContainer(finalObjects.release());
 
     return result;

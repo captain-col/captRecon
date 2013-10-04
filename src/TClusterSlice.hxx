@@ -34,10 +34,12 @@ private:
     CP::THandle<CP::TReconBase> 
     ClusterToTrack(CP::THandle<CP::TReconBase> input);
 
-    /// Take a single cluster and break it into clusters based on the "Z
-    /// Confusion Distance".  The output is an object container of clusters.
+    /// Take hits and break them into clusters based on the "Z Confusion
+    /// Distance".  The slices along the Z axis are controlled by the
+    /// captRecon.clusterSlice.clusterStep parameter.  The output is an object
+    /// container of 3D aclusters.
     CP::THandle<CP::TReconObjectContainer> 
-    BreakCluster(CP::THandle<CP::TReconBase> input);
+    MakeSlices(CP::THandle<CP::THitSelection> input);
 
     /// Take an object container of clusters created by slicing a cluster of
     /// simply connected hits into "z-slices" (the output of BreakCluster) and

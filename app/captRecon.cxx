@@ -19,8 +19,8 @@ public:
 
     bool operator () (CP::TEvent& event) {
         // Make sure the electronics simulated is created.
-        CP::THandle<CP::THitSelection> drift(event.GetHitSelection("drift"));
-        CP::THandle<CP::THitSelection> pmt(event.GetHitSelection("pmt"));
+        CP::THandle<CP::THitSelection> drift(event.GetHits("drift"));
+        CP::THandle<CP::THitSelection> pmt(event.GetHits("pmt"));
 
         // Run the simulation on the event.
         std::auto_ptr<CP::TAlgorithm> captRecon(new CP::TCaptainRecon());

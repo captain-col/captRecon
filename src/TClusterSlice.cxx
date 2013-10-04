@@ -39,23 +39,12 @@ CP::TClusterSlice::TClusterSlice()
 CP::TClusterSlice::~TClusterSlice() { }
 
 CP::THandle<CP::TReconObjectContainer> 
-CP::TClusterSlice::BreakCluster(CP::THandle<CP::TReconBase> in) {
+CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
     CP::THandle<CP::TReconObjectContainer> result(
         new CP::TReconObjectContainer("result"));
-    // This only looks at clusters.  If it's not a cluster, then just copy out
-    // the input the input object.
-    CP::THandle<CP::TReconCluster> cluster = in;
-    if (!cluster) {
-        result->push_back(in);
-        return result;
-    }
 
-    /// Check the input hits.  If there are not enough, then just return the 
-    CP::THandle<CP::THitSelection> inputHits = cluster->GetHits();
-    if (!inputHits || inputHits->size() < fMinHits) {
-        result->push_back(in);
-        return result;
-    }
+    if (!inputHits) return result;
+    if (inputHits->size() < fMinHits) return result;
     
     /// Copy the input hits and sort them by the Z position.
     std::auto_ptr<CP::THitSelection> hits(new THitSelection);
@@ -175,20 +164,20 @@ CP::TClusterSlice::Process(const CP::TAlgorithmResult& input,
             << GetEvent().GetContext()
             << " w/ " <<  inputObjects->size() << " objects");
 
-
+    // Create the output containers.
     CP::THandle<CP::TAlgorithmResult> result = CreateResult();
     std::auto_ptr<CP::TReconObjectContainer> 
         final(new CP::TReconObjectContainer("final"));
     std::auto_ptr<CP::TReconObjectContainer> 
-        clusters(new CP::TReconObjectContainer("clusters"));
+        slices(new CP::TReconObjectContainer("slices"));
     std::auto_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
 
     for (CP::TReconObjectContainer::iterator obj = inputObjects->begin();
          obj != inputObjects->end(); ++obj) {
-        CP::THandle<CP::TReconObjectContainer> newObjs = BreakCluster(*obj);
-        CP::THandle<CP::TReconObjectContainer> tracks = MakeTracks(newObjs);
-        std::copy(newObjs->begin(), newObjs->end(),
-                  std::back_inserter(*clusters));
+        CP::THandle<CP::TReconObjectContainer> hits = (*obj)->GetHits();
+        CP::THandle<CP::TReconObjectContainer> cuts = MakeSlices(hits);
+        std::copy(cuts->begin(), cuts->end(), std::back_inserter(*slices));
+        CP::THandle<CP::TReconObjectContainer> tracks = MakeTracks(cuts);
         std::copy(tracks->begin(), tracks->end(), std::back_inserter(*final));
     }
 
@@ -201,8 +190,8 @@ CP::TClusterSlice::Process(const CP::TAlgorithmResult& input,
         std::copy(hits->begin(), hits->end(), std::back_inserter(*used));
     }
 
-    result->AddHitSelection(used.release());
-    result->AddResultsContainer(clusters.release());
+    result->AddHits(used.release());
+    result->AddResultsContainer(slices.release());
     result->AddResultsContainer(final.release());
 
     return result;
