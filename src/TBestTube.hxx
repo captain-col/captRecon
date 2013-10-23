@@ -43,6 +43,13 @@ private:
               CP::TReconObjectContainer::iterator begin,
               CP::TReconObjectContainer::iterator end);
 
+    /// Find the hits in a tube (as defined by it's end point positions).  The
+    /// hits will be ordered from end1 to end2.
+    void FindTube(const TVector3& end1, const TVector3& end2,
+                  CP::TReconObjectContainer::iterator begin, 
+                  CP::TReconObjectContainer::iterator end,
+                  CP::TReconObjectContainer& output);
+
     /// Determine the "goodness" of a tube (as defined by it's end point
     /// positions).  A better tube will have a higher weight.
     double TubeWeight(const TVector3& end1, const TVector3& end2,
@@ -58,10 +65,12 @@ private:
                       CP::TReconObjectContainer::iterator begin, 
                       CP::TReconObjectContainer::iterator end);
 
-
     /// The clusters that are copied so they can be returned via the GetTrack,
     /// FillRemains, and FillSeed methods.
     CP::TReconObjectContainer fClusterContainer;
+
+    /// A flag that a valid tube has been found.
+    bool fFoundTube;
 
     /// The position of the first end point of the tube.
     TVector3 fEnd1;
