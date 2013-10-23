@@ -24,7 +24,7 @@
 /// name space for all of the user classes needed to interface to the BFL.
 /// These classes are only used in the TBootstrapTrackFit.cxx file.  This
 /// could be placed in the anonymous namespace, but placing them in a named
-/// one makes like a little easier.
+/// one makes life a little easier.
 namespace BTF {
     /// A class to update the prediction of the system state.
     class TSystemPDF;
@@ -56,6 +56,12 @@ namespace BTF {
     void GeneratePrior(std::vector< BFL::Sample<BTF::ColumnVector> >& samples,
                        CP::THandle<CP::TReconNode> node1,
                        CP::THandle<CP::TReconNode> node2);
+
+    /// This takes a covariance matrix that might have extreme correlations
+    /// and "conditions" it by reducing the correlations until it is positive
+    /// definite.  The corr parameter controls how much correlation is
+    /// required.  This modifies the input matrix.
+    void ConditionMatrix(TMatrixD& covar1, double corr = 0.01);
 };
 
 /// A class to update the prediction of the system state.
@@ -186,6 +192,7 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     /////////////////////////////////////////////////////////////////////
     for (std::size_t step = 0; step < nodes.size(); ++step) {
         measurement[0] = step;
+        CaptNamedInfo("BFL","Start forward step " << step);
         CP::THandle<CP::TReconNode> node = nodes[step];
 
         // Get the measurement from the node.
@@ -219,6 +226,13 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
                 trackState->SetDirectionCovariance(i,j,v);
             }
         }
+
+        CaptNamedInfo("BFL","Fitted Position " 
+                     << trackState->GetPosition().Vect()
+                     << " for cluster " << cluster->GetPosition().Vect()
+                     << " diff " << (trackState->GetPosition().Vect()
+                                     - cluster->GetPosition().Vect()).Mag());
+
     }
 
     /////////////////////////////////////////////////////////////////////
@@ -247,6 +261,7 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     /// Estimate the state at each node.
     /////////////////////////////////////////////////////////////////////
     for (int step = nodes.size()-1; 0 <= step; --step) {
+        CaptNamedInfo("BFL","Start backward step " << step);
         measurement[0] = step;
         CP::THandle<CP::TReconNode> node = nodes[step];
         if (!node) {
@@ -295,6 +310,12 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
             newCov += cv(BTF::kXPos+i+1,BTF::kXPos+i+1);
         }
         if (oldCov < newCov) {
+            CaptNamedInfo("BFL","Old Position " 
+                         << trackState->GetPosition().Vect()
+                         << " for cluster " << cluster->GetPosition().Vect()
+                         << " diff " 
+                         << (trackState->GetPosition().Vect()
+                             - cluster->GetPosition().Vect()).Mag());
             double r = measurementPDF.ProbabilityGet(
                 trackState->GetPosition().Vect());
             if (r>0) logLikelihood += std::log(r);
@@ -314,6 +335,13 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
             }
         }
 
+        CaptNamedInfo("BFL","New Position " 
+                     << trackState->GetPosition().Vect()
+                     << " for cluster " << cluster->GetPosition().Vect()
+                     << " diff " 
+                     << (trackState->GetPosition().Vect()
+                         - cluster->GetPosition().Vect()).Mag());
+        
         double r = measurementPDF.ProbabilityGet(
             trackState->GetPosition().Vect());
         if (r>0) logLikelihood += std::log(r);
@@ -418,7 +446,14 @@ BTF::TMeasurementPDF::ProbabilityGet(const TVector3& expected) const {
             X2 += difference(i)*fErrorMat(i,j)*difference(j);
         }
     }
-    return std::exp(-0.5*X2)*fGaussianConstant;
+    double v = std::exp(-0.5*X2)*fGaussianConstant;
+    if (!std::isfinite(v)) {
+        CaptError("Invalid probability " << expected 
+                  << " " << X2 
+                  << " " << fGaussianConstant
+                  << " " << v);
+    }
+    return v;
 }
 
 void BTF::TMeasurementPDF::SetMeasurement(CP::THandle<CP::TReconCluster> next) {
@@ -430,21 +465,57 @@ void BTF::TMeasurementPDF::SetMeasurement(CP::THandle<CP::TReconCluster> next) {
     for (int i=0; i<3; ++i) {
         for (int j=0; j<3; ++j) {
             double v = state->GetPositionCovariance(i,j);
-            // Fix spurious accuracy for the Z axis.  The extra accuracy is
-            // introduced by just taking the average of all of the
-            // contributing hit positions.  However, the Z positions of all of
-            // the hits are the same when the clusters are constructed.  The
-            // intrinsic Z accuracy is about 0.5 mm.
+            // Fix spurious accuracy for the Z axis.  The extra accuracy
+            // is introduced by just taking the average of all of the
+            // contributing hit positions.  However, the Z positions of
+            // all of the hits are the same when the clusters are
+            // constructed.  The intrinsic Z accuracy is about 0.5 mm.
             if (i == j) v = std::max(0.25*unit::mm*unit::mm, v);
             fErrorMat(i,j) = v;
         }
     }
+    BTF::ConditionMatrix(fErrorMat);
+
     // The matrix has been filled with the covariance, not turn it into the
     // error matrix.
-    fErrorMat.InvertFast(&fGaussianConstant);
+    double det;
+    fErrorMat.InvertFast(&det);
 
-    fGaussianConstant = fGaussianConstant*unit::pi2*unit::pi2*unit::pi2;
-    fGaussianConstant = 1.0/sqrt(fGaussianConstant);
+    det = det*unit::pi2*unit::pi2*unit::pi2;
+    fGaussianConstant = 1.0/sqrt(det);
+}
+
+void BTF::ConditionMatrix(TMatrixD& covar, double correlations) {
+    TMatrixD mat(3,3);
+
+    double scale = 1.0;
+    for (int trials = 0; trials < 20; ++trials) {
+        double var = 0.0;
+        for (int i=0; i<3; ++i) {
+            for (int j=0; j<3; ++j) {
+                double v = covar(i,j);
+                if (i == j) var += v*v;
+                // Iteratively reduce the amount of correlation between the
+                // axes until the error matrix has a positive determinant.
+                if (i != j) v *= scale;
+                mat(i,j) = v;
+            }
+        }
+        // The matrix has been filled with the covariance, not turn it into the
+        // error matrix.
+        double det;
+        mat.InvertFast(&det);
+        double corr = det/var;
+        if (corr > correlations) break;
+        scale = scale * 0.3;
+    }
+    
+    for (int i=0; i<3; ++i) {
+        for (int j=0; j<3; ++j) {
+            if (i==j) continue;
+            covar(i,j) *= scale;
+        }
+    }
 }
 
 void BTF::GeneratePrior(std::vector< BFL::Sample<BTF::ColumnVector> >& samples,
@@ -479,7 +550,10 @@ void BTF::GeneratePrior(std::vector< BFL::Sample<BTF::ColumnVector> >& samples,
     }
 
     // Do the cholesky decomposition of the covariance matricies
+    BTF::ConditionMatrix(mat1);
     TDecompChol decomp1(mat1);
+
+    BTF::ConditionMatrix(mat2);
     TDecompChol decomp2(mat2);
     decomp1.Decompose();
     decomp2.Decompose();
