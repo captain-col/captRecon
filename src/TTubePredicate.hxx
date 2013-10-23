@@ -31,7 +31,7 @@ class CP::TTubePredicate {
 public:
     /// See the class documentation for details.
     TTubePredicate(const TVector3& end1, const TVector3& end2,
-                   double vertRad = 3*unit::mm, 
+                   double vertRad = 4*unit::mm, 
                    double horiRad = 5*unit::mm, 
                    double horiScale = 2*unit::mm);
 
