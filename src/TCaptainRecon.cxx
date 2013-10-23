@@ -76,6 +76,13 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         result->AddDatum(currentResult);
 #endif
 
+
+        for (CP::TReconObjectContainer::iterator r 
+                 = currentResult->GetResultsContainer()->begin();
+             r != currentResult->GetResultsContainer()->end(); ++r) {
+            CaptLog("   Recon object with " << (*r)->GetHits()->size() << " hits");
+        }
+
 #define Apply_TClusterSlice
 #ifdef Apply_TClusterSlice
         // Cluster the 3D hits by position to find object candidates. 

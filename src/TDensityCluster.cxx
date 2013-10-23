@@ -58,6 +58,7 @@ CP::TDensityCluster::Process(const CP::TAlgorithmResult& input,
             = clusterAlgorithm->GetCluster(i);
         CP::THandle<CP::TReconCluster> cluster(new CP::TReconCluster);
         cluster->FillFromHits("TDensityCluster",points.begin(),points.end());
+        CaptLog("   Cluster with " << cluster->GetHits()->size() << " hits");
         final->push_back(cluster);
     }
 #else
@@ -65,6 +66,7 @@ CP::TDensityCluster::Process(const CP::TAlgorithmResult& input,
     cluster->FillFromHits("TDensityCluster",
                           inputHits->begin(),
                           inputHits->end());
+    CaptLog("   Cluster with " << cluster->GetHits()->size() << " hits");
     final->push_back(cluster);
 #endif
 
