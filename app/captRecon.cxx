@@ -22,7 +22,13 @@ public:
         CP::THandle<CP::THitSelection> drift(event.GetHits("drift"));
         CP::THandle<CP::THitSelection> pmt(event.GetHits("pmt"));
 
-        // Run the simulation on the event.
+        /// An event without any drift hits.  Just pass it through.
+        if (!drift) return true;
+
+        /// An event without any PMT hits.  Just pass it through.
+        if (!pmt) return true;
+
+        // Run the event reconstruction on the event.
         std::auto_ptr<CP::TAlgorithm> captRecon(new CP::TCaptainRecon());
         CP::THandle<CP::TAlgorithmResult> result 
             = captRecon->Process(*drift,*pmt);
