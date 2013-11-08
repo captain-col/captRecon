@@ -203,7 +203,8 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 CP::TWritableReconHit hit(*xh,*vh,*uh);
                 TVector3 p3(PositionXY(*vh,*uh));
 
-                // These three wire hits make a 3D point.a
+                // These three wire hits make a 3D point.  Get them into the
+                // correct hit selections.
                 used->AddHit(*xh);
                 unused->RemoveHit(*xh);
 
@@ -213,39 +214,51 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 used->AddHit(*uh);
                 unused->RemoveHit(*uh);
 
-                // Set the time.  It's the average of the wire hit times after
-                // drifting to Z = 0.0.
-                double t1 = drift.GetTime(**xh);
-                double t2 = drift.GetTime(**vh);
-                double t3 = drift.GetTime(**uh);
-                double tAvg = (t1+t2+t3)/3.0;
-                hit.SetTime(tAvg); // This will be overridden to be time zero.
-
-                // Find the RMS of the hit time.  This takes into account the
-                // RMS of the individual hits as well as the offset of the
-                // hits from the average of their times.
-                double tRMS = (t1-tAvg)*(t1-tAvg);
-                tRMS += (*xh)->GetTimeRMS()*(*xh)->GetTimeRMS();
-                tRMS += (t2-tAvg)*(t2-tAvg);
-                tRMS += (*vh)->GetTimeRMS()*(*vh)->GetTimeRMS();
-                tRMS += (t3-tAvg)*(t3-tAvg);
-                tRMS += (*uh)->GetTimeRMS()*(*uh)->GetTimeRMS();
-                tRMS /= 3.0;
-                tRMS = std::sqrt(tRMS);
-                hit.SetTimeRMS(tRMS);
-                
-                // This isn't exactly right, but it's a pretty good estimate.
-                double tUnc = (t1-tAvg)*(t1-tAvg);
-                tUnc += (t2-tAvg)*(t2-tAvg);
-                tUnc += (t3-tAvg)*(t3-tAvg);
-                tUnc /= 3.0;
-                tUnc = std::sqrt(tUnc);
+                // Set the time.  It's the wire hit time after drifting to Z
+                // equal to zero.  Some of the wires might have overlapping
+                // tracks in this time bin, or the track might be at a bad
+                // angle for one of the wires, so use the time of the hit with
+                // the lowest uncertainty.  This isn't exactly right, but it's
+                // a pretty good estimate.  This also takes the time
+                // uncertainty from the best measured wire.  The same charge
+                // distribution is being measured three times, so there are a
+                // lot of correlations and combining the three hits doesn't
+                // reduce the uncertainty by sqrt(3) (i.e. the measured time
+                // widths are correlated).  In a nutshell, this assumes that
+                // the lowest uncertainty comes from the hit with the best
+                // measurement, and the least overlap with other tracks.
+                double tHit = drift.GetTime(**xh);
+                double tUnc = (*xh)->GetTimeUncertainty();
+                if ((*vh)->GetTimeUncertainty() < tUnc) {
+                    tHit = drift.GetTime(**vh);
+                    tUnc = (*vh)->GetTimeUncertainty();
+                }
+                if ((*uh)->GetTimeUncertainty() < tUnc) {
+                    tHit = drift.GetTime(**uh);
+                    tUnc = (*uh)->GetTimeUncertainty();
+                }
+                hit.SetTime(tHit); // This will be overridden to be time zero.
                 hit.SetTimeUncertainty(tUnc);
+
+                // The time RMS is determined by the RMS of the narrowest hit
+                // in time.  This will slightly overestimate the time RMS for
+                // the hit, but is a fairly good approximation.  The RMS could
+                // be calculated by combining the PDFs to directly calculate a
+                // combined RMS, but since the three 2D hits are measureing
+                // the same charge distribution, that ignores the correlations
+                // between the 2D hits.  The "min" method assumes the hits are
+                // all correlated.
+                double tRMS = std::min((*xh)->GetTimeRMS(),
+                                       std::min((*vh)->GetTimeRMS(),
+                                                (*uh)->GetTimeRMS()));
+                hit.SetTimeRMS(tRMS);
 
                 // For now set the charge to X wire charge.  This doesn't work
                 // for overlapping hits but gives a reasonable estimate of the
                 // energy deposition otherwise.  The U and V wires don't
-                // measure the total charge very well.
+                // measure the total charge very well.  The charge for
+                // "overlapping" hits will need to be calculated once all of
+                // the TReconHits are constructed.
                 hit.SetCharge((*xh)->GetCharge());
                 hit.SetChargeUncertainty((*xh)->GetChargeUncertainty());
                 
@@ -278,7 +291,7 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 hit.SetRMS(
                     TVector3(xyRMS,xyRMS,
                              drift.GetAverageDriftVelocity()*tRMS));
-
+                
                 // For the XY uncertainty, assume a uniform position
                 // distribution.  For the Z uncertainty, just use the time
                 // uncertainty.
