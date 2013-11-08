@@ -348,9 +348,15 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         
     }
 
-    THandle<TTrackState> fittedState = input->GetState();
+    // Set the front state of the track.
+    THandle<TTrackState> frontState = input->GetFront();
     THandle<TTrackState> firstNodeState = nodes.front()->GetState();
-    *fittedState = *firstNodeState;
+    *frontState = *firstNodeState;
+
+    // Set the back state of the track.
+    THandle<TTrackState> backState = input->GetBack();
+    THandle<TTrackState> lastNodeState = nodes.back()->GetState();
+    *backState = *firstNodeState;
 
     int trackDOF = 3*nodes.size() - 6;
     input->SetStatus(TReconBase::kSuccess);
