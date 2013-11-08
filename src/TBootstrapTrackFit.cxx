@@ -349,14 +349,67 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     }
 
     // Set the front state of the track.
-    THandle<TTrackState> frontState = input->GetFront();
-    THandle<TTrackState> firstNodeState = nodes.front()->GetState();
+    CP::THandle<CP::TTrackState> frontState = input->GetFront();
+    CP::THandle<CP::TTrackState> firstNodeState = nodes.front()->GetState();
     *frontState = *firstNodeState;
 
+    // Now move the front state upstream to the position of the first hit.
+    // Notice that the front state is not at the same location as the first
+    // node.  
+    if (nodes.front()->GetObject()) {
+        // There is an object, and there had *better* be one or something is
+        // going horribly wrong.
+        TVector3 pos = frontState->GetPosition().Vect();
+        TVector3 dir = frontState->GetDirection();
+        CP::THandle<CP::THitSelection> hits 
+            = nodes.front()->GetObject()->GetHits();
+        if (!hits) {
+            // There had also better be hits!
+            CaptError("No hits in object!");
+            abort();
+        }
+        double upstream = 0.0;
+        for (CP::THitSelection::iterator h = hits->begin(); 
+             h != hits->end(); ++h) {
+            TVector3 diff = (*h)->GetPosition() - pos;
+            upstream = std::min(upstream, diff*dir);
+        }
+        pos = pos + upstream*dir;
+        frontState->SetPosition(pos.X(), pos.Y(), pos.Z(),
+                                frontState->GetPosition().T());
+    }
+
     // Set the back state of the track.
-    THandle<TTrackState> backState = input->GetBack();
-    THandle<TTrackState> lastNodeState = nodes.back()->GetState();
-    *backState = *firstNodeState;
+    CP::THandle<CP::TTrackState> backState = input->GetBack();
+    CP::THandle<CP::TTrackState> lastNodeState = nodes.back()->GetState();
+    *backState = *lastNodeState;
+
+    // Now move the back state downstream to the position of the last hit.
+    // See the comments for "frontState".
+    if (nodes.back()->GetObject()) {
+        // There is an object, and there had *better* be one or something is
+        // going horribly wrong.
+        TVector3 pos = backState->GetPosition().Vect();
+        TVector3 dir = backState->GetDirection();
+        CP::THandle<CP::THitSelection> hits 
+            = nodes.back()->GetObject()->GetHits();
+        if (!hits) {
+            // There had also better be hits!
+            CaptError("No hits in object!");
+            abort();
+        }
+        double downstream = 0.0;
+        for (CP::THitSelection::iterator h = hits->begin(); 
+             h != hits->end(); ++h) {
+            TVector3 diff = (*h)->GetPosition() - pos;
+            downstream = std::max(downstream, diff*dir);
+        }
+        pos = pos + downstream*dir;
+        backState->SetPosition(pos.X(), pos.Y(), pos.Z(),
+                                backState->GetPosition().T());
+    }
+
+
 
     int trackDOF = 3*nodes.size() - 6;
     input->SetStatus(TReconBase::kSuccess);
