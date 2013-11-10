@@ -128,12 +128,12 @@ void CP::TBestTube::Process(const CP::TReconObjectContainer& input) {
     fFoundTube = false;
 
     int diff = std::distance(begin,end);
-    CaptNamedLog("bestTube","Input clusters " << diff);
+    CaptNamedDebug("bestTube","Input clusters " << diff);
     CP::TReconObjectContainer::iterator end1 = begin;
     CP::TReconObjectContainer::iterator end2 = begin;
     std::advance(end2,2*diff/3);
     double trials = std::pow(1.0*diff,1.5) + 1;
-    CaptNamedLog("bestTube","Trials " << int(trials));
+    CaptNamedDebug("bestTube","Trials " << int(trials));
     for (CP::TReconObjectContainer::iterator end1 = begin;
          end1 != end;  ++end1) {
         for (CP::TReconObjectContainer::iterator end2 = end1+1;
@@ -144,7 +144,7 @@ void CP::TBestTube::Process(const CP::TReconObjectContainer& input) {
                 CP::THandle<CP::TReconCluster> t2 = *end2;
                 TVector3 p1 = t1->GetPosition().Vect();
                 TVector3 p2 = t2->GetPosition().Vect();
-                CaptNamedLog("bestTube","New Weight "
+                CaptNamedDebug("bestTube","New Weight "
                              << weight
                              << " from " << p1
                              << "-->" << p2
@@ -158,7 +158,7 @@ void CP::TBestTube::Process(const CP::TReconObjectContainer& input) {
     }
 
     if (!fFoundTube) {
-        CaptNamedLog("bestTube","No seed found");
+        CaptNamedInfo("bestTube","No seed found");
         return;
     }
 
@@ -167,7 +167,7 @@ void CP::TBestTube::Process(const CP::TReconObjectContainer& input) {
     tmp = *best2;
     fEnd2 = tmp->GetPosition().Vect();
 
-    CaptNamedLog("bestTube","Found seed with " << bestWeight 
+    CaptNamedInfo("bestTube","Found seed with " << bestWeight 
                << " from " << fEnd1 << "-->" << fEnd2);
 
 }
@@ -175,7 +175,7 @@ void CP::TBestTube::Process(const CP::TReconObjectContainer& input) {
 void CP::TBestTube::FillSeed(CP::TReconObjectContainer& seed) {
     seed.clear();
     if (!fFoundTube) return;
-    CaptNamedLog("bestTube","Find hits for " << fEnd1 << "-->" << fEnd2);
+    CaptNamedDebug("bestTube","Find hits for " << fEnd1 << "-->" << fEnd2);
     TTubePredicate tube(fEnd1,fEnd2);
     for (CP::TReconObjectContainer::iterator c = fClusterContainer.begin();
          c != fClusterContainer.end(); ++c) {
@@ -184,15 +184,13 @@ void CP::TBestTube::FillSeed(CP::TReconObjectContainer& seed) {
             seed.push_back(cluster);
         }
     }
-    CaptNamedLog("bestTube","Seed with " << seed.size() << " clusters");
+    CaptNamedDebug("bestTube","Seed with " << seed.size() << " clusters");
 
     CP::TMajorAxisComparator axis(seed);
     std::sort(seed.begin(), seed.end(), axis);
 
     CP::THandle<CP::TReconCluster> c1(seed.front());
     CP::THandle<CP::TReconCluster> c2(seed.back());
-    CaptNamedDebug("bestTube","   from " << c1->GetPosition().Vect());
-    CaptNamedDebug("bestTube","     to " << c2->GetPosition().Vect());
 }
 
 void CP::TBestTube::FillRemains(CP::TReconObjectContainer& remains) {
