@@ -112,7 +112,7 @@ void CP::TLinearRoad::Process(const CP::TReconObjectContainer& seed,
         currentSeed.push_back(*c);
         double length = (currentSeed.front()->GetPosition().Vect()
                          -currentSeed.back()->GetPosition().Vect()).Mag();
-        CaptNamedDebug("road", "Add upstream " << 
+        CaptNamedDebug("road", "Add upstream to seed" << 
                        currentSeed.back()->GetPosition().Vect()
                        << "   size: " << currentSeed.size() 
                        << "   length: " << length);
@@ -130,6 +130,8 @@ void CP::TLinearRoad::Process(const CP::TReconObjectContainer& seed,
             CaptError("Seed not found in track.");
             continue;
         }
+        CaptNamedDebug("road", "Remove upstream from track" << 
+                       (*where)->GetPosition().Vect());
         fTrackClusters.erase(where);
     }
 
@@ -150,16 +152,22 @@ void CP::TLinearRoad::Process(const CP::TReconObjectContainer& seed,
         if (where ==  fRemainingClusters.end()) {
             CaptError("Upstream cluster not found in remaining clusters");
         }
+        CaptNamedDebug("road", "Remove from remaining " << 
+                       (*where)->GetPosition().Vect());
         fRemainingClusters.erase(where);
         
         // Add the cluster to the seed.  We are searching to the upstream end,
         // so the cluster gets inserted at the beginning.
+        CaptNamedDebug("road", "Add to seed upstream " << 
+                       cluster->GetPosition().Vect());
         currentSeed.push_front(cluster);
         
         while (currentSeed.size() > fSeedSize
                && ((currentSeed.front()->GetPosition().Vect()
                     -currentSeed.back()->GetPosition().Vect()).Mag()
                    >= fSeedLength)) {
+            CaptNamedDebug("road", "Add to track upstream (pop seed)" << 
+                           currentSeed.back()->GetPosition().Vect());
             fTrackClusters.push_front(currentSeed.back());
             currentSeed.pop_back();
         }
@@ -167,8 +175,12 @@ void CP::TLinearRoad::Process(const CP::TReconObjectContainer& seed,
     }
 
     // At the end, flush the clusters in the current seed into the track. 
-    std::copy(currentSeed.rbegin(), currentSeed.rend(),
-              std::front_inserter(fTrackClusters));
+    for (SeedContainer::reverse_iterator c = currentSeed.rbegin();
+         c != currentSeed.rend(); ++c) {
+        CaptNamedDebug("road", "Add to track upstream (empty seed)" << 
+                       (*c)->GetPosition().Vect());
+        fTrackClusters.push_front(*c);
+    }
     currentSeed.clear();
     
     // Find clusters at the downstream end of the track.
@@ -377,7 +389,10 @@ CP::TLinearRoad::CreateTrackState(CP::THandle<CP::TReconCluster> object,
 
 CP::THandle<CP::TReconTrack> CP::TLinearRoad::GetTrack()  {
     CP::THandle<CP::TReconTrack> track(new CP::TReconTrack);
-    if (fTrackClusters.size() < 2) return track;
+    if (fTrackClusters.size() < 2) {
+        CaptNamedDebug("road","No track found");
+        return track;
+    }
 
     CheckUnique(fTrackClusters.begin(), fTrackClusters.end());
 
