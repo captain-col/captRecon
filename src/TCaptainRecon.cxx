@@ -66,7 +66,6 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         allHits = cluster3D->GetHits();
         result->AddDatum(currentResult);
 
-#define Apply_TDensityCluster
 #ifdef Apply_TDensityCluster
         // Cluster the 3D hits by position to find object candidates. 
         CP::THandle<CP::TAlgorithmResult> clustered
@@ -75,13 +74,6 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         currentResult = clustered;
         result->AddDatum(currentResult);
 #endif
-
-
-        for (CP::TReconObjectContainer::iterator r 
-                 = currentResult->GetResultsContainer()->begin();
-             r != currentResult->GetResultsContainer()->end(); ++r) {
-            CaptLog("   Recon object with " << (*r)->GetHits()->size() << " hits");
-        }
 
 #define Apply_TClusterSlice
 #ifdef Apply_TClusterSlice

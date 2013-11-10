@@ -5,8 +5,6 @@
 
 #include "TCaptLog.hxx"
 
-#include <TRandom.h>
-
 namespace {
     // This finds the minimum distance between hits in the two clusters.
     double ClusterDistance(const CP::TReconCluster& a, 
@@ -48,17 +46,6 @@ namespace {
         TVector3 fStart;
         TVector3 fDir;
     };
-}
-
-CP::TReconObjectContainer::iterator 
-CP::TBestTube::Randomize(CP::TReconObjectContainer::iterator i, 
-                         CP::TReconObjectContainer::iterator begin,
-                         CP::TReconObjectContainer::iterator end) {
-    int diff = std::distance(begin,end);
-    int step = gRandom->Integer(diff);
-    i = begin;
-    std::advance(i,step);
-    return i;
 }
 
 void CP::TBestTube::FindTube(const TVector3& end1, const TVector3& end2,
@@ -143,30 +130,31 @@ void CP::TBestTube::Process(const CP::TReconObjectContainer& input) {
     int diff = std::distance(begin,end);
     CaptNamedLog("bestTube","Input clusters " << diff);
     CP::TReconObjectContainer::iterator end1 = begin;
-    std::advance(end1,diff/3);
     CP::TReconObjectContainer::iterator end2 = begin;
     std::advance(end2,2*diff/3);
     double trials = std::pow(1.0*diff,1.5) + 1;
     CaptNamedLog("bestTube","Trials " << int(trials));
-    for (int trial=0; trial<trials; ++trial) {
-        double weight = TubeWeight(end1,end2,begin,end);
-        if (weight > bestWeight) {
-            CP::THandle<CP::TReconCluster> t1 = *end1;
-            CP::THandle<CP::TReconCluster> t2 = *end2;
-            TVector3 p1 = t1->GetPosition().Vect();
-            TVector3 p2 = t2->GetPosition().Vect();
-            CaptNamedLog("bestTube","New Weight "
-                         << weight
-                         << " from " << p1
-                         << "-->" << p2
-                         << " length is " << (p1-p2).Mag());
-            best1 = end1;
-            best2 = end2;
-            fFoundTube = true;
-            bestWeight = weight;
+    for (CP::TReconObjectContainer::iterator end1 = begin;
+         end1 != end;  ++end1) {
+        for (CP::TReconObjectContainer::iterator end2 = end1+1;
+             end2 != end; ++end2) {
+            double weight = TubeWeight(end1,end2,begin,end);
+            if (weight > bestWeight) {
+                CP::THandle<CP::TReconCluster> t1 = *end1;
+                CP::THandle<CP::TReconCluster> t2 = *end2;
+                TVector3 p1 = t1->GetPosition().Vect();
+                TVector3 p2 = t2->GetPosition().Vect();
+                CaptNamedLog("bestTube","New Weight "
+                             << weight
+                             << " from " << p1
+                             << "-->" << p2
+                             << " length is " << (p1-p2).Mag());
+                best1 = end1;
+                best2 = end2;
+                fFoundTube = true;
+                bestWeight = weight;
+            }
         }
-        end1 = Randomize(end1,begin,end);
-        end2 = Randomize(end2,begin,end);
     }
 
     if (!fFoundTube) {

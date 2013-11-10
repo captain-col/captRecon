@@ -129,12 +129,13 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
 }
 
 CP::THandle<CP::TReconObjectContainer>
-CP::TClusterSlice::MakeTracks(CP::THandle<CP::TReconObjectContainer> input) {
+CP::TClusterSlice::MakeTracks(const CP::TReconObjectContainer& input,
+                              CP::TReconObjectContainer& seeds) {
     CP::THandle<CP::TReconObjectContainer> 
         output(new CP::TReconObjectContainer);
     CP::TReconObjectContainer remains;
     CP::TReconObjectContainer seed;
-    std::copy(input->begin(), input->end(), std::back_inserter(remains));
+    std::copy(input.begin(), input.end(), std::back_inserter(remains));
     CP::TTrackFit trackFitter;
     for (int i=0; i<50; ++i) {
         CaptNamedLog("TClusterSlice","Look for seed " << i
@@ -148,11 +149,16 @@ CP::TClusterSlice::MakeTracks(CP::THandle<CP::TReconObjectContainer> input) {
         bestTube->FillRemains(remains);
         CaptNamedLog("TClusterSlice","Found seed with " 
                      << seed.size() << " clusters");
-        if (seed.size()<2) break;
+        if (seed.size()<3) break;
+
+        // If there is a seeds object container, save the seed as a cluster.
+        std::copy(seed.begin(), seed.end(), std::back_inserter(seeds));
+
         // Make the track.
         std::auto_ptr<CP::TLinearRoad> road(new CP::TLinearRoad);
         road->Process(seed,remains);
         CP::THandle<CP::TReconTrack> track = road->GetTrack();
+
         // Get the remaining hits.
         road->FillRemains(remains);
         if (track) {
@@ -192,6 +198,8 @@ CP::TClusterSlice::Process(const CP::TAlgorithmResult& input,
         final(new CP::TReconObjectContainer("final"));
     std::auto_ptr<CP::TReconObjectContainer> 
         slices(new CP::TReconObjectContainer("slices"));
+    std::auto_ptr<CP::TReconObjectContainer> 
+        seeds(new CP::TReconObjectContainer("seeds"));
     std::auto_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
 
     if (inputObjects) {
@@ -207,7 +215,8 @@ CP::TClusterSlice::Process(const CP::TAlgorithmResult& input,
             CP::THandle<CP::TReconObjectContainer> cuts = MakeSlices(hits);
             CaptLog("   Slices made: " << cuts->size());
             std::copy(cuts->begin(), cuts->end(), std::back_inserter(*slices));
-            CP::THandle<CP::TReconObjectContainer> tracks = MakeTracks(cuts);
+            CP::THandle<CP::TReconObjectContainer> tracks = MakeTracks(*cuts,
+                                                                       *seeds);
             CaptLog("   Tracks found: " << tracks->size());
             std::copy(tracks->begin(),tracks->end(),std::back_inserter(*final));
         }
@@ -217,7 +226,8 @@ CP::TClusterSlice::Process(const CP::TAlgorithmResult& input,
         CP::THandle<CP::TReconObjectContainer> cuts = MakeSlices(inputHits);
         CaptLog("   Slices made: " << cuts->size());
         std::copy(cuts->begin(), cuts->end(), std::back_inserter(*slices));
-        CP::THandle<CP::TReconObjectContainer> tracks = MakeTracks(cuts);
+        CP::THandle<CP::TReconObjectContainer> tracks = MakeTracks(*cuts,
+                                                                   *seeds);
         CaptLog("   Tracks found: " << tracks->size());
         std::copy(tracks->begin(),tracks->end(),std::back_inserter(*final));
     }
@@ -232,6 +242,7 @@ CP::TClusterSlice::Process(const CP::TAlgorithmResult& input,
     }
 
     result->AddHits(used.release());
+    result->AddResultsContainer(seeds.release());
     result->AddResultsContainer(slices.release());
     result->AddResultsContainer(final.release());
 

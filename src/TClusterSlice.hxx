@@ -46,9 +46,11 @@ private:
     /// split them up into tracks.  The output is a object container that may
     /// contain one or more tracks.  It can have more than one track when the
     /// simply connected cluster is actually two tracks connected to a vertex
-    /// (or some other similar topology).
+    /// (or some other similar topology).  The seeds container will be filled
+    /// with the seeds that were found.
     CP::THandle<CP::TReconObjectContainer> 
-    MakeTracks(CP::THandle<CP::TReconObjectContainer> input);
+    MakeTracks(const CP::TReconObjectContainer& input,
+               CP::TReconObjectContainer& seeds);
 
     /// The minimum number of neighbors within the maximum distance of the
     /// current point to consider the current point to be in a high density
