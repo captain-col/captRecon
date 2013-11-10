@@ -179,8 +179,18 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     // prior samples are based on the first two nodes and are
     // positioned just "upstream" of the first node.
     /////////////////////////////////////////////////////////////////////
+    CP::THandle<CP::TReconNode> firstNode = nodes[0];
+    CP::THandle<CP::TReconNode> otherNode = nodes[1];
+    for (std::size_t i=1; i<nodes.size()/3; ++i) {
+        CP::THandle<CP::TReconCluster> cluster1 = firstNode->GetObject();
+        CP::THandle<CP::TReconCluster> cluster2 = nodes[i]->GetObject();
+        double diff = (cluster1->GetPosition().Vect() 
+                       - cluster2->GetPosition().Vect()).Mag();
+        if (diff > 2*unit::cm) break;
+        otherNode = nodes[i];
+    }
     std::vector< BFL::Sample<BTF::ColumnVector> > priorSamples(numSamples);
-    BTF::GeneratePrior(priorSamples, nodes[0], nodes[1]);
+    BTF::GeneratePrior(priorSamples, firstNode, otherNode);
     BFL::MCPdf<BTF::ColumnVector> forwardPrior(numSamples,stateSize);
     forwardPrior.ListOfSamplesSet(priorSamples);
 
@@ -192,7 +202,7 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     /////////////////////////////////////////////////////////////////////
     for (std::size_t step = 0; step < nodes.size(); ++step) {
         measurement[0] = step;
-        CaptNamedInfo("BFL","Start forward step " << step);
+        CaptNamedDebug("BFL","Start forward step " << step);
         CP::THandle<CP::TReconNode> node = nodes[step];
 
         // Get the measurement from the node.
@@ -227,7 +237,7 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
             }
         }
 
-        CaptNamedInfo("BFL","Fitted Position " 
+        CaptNamedDebug("BFL","Fitted Position " 
                      << trackState->GetPosition().Vect()
                      << " for cluster " << cluster->GetPosition().Vect()
                      << " diff " << (trackState->GetPosition().Vect()
@@ -245,9 +255,18 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     // prior samples are based on the first two nodes and are
     // positioned just "upstream" of the first node.
     /////////////////////////////////////////////////////////////////////
-    BTF::GeneratePrior(priorSamples,
-                       nodes[nodes.size()-2],
-                       nodes[nodes.size()-1]);
+    firstNode = nodes[nodes.size()-1];
+    otherNode = nodes[nodes.size()-2];
+    for (std::size_t i=2; i<nodes.size()/3; ++i) {
+        CP::THandle<CP::TReconCluster> cluster1 = firstNode->GetObject();
+        CP::THandle<CP::TReconCluster> cluster2 
+            = nodes[nodes.size()-i]->GetObject();
+        double diff = (cluster1->GetPosition().Vect() 
+                       - cluster2->GetPosition().Vect()).Mag();
+        if (diff > 2*unit::cm) break;
+        otherNode = nodes[nodes.size()-i];
+    }
+    BTF::GeneratePrior(priorSamples,firstNode, otherNode);
     BFL::MCPdf<BTF::ColumnVector> backwardPrior(numSamples,stateSize);
     backwardPrior.ListOfSamplesSet(priorSamples);
 
@@ -261,7 +280,7 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     /// Estimate the state at each node.
     /////////////////////////////////////////////////////////////////////
     for (int step = nodes.size()-1; 0 <= step; --step) {
-        CaptNamedInfo("BFL","Start backward step " << step);
+        CaptNamedDebug("BFL","Start backward step " << step);
         measurement[0] = step;
         CP::THandle<CP::TReconNode> node = nodes[step];
         if (!node) {
@@ -309,13 +328,17 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
             oldCov += trackState->GetPositionCovariance(i,i);
             newCov += cv(BTF::kXPos+i+1,BTF::kXPos+i+1);
         }
-        if (oldCov < newCov) {
-            CaptNamedInfo("BFL","Old Position " 
-                         << trackState->GetPosition().Vect()
-                         << " for cluster " << cluster->GetPosition().Vect()
-                         << " diff " 
-                         << (trackState->GetPosition().Vect()
-                             - cluster->GetPosition().Vect()).Mag());
+        CaptNamedDebug("BFL",
+                       "Old Covariance " << oldCov
+                       << "   New Covariance " << newCov);
+        if ((1E-6 < oldCov && oldCov < newCov)
+             || (newCov < 1E-6)) {
+            CaptNamedDebug("BFL","Old Position " 
+                           << trackState->GetPosition().Vect()
+                           << " for cluster " << cluster->GetPosition().Vect()
+                           << " diff " 
+                           << (trackState->GetPosition().Vect()
+                               - cluster->GetPosition().Vect()).Mag());
             double r = measurementPDF.ProbabilityGet(
                 trackState->GetPosition().Vect());
             if (r>0) logLikelihood += std::log(r);
@@ -335,7 +358,7 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
             }
         }
 
-        CaptNamedInfo("BFL","New Position " 
+        CaptNamedDebug("BFL","New Position " 
                      << trackState->GetPosition().Vect()
                      << " for cluster " << cluster->GetPosition().Vect()
                      << " diff " 
