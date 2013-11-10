@@ -41,16 +41,15 @@ private:
     CP::THandle<CP::TReconObjectContainer> 
     MakeSlices(CP::THandle<CP::THitSelection> input);
 
-    /// Take an object container of clusters created by slicing a cluster of
-    /// simply connected hits into "z-slices" (the output of BreakCluster) and
-    /// split them up into tracks.  The output is a object container that may
-    /// contain one or more tracks.  It can have more than one track when the
-    /// simply connected cluster is actually two tracks connected to a vertex
-    /// (or some other similar topology).  The seeds container will be filled
-    /// with the seeds that were found.
+    /// Take an object container of clusters created by slicing the hits into
+    /// "z-slices" (the output of MakeSlices) and split them up into tracks.
+    /// The output is a object container that may contain one or more tracks.
+    /// This can take a handle to the result being created that can be filled
+    /// with debugging information about the track finding will be filled into
+    /// the output result.
     CP::THandle<CP::TReconObjectContainer> 
-    MakeTracks(const CP::TReconObjectContainer& input,
-               CP::TReconObjectContainer& seeds);
+    MakeTracks(const CP::TReconObjectContainer& input, 
+               CP::THandle<CP::TAlgorithmResult> thisResult);
 
     /// The minimum number of neighbors within the maximum distance of the
     /// current point to consider the current point to be in a high density
