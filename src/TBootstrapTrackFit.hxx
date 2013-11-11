@@ -28,3 +28,8 @@ public:
 };
 
 #endif
+
+// Local Variables:
+// mode:c++
+// c-basic-offset:4
+// End:
