@@ -243,7 +243,7 @@ CP::TClusterSlice::Process(const CP::TAlgorithmResult& input,
             std::copy(cuts->begin(), cuts->end(), std::back_inserter(*slices));
             CP::THandle<CP::TReconObjectContainer> tracks 
                 = MakeTracks(*cuts,result);
-            CaptLog("   Tracks found: " << tracks->size());
+            CaptLog("   Objects found: " << tracks->size());
             std::copy(tracks->begin(),tracks->end(),std::back_inserter(*final));
         }
     }
@@ -254,7 +254,7 @@ CP::TClusterSlice::Process(const CP::TAlgorithmResult& input,
         std::copy(cuts->begin(), cuts->end(), std::back_inserter(*slices));
         CP::THandle<CP::TReconObjectContainer> tracks = MakeTracks(*cuts,
             result);
-        CaptLog("   Tracks found: " << tracks->size());
+        CaptLog("   Objects found: " << tracks->size());
         std::copy(tracks->begin(),tracks->end(),std::back_inserter(*final));
     }
 

@@ -108,7 +108,7 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
         CaptError("No input hits");
         return CP::THandle<CP::TAlgorithmResult>();
     }
-    CaptLog("Hits in event " << wireHits->size());
+    CaptLog("2D Hits in event " << wireHits->size());
 
     CP::THandle<CP::THitSelection> pmtHits = pmts.GetHits();
     if (!pmtHits) {
@@ -149,6 +149,12 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     std::sort(xHits->begin(), xHits->end(), compareHitTime());
     std::sort(vHits->begin(), vHits->end(), compareHitTime());
     std::sort(uHits->begin(), uHits->end(), compareHitTime());
+
+    CP::TCaptLog::IncreaseIndentation();
+    CaptLog("X Hits: " << xHits->size()
+            << " V Hits: " << vHits->size()
+            << " U Hits: " << uHits->size());
+    CP::TCaptLog::DecreaseIndentation();
 
     CP::TDriftPosition drift;
 
