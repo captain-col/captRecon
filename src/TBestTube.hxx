@@ -15,8 +15,8 @@ namespace CP {
 class CP::TBestTube {
 public:
     /// Create a new tube search algorithm.
-    TBestTube() {}
-    ~TBestTube() {}
+    TBestTube();
+    virtual ~TBestTube();
 
     /// Process a set of input clusters.  This takes an input
     /// TReconObjectContainer that is searched for the seed, and copies it to
@@ -34,14 +34,6 @@ public:
     void FillRemains(CP::TReconObjectContainer& remains);
 
 private:
-    /// Find a new iterator with a random step, but don't go outside of
-    /// [begin,end).  This makes sure that the new iterator is valid.  The
-    /// first argument, "i", is the current value of the iterator.  The extent
-    /// of the container is specified by begin to end.
-    CP::TReconObjectContainer::iterator 
-    Randomize(CP::TReconObjectContainer::iterator i, 
-              CP::TReconObjectContainer::iterator begin,
-              CP::TReconObjectContainer::iterator end);
 
     /// Find the hits in a tube (as defined by it's end point positions).  The
     /// hits will be ordered from end1 to end2.
@@ -69,8 +61,17 @@ private:
     /// FillRemains, and FillSeed methods.
     CP::TReconObjectContainer fClusterContainer;
 
+    /// If a tube is found with a weight greater than this, then it's good
+    /// enough, and the search is stopped.  Otherwise, the search will
+    /// continue and the best tube found will be returned.
+    double fGoodEnoughTube;
+
     /// A flag that a valid tube has been found.
     bool fFoundTube;
+
+    /// The maximum number of trials to be done.  This makes sure that the
+    /// search will finish in a "finite" amount of time.
+    int fMaxTrials;
 
     /// The position of the first end point of the tube.
     TVector3 fEnd1;

@@ -1,9 +1,12 @@
 #include "TBestTube.hxx"
 #include "TTubePredicate.hxx"
 #include "TMajorAxisComparator.hxx"
-#include "ostreamTVector3.hxx"
 
-#include "TCaptLog.hxx"
+#include <TCaptLog.hxx>
+#include <ostreamTVector3.hxx>
+
+#include <TRandom.h>
+
 
 namespace {
     // This finds the minimum distance between hits in the two clusters.
@@ -24,6 +27,15 @@ namespace {
         return minDist;
     }
 
+    // Choose a random iterator in the list of clusters.
+    CP::TReconObjectContainer::iterator 
+    Randomize(CP::TReconObjectContainer::iterator begin,
+              CP::TReconObjectContainer::iterator end) {
+        int diff = std::distance(begin,end);
+        int step = gRandom->Integer(diff);
+        return begin + step;
+    }
+    
     // Sort the clusters in order from end1 to end2.
     struct TubeSort {
     public:
@@ -47,6 +59,11 @@ namespace {
         TVector3 fDir;
     };
 }
+
+CP::TBestTube::TBestTube() 
+    :  fGoodEnoughTube(5.0), fFoundTube(false), fMaxTrials(100*100) { }
+
+CP::TBestTube::~TBestTube() { }
 
 void CP::TBestTube::FindTube(const TVector3& end1, const TVector3& end2,
                              CP::TReconObjectContainer::iterator begin, 
@@ -128,33 +145,59 @@ void CP::TBestTube::Process(const CP::TReconObjectContainer& input) {
     fFoundTube = false;
 
     int diff = std::distance(begin,end);
-    CaptNamedDebug("bestTube","Input clusters " << diff);
-    CP::TReconObjectContainer::iterator end1 = begin;
-    CP::TReconObjectContainer::iterator end2 = begin;
-    std::advance(end2,2*diff/3);
-    double trials = std::pow(1.0*diff,1.5) + 1;
-    CaptNamedDebug("bestTube","Trials " << int(trials));
-    for (CP::TReconObjectContainer::iterator end1 = begin;
-         end1 != end;  ++end1) {
-        for (CP::TReconObjectContainer::iterator end2 = end1+1;
-             end2 != end; ++end2) {
+    CaptNamedDebug("bestTube","Input clusters: " << diff);
+
+    // Find the number of clusters to be checked, and calculate a maximum
+    // number of trials.  For "small" events, this does an exhaustive search.
+    // If the event gets to bit, this does a random search.
+    int trials = diff*diff;
+    bool limitTrials = false;
+    if (trials > fMaxTrials) {
+        // Limit trials to the number of clusters^(3/2).  This is the
+        // recommended power in the literature for a random tube search in 3D.
+        trials = std::pow(1.0*diff,1.5);
+        // Make sure we do at least fMaxTrials checks.
+        trials = std::max(trials,fMaxTrials);
+        limitTrials = true;
+        CaptNamedDebug("bestTube","Trials limited to " << trials);
+    }
+
+
+    int trial = 0; 
+    bool terminateLoop = false;  // A poor man's try-catch...
+    for (CP::TReconObjectContainer::iterator e1 = begin;
+         e1 != end;  ++e1) {
+        for (CP::TReconObjectContainer::iterator e2 = e1+1;
+             e2 != end; ++e2) { 
+            ++trial;
+            // Make a copy of the loop iterators so they can be overridden.
+            CP::TReconObjectContainer::iterator end1 = e1;
+            CP::TReconObjectContainer::iterator end2 = e2;
+            if (limitTrials) {
+                end1 = Randomize(begin,end);
+                end2 = Randomize(begin,end);
+            }
             double weight = TubeWeight(end1,end2,begin,end);
             if (weight > bestWeight) {
                 CP::THandle<CP::TReconCluster> t1 = *end1;
                 CP::THandle<CP::TReconCluster> t2 = *end2;
-                TVector3 p1 = t1->GetPosition().Vect();
-                TVector3 p2 = t2->GetPosition().Vect();
                 CaptNamedDebug("bestTube","New Weight "
                              << weight
-                             << " from " << p1
-                             << "-->" << p2
-                             << " length is " << (p1-p2).Mag());
+                             << " from " << t1->GetPosition().Vect()
+                             << "-->" << t2->GetPosition().Vect()
+                             << " length is " 
+                               << (t1->GetPosition().Vect()
+                                   -t2->GetPosition().Vect()).Mag());
                 best1 = end1;
                 best2 = end2;
                 fFoundTube = true;
                 bestWeight = weight;
             }
+            if (bestWeight > fGoodEnoughTube) terminateLoop = true;
+            if (trials <= trial) terminateLoop = true;
+            if (terminateLoop) break;
         }
+        if (terminateLoop) break;
     }
 
     if (!fFoundTube) {
