@@ -44,7 +44,7 @@ bool CheckUnique(iterator begin, iterator end) {
 CP::TLinearRoad::TLinearRoad(int maxClusters)
     : fMaxClusters(maxClusters),
       fRoadWidth(12*unit::mm), 
-      fRoadStep(10*unit::mm),
+      fRoadStep(50*unit::mm),
       fOpeningAngle(0.15*unit::radian),
       fSeedSize(5),
       fSeedLength(2.0*unit::cm) { }
@@ -334,20 +334,30 @@ CP::TLinearRoad::NextCluster(const SeedContainer& seed,
             continue;
         }
 
-        // The find the local width for a hit at the current distance from the
-        // end point.
+        // The find the road width at the position of the current cluster.
+        // The road gets wider as the clusters get further away.
         double localWidth = fRoadWidth + dotProd*fOpeningAngle;
 
-        // Check that the hit is inside the local width.
+        // Find the transverse distance from the cluster to the road center.
         double transDist = (diff - dotProd*seedDirection).Mag();
 
         // Make sure the hit is inside the road.
         if (transDist > 0.5*localWidth) continue;
 
-        // And keep the hit closest to the current end point.
+        // And keep the cluster closest to the current end point.
         if (dotProd < bestDistance) {
-            bestCluster = cluster;
-            bestDistance = dotProd;
+            // Make sure the gap between the seed and cluster isn't too big.
+            // This looks for the closest cluster hit to the seed position.
+            double clusterDist = 1*unit::kilometer;
+            for (CP::THitSelection::iterator h = cluster->GetHits()->begin();
+                 h != cluster->GetHits()->end(); ++h) {
+                double dist = ((*h)->GetPosition() - seedPosition).Mag();
+                dist = std::min(dist,clusterDist);
+            }
+            if (clusterDist < fRoadStep) {
+                bestCluster = cluster;
+                bestDistance = dotProd;
+            }
         }
     }
     
