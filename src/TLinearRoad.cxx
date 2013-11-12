@@ -44,10 +44,10 @@ bool CheckUnique(iterator begin, iterator end) {
 CP::TLinearRoad::TLinearRoad(int maxClusters)
     : fMaxClusters(maxClusters),
       fRoadWidth(12*unit::mm), 
-      fRoadStep(50*unit::mm),
+      fRoadStep(5.0*unit::cm),
       fOpeningAngle(0.15*unit::radian),
-      fSeedSize(5),
-      fSeedLength(2.0*unit::cm) { }
+      fSeedSize(10),
+      fSeedLength(5.0*unit::cm) { }
 
 void CP::TLinearRoad::FillRemains(CP::TReconObjectContainer& remains) const {
     remains.clear();
@@ -103,150 +103,172 @@ void CP::TLinearRoad::Process(const CP::TReconObjectContainer& seed,
         fTrackClusters.push_back(cluster);
     }
 
-    // Define a queue to hold the current key.
-    SeedContainer currentSeed;
+    int throttle = 5;
+    std::size_t trackClusterOriginal;
+    do {
+        trackClusterOriginal = fTrackClusters.size();
+        CaptNamedDebug("road", "Start another iteration");
 
-    // Find hits at the "upstream" end of the track.
-    for (SeedContainer::iterator c = fTrackClusters.begin();
-         c != fTrackClusters.end(); ++c) {
-        currentSeed.push_back(*c);
-        double length = (currentSeed.front()->GetPosition().Vect()
-                         -currentSeed.back()->GetPosition().Vect()).Mag();
-        CaptNamedDebug("road", "Add upstream to seed" << 
-                       currentSeed.back()->GetPosition().Vect()
-                       << "   size: " << currentSeed.size() 
-                       << "   length: " << length);
-        if (currentSeed.size() < fSeedSize) continue;
-        if (length < fSeedLength) continue;
-        break;
-    }
-
-    for (SeedContainer::iterator s = currentSeed.begin(); 
-         s != currentSeed.end(); ++s) {
-        SeedContainer::iterator where =
-            std::find(fTrackClusters.begin(), fTrackClusters.end(), 
-                      *s);
-        if (where ==  fTrackClusters.end()) {
-            CaptError("Seed not found in track.");
-            continue;
-        }
-        CaptNamedDebug("road", "Remove upstream from track" << 
-                       (*where)->GetPosition().Vect());
-        fTrackClusters.erase(where);
-    }
-
-    CaptNamedDebug("road", "Follow road upstream");
-    int collectedClusters = 0;
-    while (!fRemainingClusters.empty() && currentSeed.size()>2) {
-        CP::THandle<CP::TReconCluster> cluster
-            = NextCluster(currentSeed, fRemainingClusters, false);
-
-        // If a cluster wasn't found, then stop looking for more.
-        if (!cluster) break;
-    
-        // Find the cluster being added to the seed and remove it from the
-        // remaining clusters.  This keeps the cluster from being found twice.
-        RemainingContainer::iterator where =
-            std::find(fRemainingClusters.begin(), fRemainingClusters.end(), 
-                      cluster);
-        if (where ==  fRemainingClusters.end()) {
-            CaptError("Upstream cluster not found in remaining clusters");
-        }
-        CaptNamedDebug("road", "Remove from remaining " << 
-                       (*where)->GetPosition().Vect());
-        fRemainingClusters.erase(where);
+        // Define a queue to hold the current key.
+        SeedContainer currentSeed;
         
-        // Add the cluster to the seed.  We are searching to the upstream end,
-        // so the cluster gets inserted at the beginning.
-        CaptNamedDebug("road", "Add to seed upstream " << 
-                       cluster->GetPosition().Vect());
-        currentSeed.push_front(cluster);
+        // Find hits at the "upstream" end of the track.
+        for (SeedContainer::iterator c = fTrackClusters.begin();
+             c != fTrackClusters.end(); ++c) {
+            currentSeed.push_back(*c);
+            double length = (currentSeed.front()->GetPosition().Vect()
+                             -currentSeed.back()->GetPosition().Vect()).Mag();
+            CaptNamedDebug("road", "Add upstream to seed" << 
+                           currentSeed.back()->GetPosition().Vect()
+                           << "   size: " << currentSeed.size() 
+                           << "   length: " << length);
+            if (currentSeed.size() < fSeedSize) continue;
+            if (length < fSeedLength) continue;
+            break;
+        }
         
-        while (currentSeed.size() > fSeedSize
-               && ((currentSeed.front()->GetPosition().Vect()
-                    -currentSeed.back()->GetPosition().Vect()).Mag()
-                   >= fSeedLength)) {
-            CaptNamedDebug("road", "Add to track upstream (pop seed)" << 
-                           currentSeed.back()->GetPosition().Vect());
-            fTrackClusters.push_front(currentSeed.back());
-            currentSeed.pop_back();
+        for (SeedContainer::iterator s = currentSeed.begin(); 
+             s != currentSeed.end(); ++s) {
+            SeedContainer::iterator where =
+                std::find(fTrackClusters.begin(), fTrackClusters.end(), 
+                          *s);
+            if (where ==  fTrackClusters.end()) {
+                CaptError("Seed not found in track.");
+                continue;
+            }
+            CaptNamedDebug("road", "Remove upstream from track" << 
+                           (*where)->GetPosition().Vect());
+            fTrackClusters.erase(where);
         }
-        if ((++collectedClusters)>fMaxClusters) break;
-    }
-
-    // At the end, flush the clusters in the current seed into the track. 
-    for (SeedContainer::reverse_iterator c = currentSeed.rbegin();
-         c != currentSeed.rend(); ++c) {
-        CaptNamedDebug("road", "Add to track upstream (empty seed)" << 
-                       (*c)->GetPosition().Vect());
-        fTrackClusters.push_front(*c);
-    }
-    currentSeed.clear();
-    
-    // Find clusters at the downstream end of the track.
-    for (SeedContainer::reverse_iterator c = fTrackClusters.rbegin();
-         c != fTrackClusters.rend();
-         ++c) {
-        currentSeed.push_front(*c);
-        double length = (currentSeed.front()->GetPosition().Vect()
-                         -currentSeed.back()->GetPosition().Vect()).Mag();
-        CaptNamedDebug("road", "Add downstream " << 
-                       currentSeed.front()->GetPosition().Vect()
-                       << "   size: " << currentSeed.size() 
-                       << "   length: " << length);
-        if (currentSeed.size() < fSeedSize) continue;
-        if (length < fSeedLength) continue;
-        break;
-    }
-
-    for (SeedContainer::iterator s = currentSeed.begin(); 
-         s != currentSeed.end(); ++s) {
-        SeedContainer::iterator where =
-            std::find(fTrackClusters.begin(), fTrackClusters.end(), 
-                      *s);
-        if (where ==  fTrackClusters.end()) {
-            CaptError("Seed not found in track.");
-            continue;
-        }
-        fTrackClusters.erase(where);
-    }
-
-    collectedClusters = 0;
-    CaptNamedDebug("road", "Follow road downstream");
-    while (!fRemainingClusters.empty() && currentSeed.size()>2) {
-        CP::THandle<CP::TReconCluster> cluster
-            = NextCluster(currentSeed, fRemainingClusters, true);
-
-        // If a cluster wasn't found, then stop looking for more.
-        if (!cluster) break;
-
-        // Find the cluster being added to the seed and remove it from the
-        // remaining clusters.  This keeps the cluster from being found twice.
-        RemainingContainer::iterator where 
-            = std::find(fRemainingClusters.begin(), fRemainingClusters.end(), 
-                        cluster);
-        if (where == fRemainingClusters.end()) {
-            CaptError("Downstream cluster not found in remaining clusters");
-        }
-        fRemainingClusters.erase(where);
         
-        // Add the cluster to the seed.  We are searching to the upstream end,
-        // so the cluster gets inserted at the beginning.
-        currentSeed.push_back(cluster);
-        
-        while (currentSeed.size() > fSeedSize
-               && ((currentSeed.front()->GetPosition().Vect()
-                    -currentSeed.back()->GetPosition().Vect()).Mag()
-                   >= fSeedLength)) {
-            fTrackClusters.push_back(currentSeed.front());
-            currentSeed.pop_front();
+        CaptNamedDebug("road", "Follow road upstream");
+        int collectedClusters = 0;
+        while (!fRemainingClusters.empty() && currentSeed.size()>2) {
+            CP::THandle<CP::TReconCluster> cluster
+                = NextCluster(currentSeed, fRemainingClusters, false);
+            
+            // If a cluster wasn't found, then stop looking for more.
+            if (!cluster) break;
+            
+            // Find the cluster being added to the seed and remove it from the
+            // remaining clusters.  This keeps the cluster from being found
+            // twice.
+            RemainingContainer::iterator where =
+                std::find(fRemainingClusters.begin(), fRemainingClusters.end(), 
+                          cluster);
+            if (where ==  fRemainingClusters.end()) {
+                CaptError("Upstream cluster not found in remaining clusters");
+            }
+            CaptNamedDebug("road", "Remove from remaining " << 
+                           (*where)->GetPosition().Vect());
+            fRemainingClusters.erase(where);
+            
+            // Add the cluster to the seed.  We are searching to the upstream
+            // end, so the cluster gets inserted at the beginning.
+            CaptNamedDebug("road", "Add to seed upstream " << 
+                           cluster->GetPosition().Vect());
+            currentSeed.push_front(cluster);
+            
+            while (currentSeed.size() > fSeedSize
+                   && ((currentSeed.front()->GetPosition().Vect()
+                        -currentSeed.back()->GetPosition().Vect()).Mag()
+                       >= fSeedLength)) {
+                CaptNamedDebug("road", "Add to track upstream (pop seed)" << 
+                               currentSeed.back()->GetPosition().Vect());
+                fTrackClusters.push_front(currentSeed.back());
+                currentSeed.pop_back();
+            }
+            if ((++collectedClusters)>fMaxClusters) break;
         }
-        if ((++collectedClusters)>fMaxClusters) break;
-    }
-    
-    // At the end, flush all the current hits into the track hits 
-    std::copy(currentSeed.begin(), currentSeed.end(),
-              std::back_inserter(fTrackClusters));
+        
+        // At the end, flush the clusters in the current seed into the track. 
+        for (SeedContainer::reverse_iterator c = currentSeed.rbegin();
+             c != currentSeed.rend(); ++c) {
+            CaptNamedDebug("road", "Add to track upstream (empty seed)" << 
+                           (*c)->GetPosition().Vect());
+            fTrackClusters.push_front(*c);
+        }
+        currentSeed.clear();
+        
+        // Find clusters at the downstream end of the track.
+        for (SeedContainer::reverse_iterator c = fTrackClusters.rbegin();
+             c != fTrackClusters.rend();
+             ++c) {
+            currentSeed.push_front(*c);
+            double length = (currentSeed.front()->GetPosition().Vect()
+                             -currentSeed.back()->GetPosition().Vect()).Mag();
+            CaptNamedDebug("road", "Add downstream " << 
+                           currentSeed.front()->GetPosition().Vect()
+                           << "   size: " << currentSeed.size() 
+                           << "   length: " << length);
+            if (currentSeed.size() < fSeedSize) continue;
+            if (length < fSeedLength) continue;
+            break;
+        }
+        
+        for (SeedContainer::iterator s = currentSeed.begin(); 
+             s != currentSeed.end(); ++s) {
+            SeedContainer::iterator where =
+                std::find(fTrackClusters.begin(), fTrackClusters.end(), 
+                          *s);
+            if (where ==  fTrackClusters.end()) {
+                CaptError("Seed not found in track.");
+                continue;
+            }
+            fTrackClusters.erase(where);
+        }
+        
+        collectedClusters = 0;
+        CaptNamedDebug("road", "Follow road downstream");
+        while (!fRemainingClusters.empty() && currentSeed.size()>2) {
+            CP::THandle<CP::TReconCluster> cluster
+                = NextCluster(currentSeed, fRemainingClusters, true);
+            
+            // If a cluster wasn't found, then stop looking for more.
+            if (!cluster) break;
+            
+            // Find the cluster being added to the seed and remove it from the
+            // remaining clusters.  This keeps the cluster from being found
+            // twice.
+            RemainingContainer::iterator where 
+                = std::find(fRemainingClusters.begin(),
+                            fRemainingClusters.end(), 
+                            cluster);
+            if (where == fRemainingClusters.end()) {
+                CaptError("Downstream cluster not found in remaining clusters");
+            }
+            fRemainingClusters.erase(where);
+            
+            // Add the cluster to the seed.  We are searching to the upstream
+            // end, so the cluster gets inserted at the beginning.
+            currentSeed.push_back(cluster);
+            
+            while (currentSeed.size() > fSeedSize
+                   && ((currentSeed.front()->GetPosition().Vect()
+                        -currentSeed.back()->GetPosition().Vect()).Mag()
+                       >= fSeedLength)) {
+                fTrackClusters.push_back(currentSeed.front());
+                currentSeed.pop_front();
+            }
+            if ((++collectedClusters)>fMaxClusters) break;
+        }
+        
+        // At the end, flush the clusters in the current seed into the track. 
+        for (SeedContainer::iterator c = currentSeed.begin();
+             c != currentSeed.end(); ++c) {
+            CaptNamedDebug("road", "Add to track downstream (empty seed)" << 
+                           (*c)->GetPosition().Vect());
+            fTrackClusters.push_back(*c);
+        }
+        currentSeed.clear();
+
+        CaptLog("Road following started with "
+                << trackClusterOriginal << " clusters"
+                << " and ended with " << fTrackClusters.size()
+                << " clusters (" << throttle << ")");
+             
+    } while (trackClusterOriginal != fTrackClusters.size()
+             && --throttle > 0);
 
 }
 
@@ -280,10 +302,22 @@ CP::TLinearRoad::NextCluster(const SeedContainer& seed,
     // positions.
     std::auto_ptr<TPrincipal> principal(new TPrincipal(3,""));
     for (SeedContainer::const_iterator s = seed.begin();s != seed.end(); ++s) {
-        double row[3] = {(*s)->GetPosition().X(),
+        double row1[3] = {(*s)->GetPosition().X()-(*s)->GetLongAxis().X(),
+                          (*s)->GetPosition().Y()-(*s)->GetLongAxis().Y(),
+                          (*s)->GetPosition().Z()-(*s)->GetLongAxis().Z()};
+        double row2[3] = {(*s)->GetPosition().X(),
                          (*s)->GetPosition().Y(),
                          (*s)->GetPosition().Z()};
-        principal->AddRow(row);
+        double row3[3] = {(*s)->GetPosition().X()+(*s)->GetLongAxis().X(),
+                          (*s)->GetPosition().Y()+(*s)->GetLongAxis().Y(),
+                          (*s)->GetPosition().Z()+(*s)->GetLongAxis().Z()};
+        for (double q = (*s)->GetEDeposit(); q > 0; q -= 1000) {
+            principal->AddRow(row1);
+            principal->AddRow(row2);
+            principal->AddRow(row2);
+            principal->AddRow(row2);
+            principal->AddRow(row3);
+        }
     }
     principal->MakePrincipals();
 
@@ -352,7 +386,7 @@ CP::TLinearRoad::NextCluster(const SeedContainer& seed,
             for (CP::THitSelection::iterator h = cluster->GetHits()->begin();
                  h != cluster->GetHits()->end(); ++h) {
                 double dist = ((*h)->GetPosition() - seedPosition).Mag();
-                dist = std::min(dist,clusterDist);
+                clusterDist = std::min(dist,clusterDist);
             }
             if (clusterDist < fRoadStep) {
                 bestCluster = cluster;
