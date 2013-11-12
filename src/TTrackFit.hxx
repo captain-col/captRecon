@@ -58,6 +58,10 @@ private:
     /// A pointer to the bootstrap fitter.  This only initialized if the
     /// fitter is used.
     CP::TTrackFitBase* fBootstrap;
+
+    /// A pointer to the cluster fitter.  This is only instantiated if the
+    /// fitter is used.
+    CP::TTrackFitBase* fCluster;
 };
 
 #endif
