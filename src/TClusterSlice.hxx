@@ -7,13 +7,10 @@ namespace CP {
     class TClusterSlice;
 };
 
-/// This takes a algorithm result with clusters of "simply connected" hits
-/// (meaning hits that are connected by direct neighbors), and then splits
-/// each cluster into clusters in "Z".  The resulting clusters are then turned
-/// into tracks.  This means that 3D hits which are part of the same XY plane
-/// confusion region are all in the same cluster.  The track is then assumed
-/// to go through the center of each cluster.  This is intended as a first
-/// approximation to a track.
+/// This takes a algorithm result with 3D hits and then splits the hits into
+/// clusters in "Z".  This means that 3D hits which are part of the same XY
+/// plane confusion region are all in the same cluster.  This simplifies the
+/// infirmation that needs to be looked at for tracking.
 class CP::TClusterSlice
     : public CP::TAlgorithm {
 public:
@@ -27,29 +24,12 @@ public:
             const CP::TAlgorithmResult& input2 = CP::TAlgorithmResult::Empty);
 
 private:
-    /// Take a single cluster of simply connected hits and turn it into a
-    /// track.  If the hits are not long enough to turn into a track, then
-    /// the original cluster is returned.  If the input object is not a
-    /// cluster, then the original object is returned.
-    CP::THandle<CP::TReconBase> 
-    ClusterToTrack(CP::THandle<CP::TReconBase> input);
-
     /// Take hits and break them into clusters based on the "Z Confusion
     /// Distance".  The slices along the Z axis are controlled by the
     /// captRecon.clusterSlice.clusterStep parameter.  The output is an object
     /// container of 3D aclusters.
     CP::THandle<CP::TReconObjectContainer> 
     MakeSlices(CP::THandle<CP::THitSelection> input);
-
-    /// Take an object container of clusters created by slicing the hits into
-    /// "z-slices" (the output of MakeSlices) and split them up into tracks.
-    /// The output is a object container that may contain one or more tracks.
-    /// This can take a handle to the result being created that can be filled
-    /// with debugging information about the track finding will be filled into
-    /// the output result.
-    CP::THandle<CP::TReconObjectContainer> 
-    MakeTracks(const CP::TReconObjectContainer& input, 
-               CP::THandle<CP::TAlgorithmResult> thisResult);
 
     /// The minimum number of neighbors within the maximum distance of the
     /// current point to consider the current point to be in a high density
