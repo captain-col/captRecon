@@ -222,8 +222,8 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         BTF::ColumnVector ev = posterior->ExpectedValueGet();
         MatrixWrapper::SymmetricMatrix cv = posterior->CovarianceGet();
 
-        // Set the values and covariances, but drop the correlations between
-        // position and direction (it makes life simpler...)
+        // Set the values and covariances.
+        trackState->SetEDeposit(cluster->GetEDeposit());
         trackState->SetPosition(ev[BTF::kXPos],ev[BTF::kYPos],ev[BTF::kZPos],
                                 cluster->GetPosition().T());
         trackState->SetDirection(ev[BTF::kXDir],ev[BTF::kYDir],ev[BTF::kZDir]);
@@ -331,6 +331,12 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         CaptNamedDebug("BFL",
                        "Old Covariance " << oldCov
                        << "   New Covariance " << newCov);
+
+        if (oldCov < 1E-6 || newCov < 1E-6) {
+            CaptNamedError("BFL", "Fit failed");
+            return CP::THandle<CP::TReconTrack>();
+        }
+
         if ((1E-6 < oldCov && oldCov < newCov)
              || (newCov < 1E-6)) {
             CaptNamedDebug("BFL","Old Position " 
