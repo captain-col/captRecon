@@ -2,6 +2,7 @@
 #include "TCluster3D.hxx"
 #include "TDensityCluster.hxx"
 #include "TClusterSlice.hxx"
+#include "TBestTubeTrack.hxx"
 
 #include "HitUtilities.hxx"
 
@@ -59,29 +60,39 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
     ///////////////////////////////////////////////////////////
     do {
         // Find the time zero and the 3D hits.
-        CP::THandle<CP::TAlgorithmResult> cluster3D
+        CP::THandle<CP::TAlgorithmResult> cluster3DResult
             = Run<CP::TCluster3D>(*wires,*pmts);
-        if (!cluster3D) break;
-        currentResult = cluster3D;
-        allHits = cluster3D->GetHits();
+        if (!cluster3DResult) break;
+        currentResult = cluster3DResult;
+        allHits = currentResult->GetHits();
         result->AddDatum(currentResult);
 
 #ifdef Apply_TDensityCluster
         // Cluster the 3D hits by position to find object candidates. 
-        CP::THandle<CP::TAlgorithmResult> clustered
+        CP::THandle<CP::TAlgorithmResult> densityClusterResult
             = Run<CP::TDensityCluster>(*currentResult);
-        if (!clustered) break;
-        currentResult = clustered;
+        if (!densityClusterResult) break;
+        currentResult = densityClusterResult;
         result->AddDatum(currentResult);
 #endif
 
 #define Apply_TClusterSlice
 #ifdef Apply_TClusterSlice
         // Cluster the 3D hits by position to find object candidates. 
-        CP::THandle<CP::TAlgorithmResult> sliced
+        CP::THandle<CP::TAlgorithmResult> clusterSliceResult
             = Run<CP::TClusterSlice>(*currentResult);
-        if (!sliced) break;
-        currentResult = sliced;
+        if (!clusterSliceResult) break;
+        currentResult = clusterSliceResult;
+        result->AddDatum(currentResult);
+#endif
+
+#define Apply_TBestTubeTrack
+#ifdef Apply_TBestTubeTrack
+        // Cluster the 3D hits by position to find object candidates. 
+        CP::THandle<CP::TAlgorithmResult> bestTubeResult
+            = Run<CP::TBestTubeTrack>(*currentResult);
+        if (!bestTubeResult) break;
+        currentResult = bestTubeResult;
         result->AddDatum(currentResult);
 #endif
 
