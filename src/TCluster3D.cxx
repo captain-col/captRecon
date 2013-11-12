@@ -125,12 +125,14 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     std::auto_ptr<CP::THitSelection> clustered(new CP::THitSelection(
                                                    "clustered"));
 
+    std::vector<float> allRMS;
     std::auto_ptr<CP::THitSelection> xHits(new CP::THitSelection);
     std::auto_ptr<CP::THitSelection> vHits(new CP::THitSelection);
     std::auto_ptr<CP::THitSelection> uHits(new CP::THitSelection);
     for (CP::THitSelection::iterator h2 = wireHits->begin(); 
          h2 != wireHits->end(); ++h2) {
         int plane = CP::GeomId::Captain::GetWirePlane((*h2)->GetGeomId());
+        allRMS.push_back((*h2)->GetTimeRMS());
         if (plane == CP::GeomId::Captain::kXPlane) {
             xHits->push_back(*h2);
         }
@@ -145,6 +147,8 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
         }
         unused->push_back(*h2);
     }
+    double deltaRMS = 2.0;
+    double maxDeltaT = deltaRMS*allRMS[allRMS.size()-1];
 
     std::sort(xHits->begin(), xHits->end(), compareHitTime());
     std::sort(vHits->begin(), vHits->end(), compareHitTime());
@@ -153,30 +157,50 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     CP::TCaptLog::IncreaseIndentation();
     CaptLog("X Hits: " << xHits->size()
             << " V Hits: " << vHits->size()
-            << " U Hits: " << uHits->size());
+            << " U Hits: " << uHits->size()
+            << "  max(RMS): " << unit::AsString(maxDeltaT,"time"));
     CP::TCaptLog::DecreaseIndentation();
 
     CP::TDriftPosition drift;
 
     // The time must be drift corrected!
     double deltaT;
-    
+
+    int trials = 0;
+    CP::THitSelection::iterator vBegin = vHits->begin();
+    CP::THitSelection::iterator uBegin = uHits->begin();
     for (CP::THitSelection::iterator xh=xHits->begin();
          xh!=xHits->end(); ++xh) {
+        ++trials;
         double xTime = drift.GetTime(**xh);
         double xRMS = (*xh)->GetTimeRMS();
-        for (CP::THitSelection::iterator vh=vHits->begin(); 
+        while (drift.GetTime(**vBegin) - xTime < - maxDeltaT
+               && vBegin != vHits->end()) {
+            ++vBegin;
+        }
+        while (drift.GetTime(**uBegin) - xTime < - maxDeltaT
+               && uBegin != uHits->end()) {
+            ++uBegin;
+        }
+
+        for (CP::THitSelection::iterator vh=vBegin;
              vh!=vHits->end(); ++vh) {
+            ++trials;
             double vTime = drift.GetTime(**vh);
-            deltaT = std::abs(vTime - xTime);
-            if (deltaT > 10*unit::microsecond) continue;
+            deltaT = vTime - xTime;
+            if (deltaT > maxDeltaT) break;
+            deltaT = std::abs(deltaT);
+
             double vRMS = (*vh)->GetTimeRMS();
 
-            for (CP::THitSelection::iterator uh=uHits->begin(); 
+            for (CP::THitSelection::iterator uh=uBegin;
                  uh!=uHits->end(); ++uh) {
+                ++trials;
                 double uTime = drift.GetTime(**uh);
-                deltaT = std::abs(uTime - xTime);
-                if (deltaT > 10*unit::microsecond) continue;
+                deltaT = uTime - xTime;
+                if (deltaT > maxDeltaT) break;
+                deltaT = std::abs(deltaT);
+                
                 double uRMS = (*uh)->GetTimeRMS();
 
                 // Check that the X and U wires overlap in time.
@@ -209,6 +233,7 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 CP::TWritableReconHit hit(*xh,*vh,*uh);
                 TVector3 p3(PositionXY(*vh,*uh));
 
+#ifdef FILL_USED
                 // These three wire hits make a 3D point.  Get them into the
                 // correct hit selections.
                 used->AddHit(*xh);
@@ -219,6 +244,7 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
 
                 used->AddHit(*uh);
                 unused->RemoveHit(*uh);
+#endif
 
                 // Set the time.  It's the wire hit time after drifting to Z
                 // equal to zero.  Some of the wires might have overlapping
@@ -319,6 +345,7 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     CaptLog("Used Hits: " << used->size());
     CaptLog("Unused Hits: " << unused->size());
     CaptLog("Clustered Hits: " << clustered->size());
+    CaptLog("Trials: " << trials);
 
     CP::TReconObjectContainer* final = new CP::TReconObjectContainer("final");
     CP::THandle<CP::TReconCluster> usedCluster(new CP::TReconCluster);
