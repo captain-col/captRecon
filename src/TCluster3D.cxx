@@ -125,6 +125,10 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     std::auto_ptr<CP::THitSelection> clustered(new CP::THitSelection(
                                                    "clustered"));
 
+    /// Only save the used and unused hits if there are fewer than this many
+    /// 2D hits.
+    const std::size_t hitLimit = 3000;
+
     std::vector<float> allRMS;
     std::auto_ptr<CP::THitSelection> xHits(new CP::THitSelection);
     std::auto_ptr<CP::THitSelection> vHits(new CP::THitSelection);
@@ -145,7 +149,7 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
         else {
             CaptError("Invalid wire plane");
         }
-        unused->push_back(*h2);
+        if (wireHits->size() < hitLimit) unused->push_back(*h2);
     }
     double deltaRMS = 2.0;
     double maxDeltaT = deltaRMS*allRMS[allRMS.size()-1];
@@ -174,12 +178,12 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
         ++trials;
         double xTime = drift.GetTime(**xh);
         double xRMS = (*xh)->GetTimeRMS();
-        while (drift.GetTime(**vBegin) - xTime < - maxDeltaT
-               && vBegin != vHits->end()) {
+        while (vBegin != vHits->end() 
+               && drift.GetTime(**vBegin) - xTime < - maxDeltaT) {
             ++vBegin;
         }
-        while (drift.GetTime(**uBegin) - xTime < - maxDeltaT
-               && uBegin != uHits->end()) {
+        while (uBegin != uHits->end()
+               && drift.GetTime(**uBegin) - xTime < - maxDeltaT) {
             ++uBegin;
         }
 
@@ -197,6 +201,7 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                  uh!=uHits->end(); ++uh) {
                 ++trials;
                 double uTime = drift.GetTime(**uh);
+                
                 deltaT = uTime - xTime;
                 if (deltaT > maxDeltaT) break;
                 deltaT = std::abs(deltaT);
@@ -233,18 +238,18 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 CP::TWritableReconHit hit(*xh,*vh,*uh);
                 TVector3 p3(PositionXY(*vh,*uh));
 
-#ifdef FILL_USED
-                // These three wire hits make a 3D point.  Get them into the
-                // correct hit selections.
-                used->AddHit(*xh);
-                unused->RemoveHit(*xh);
-
-                used->AddHit(*vh);
-                unused->RemoveHit(*vh);
-
-                used->AddHit(*uh);
-                unused->RemoveHit(*uh);
-#endif
+                if (wireHits->size() < hitLimit) {
+                    // These three wire hits make a 3D point.  Get them into
+                    // the correct hit selections.
+                    used->AddHit(*xh);
+                    unused->RemoveHit(*xh);
+                    
+                    used->AddHit(*vh);
+                    unused->RemoveHit(*vh);
+                    
+                    used->AddHit(*uh);
+                    unused->RemoveHit(*uh);
+                }
 
                 // Set the time.  It's the wire hit time after drifting to Z
                 // equal to zero.  Some of the wires might have overlapping
@@ -353,8 +358,8 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     final->push_back(usedCluster);
     result->AddResultsContainer(final);
 
-    result->AddHits(unused.release());
-    result->AddHits(used.release());
+    if (unused->size() > 0) result->AddHits(unused.release());
+    if (used->size() > 0) result->AddHits(used.release());
     result->AddHits(clustered.release());
 
     return result;
