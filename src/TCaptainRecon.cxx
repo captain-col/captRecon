@@ -115,25 +115,32 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
                   std::back_inserter(*finalObjects));
     }
 
-    std::auto_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
-    std::auto_ptr<CP::THitSelection> unused(new CP::THitSelection("unused"));
-    
-    // Get all of the hits in the final object and add them to used.
-    CP::THandle<CP::THitSelection> hits 
-        = CP::hits::ReconHits(finalObjects->begin(), finalObjects->end());
-    if (hits) {
-        std::copy(hits->begin(), hits->end(), std::back_inserter(*used));
-    }
-
-    if (allHits) {
+    // Save the hits, but only if there aren't to many.
+    if (allHits && allHits->size() < 10000) {
+        std::auto_ptr<CP::THitSelection> 
+            used(new CP::THitSelection("used"));
+        std::auto_ptr<CP::THitSelection> 
+            unused(new CP::THitSelection("unused"));
+        
+        // Get all of the hits in the final object and add them to used.
+        CaptLog("Fill the used hits");
+        CP::THandle<CP::THitSelection> hits 
+            = CP::hits::ReconHits(finalObjects->begin(), finalObjects->end());
+        if (hits) {
+            std::copy(hits->begin(), hits->end(), std::back_inserter(*used));
+        }
+        
+        CaptLog("Fill the unused hits");
         unused->reserve(allHits->size());
         std::copy(allHits->begin(), allHits->end(), 
                   std::back_inserter(*unused));
         CP::hits::Subtract(*unused,*used);
-    }
     
-    result->AddHits(unused.release());
-    result->AddHits(used.release());
+        result->AddHits(unused.release());
+        result->AddHits(used.release());
+    }
+
+    CaptLog("Save the results");
     result->AddResultsContainer(finalObjects.release());
 
     return result;
