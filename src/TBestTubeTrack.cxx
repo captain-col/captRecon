@@ -109,6 +109,11 @@ CP::TBestTubeTrack::Process(const CP::TAlgorithmResult& input,
         return CP::THandle<CP::TAlgorithmResult>();
     }
 
+    if (inputObjects->size() > 1000) {
+        CaptError("Too many input objects");
+        return CP::THandle<CP::TAlgorithmResult>();
+    }
+
     CaptLog("TBestTubeTrack Process " << GetEvent().GetContext());
     
     // Create the output containers.
