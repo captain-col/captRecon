@@ -77,10 +77,21 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
             ++curr;
             continue;
         }
-        // Make sure that the cluster covers a range in Z.
+
         deltaZ = std::abs((*curr)->GetPosition().Z()
                           -(*first)->GetPosition().Z());
-        if (deltaZ < zStep) {
+        // Make sure the cluster covers a minimum range in Z (determined by
+        // hit resolution).
+        double minZStep = 0.75*unit::mm;
+        // Make sure that the cluster covers a range in Z.
+        if (deltaZ < minZStep) {
+            ++curr;
+            continue;
+        }
+
+        // Make sure that the cluster at most the expected cluster step, but
+        // limit the number of hits.
+        if (deltaZ < zStep && curr-first < 200) {
             ++curr;
             continue;
         }
@@ -104,7 +115,8 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
         CaptNamedLog("TClusterSlice",
                      trials
                      << " -- Slice with " << nClusters
-                     << " clusters from " << curr-first << " in slice");
+                     << " clusters from " << curr-first << " in slice"
+                     << "   dZ: " << deltaZ);
         for (int i=0; i<nClusters; ++i) {
             const CP::HitProximity::Cluster::Points& points 
                 = clusterAlgorithm->GetCluster(i);
@@ -157,7 +169,6 @@ CP::TClusterSlice::Process(const CP::TAlgorithmResult& input,
     CP::THandle<CP::TAlgorithmResult> result = CreateResult();
     std::auto_ptr<CP::TReconObjectContainer> 
         final(new CP::TReconObjectContainer("final"));
-    std::auto_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
 
     if (inputObjects) {
         CaptLog("   Using " <<  inputObjects->size() << " objects");
@@ -183,15 +194,18 @@ CP::TClusterSlice::Process(const CP::TAlgorithmResult& input,
 
 
     // Copy all of the hits that got added to a reconstruction object into the
-    // used hit selection.
-    CP::THandle<CP::THitSelection> hits 
-        = CP::hits::ReconHits(final->begin(), final->end());
-    if (hits) {
-        used->reserve(hits->size());
-        std::copy(hits->begin(), hits->end(), std::back_inserter(*used));
+    // used hit selection.  But only if there aren't to many input hits.
+    if (inputHits->size() < 5000) {
+        CP::THandle<CP::THitSelection> hits 
+            = CP::hits::ReconHits(final->begin(), final->end());
+        std::auto_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
+        if (hits) {
+            used->reserve(hits->size());
+            std::copy(hits->begin(), hits->end(), std::back_inserter(*used));
+        }
+        result->AddHits(used.release());
     }
 
-    result->AddHits(used.release());
     result->AddResultsContainer(final.release());
 
     return result;
