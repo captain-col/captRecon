@@ -97,7 +97,7 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
         }
 
         ++trials;
-        if (!(trials % 100)) {
+        if (!(trials % 20)) {
             CaptError("Working on slice " << trials);
         }
 
@@ -112,7 +112,7 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
         // the Z slice.
         clusterAlgorithm->Cluster(first,curr);
         int nClusters = clusterAlgorithm->GetClusterCount();
-        CaptNamedLog("TClusterSlice",
+        CaptNamedInfo("TClusterSlice",
                      trials
                      << " -- Slice with " << nClusters
                      << " clusters from " << curr-first << " in slice"
