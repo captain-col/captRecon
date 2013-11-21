@@ -15,6 +15,7 @@ use testBase
 use captainPolicy 
 
 use ROOT * LCG_Interfaces
+use Boost * LCG_Interfaces
 use orocos-bfl * LCG_Interfaces
 
 # Build the documentation.
