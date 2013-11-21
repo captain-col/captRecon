@@ -1,6 +1,7 @@
 #include "TBestTube.hxx"
 #include "TTubePredicate.hxx"
 #include "TMajorAxisComparator.hxx"
+#include "ClusterDistance.hxx"
 
 #include <TCaptLog.hxx>
 #include <ostreamTVector3.hxx>
@@ -9,24 +10,6 @@
 
 
 namespace {
-    // This finds the minimum distance between hits in the two clusters.
-    double ClusterDistance(const CP::TReconCluster& a, 
-                           const CP::TReconCluster& b) {
-        CP::THandle<CP::THitSelection> aHits = a.GetHits();
-        CP::THandle<CP::THitSelection> bHits = b.GetHits();
-        double minDist = 1000*unit::meter;
-        for (CP::THitSelection::iterator j = aHits->begin(); 
-             j != aHits->end(); ++j) {
-            for (CP::THitSelection::iterator k = bHits->begin(); 
-                 k != bHits->end(); ++k) {
-                if (j == k) continue;
-                double dist = ((*j)->GetPosition()-(*k)->GetPosition()).Mag();
-                if (dist < minDist) minDist = dist;
-            }
-        }
-        return minDist;
-    }
-
     // Choose a random iterator in the list of clusters.
     CP::TReconObjectContainer::iterator 
     Randomize(CP::TReconObjectContainer::iterator begin,
@@ -106,7 +89,7 @@ double CP::TBestTube::TubeWeight(const TVector3& end1, const TVector3& end2,
             CaptError("TBestTube called with non-cluster in container.");
             return 0.0;
         }
-        double dist = ClusterDistance(*f, *s);
+        double dist = CP::ClusterDistance(*f, *s);
         // Make sure the seed is continuous (i.e. no "big" gaps).
         if (dist > 5*unit::mm) return 0.0;
     }
