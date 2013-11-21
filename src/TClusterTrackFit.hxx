@@ -11,10 +11,12 @@ namespace CP {
     class TClusterTrackFit;
 };
 
-/// Fit a track by forming a cluster from the track node objects.  This takes
-/// an input track where all of the nodes are filled with objects, and the
-/// nodes are in the correct order.  See the CP::TTrackFitBase class for more
-/// detailed API documentation.
+/// Fit a track by forming a cluster from the track node objects.  This has
+/// the effect of fitting a line to the track.  The node states are taken by
+/// projecting them on the the best fit line.  This takes an input track where
+/// all of the nodes are filled with objects, and the nodes are in the correct
+/// order.  See the CP::TTrackFitBase class for more detailed API
+/// documentation.
 class CP::TClusterTrackFit : public CP::TTrackFitBase {
 public:
     TClusterTrackFit();
