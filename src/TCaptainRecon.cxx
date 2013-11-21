@@ -3,6 +3,7 @@
 #include "TDensityCluster.hxx"
 #include "TClusterSlice.hxx"
 #include "TBestTubeTrack.hxx"
+#include "TMinimalSpanningTrack.hxx"
 
 #include "HitUtilities.hxx"
 
@@ -86,13 +87,22 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         result->AddDatum(currentResult);
 #endif
 
-#define Apply_TBestTubeTrack
 #ifdef Apply_TBestTubeTrack
         // Cluster the 3D hits by position to find object candidates. 
         CP::THandle<CP::TAlgorithmResult> bestTubeResult
             = Run<CP::TBestTubeTrack>(*currentResult);
         if (!bestTubeResult) break;
         currentResult = bestTubeResult;
+        result->AddDatum(currentResult);
+#endif
+
+#define Apply_TMinimalSpanningTrack
+#ifdef Apply_TMinimalSpanningTrack
+        // Cluster the 3D hits by position to find object candidates. 
+        CP::THandle<CP::TAlgorithmResult> minimalSpanningResult
+            = Run<CP::TMinimalSpanningTrack>(*currentResult);
+        if (!minimalSpanningResult) break;
+        currentResult = minimalSpanningResult;
         result->AddDatum(currentResult);
 #endif
 
