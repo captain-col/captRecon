@@ -2,6 +2,7 @@
 #define CreateTrack_hxx_seen
 
 #include "TSegmentTrackFit.hxx"
+#include "HitUtilities.hxx"
 
 #include <TReconTrack.hxx>
 #include <THandle.hxx>

@@ -1,4 +1,5 @@
 #ifndef HitUtilities_hxx_seen
+#define HitUtilities_hxx_seen
 
 #include <THit.hxx>
 #include <THandle.hxx>
