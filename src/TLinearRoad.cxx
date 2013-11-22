@@ -1,6 +1,7 @@
 #include "TLinearRoad.hxx"
 #include "TClusterMomentsFit.hxx"
 #include "HitUtilities.hxx"
+#include "CreateTrack.hxx"
 
 #include <ostreamTLorentzVector.hxx>
 #include <ostreamTVector3.hxx>
@@ -432,47 +433,17 @@ CP::TLinearRoad::CreateTrackState(CP::THandle<CP::TReconCluster> object,
 }
 
 CP::THandle<CP::TReconTrack> CP::TLinearRoad::GetTrack()  {
-    CP::THandle<CP::TReconTrack> track(new CP::TReconTrack);
     if (fTrackClusters.size() < 2) {
         CaptNamedDebug("road","No track found");
-        return track;
+        return CP::THandle<CP::TReconTrack>();
     }
 
     CheckUnique(fTrackClusters.begin(), fTrackClusters.end());
 
-    track->SetAlgorithmName("TLinearRoad");
-    track->SetStatus(CP::TReconBase::kSuccess);
-    track->AddDetector(CP::TReconBase::kTPC);
-    track->SetName("track");
-
-    CP::THandle<CP::THitSelection> hits 
-        = CP::hits::ReconHits(fTrackClusters.begin(),fTrackClusters.end());
-    CP::THitSelection* trackHits = new CP::THitSelection("trackHits");
-    std::copy(hits->begin(), hits->end(),std::back_inserter(*trackHits));
-    track->AddHits(trackHits);
-    
-    TReconNodeContainer& nodes = track->GetNodes();
-    for (SeedContainer::iterator c = fTrackClusters.begin();
-         c != fTrackClusters.end(); ++c) {
-        CP::THandle<CP::TReconNode> node(new CP::TReconNode);
-        
-        TVector3 dir;
-        if ((c+1) != fTrackClusters.end()) {
-            dir = (*(c+1))->GetPosition().Vect()-(*c)->GetPosition().Vect();
-        }
-        else {
-            dir = (*c)->GetPosition().Vect()-(*(c-1))->GetPosition().Vect();
-        }
-        dir = dir.Unit();
-	CP::THandle<CP::TTrackState> nodeState = CreateTrackState((*c), dir);
-        
-        CP::THandle<CP::TReconState> castState = nodeState;
-        node->SetState(castState);
-        CP::THandle<CP::TReconBase> castObject = *c;
-        node->SetObject(castObject);
-        nodes.push_back(node);
-    }
-
-
+    CP::THandle<CP::TReconTrack> track 
+        = CP::CreateTrack("TLinearRoad",
+                          fTrackClusters.begin(), 
+                          fTrackClusters.end());
+                                                         
     return track;     
 }
