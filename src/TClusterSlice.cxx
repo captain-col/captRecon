@@ -98,7 +98,7 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
 
         ++trials;
         if (!(trials % 20)) {
-            CaptError("Working on slice " << trials);
+            CaptNamedLog("TClusterSlice", "Working on slice " << trials);
         }
 
         // Time for a new slice of clusters.
