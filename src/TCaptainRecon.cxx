@@ -4,6 +4,7 @@
 #include "TClusterSlice.hxx"
 #include "TBestTubeTrack.hxx"
 #include "TMinimalSpanningTrack.hxx"
+#include "TSplitTracks.hxx"
 
 #include "HitUtilities.hxx"
 
@@ -103,6 +104,16 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
             = Run<CP::TMinimalSpanningTrack>(*currentResult);
         if (!minimalSpanningResult) break;
         currentResult = minimalSpanningResult;
+        result->AddDatum(currentResult);
+#endif
+
+#define Apply_TSplitTracks
+#ifdef Apply_TSplitTracks
+        // Cluster the 3D hits by position to find object candidates. 
+        CP::THandle<CP::TAlgorithmResult> splitTracksResult
+            = Run<CP::TSplitTracks>(*currentResult);
+        if (!splitTracksResult) break;
+        currentResult = splitTracksResult;
         result->AddDatum(currentResult);
 #endif
 
