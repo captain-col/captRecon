@@ -4,15 +4,15 @@
 #include "TSegmentTrackFit.hxx"
 
 CP::TTrackFit::TTrackFit()
-    : fBootstrap(NULL), fCluster(NULL) {}
+    : fBootstrap(NULL), fCluster(NULL), fSegment(NULL) {}
 CP::TTrackFit::~TTrackFit() {}
 
 CP::THandle<CP::TReconTrack>
 CP::TTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     CP::THandle<CP::TReconTrack> result;
-    if (input->GetNodes().size() > 10) {
+    if (input->GetNodes().size() > 5) {
         // For longer tracks, the bootstrap fitter makes the best use of the
-        // track informtation and produces a good result that follows the
+        // track information and produces a good result that follows the
         // multiple scattering of the track.
         if (!fBootstrap) {
             fBootstrap = new TBootstrapTrackFit;
