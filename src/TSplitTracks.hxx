@@ -39,6 +39,14 @@ private:
                        CP::THandle<CP::TReconCluster> b, 
                        CP::THandle<CP::TReconCluster> c);
 
+    /// Return the kink angle at an iterator.  The begin and end iterator
+    /// define the entire cluster container.  The kink angle will be zero for
+    /// a perfectly straight track, and is calculated based on a minimum of 3
+    /// clusters to each side.
+    double KinkAngle(ClusterContainer::iterator here, 
+                     ClusterContainer::iterator begin,
+                     ClusterContainer::iterator end);
+
     /// The cut value for the chi2 for three clusters to be considered as from
     /// the same line.
     double fThreeInLineCut;
@@ -52,6 +60,9 @@ private:
     /// of a track that are in the same track.  Tracks that have gaps bigger
     /// than this may be remerged later, but are split here.
     double fEndDistanceCut;
+
+    /// The maximum angle between different segments at a kink.
+    double fKinkAngleCut;
 
 };
 #endif

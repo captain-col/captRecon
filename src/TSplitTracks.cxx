@@ -1,6 +1,6 @@
 #include "TSplitTracks.hxx"
-#include "TSegmentTrackFit.hxx"
 #include "TTrackFit.hxx"
+#include "TSegmentTrackFit.hxx"
 #include "ClusterDistance.hxx"
 #include "CreateTrack.hxx"
 
@@ -13,16 +13,46 @@
 #include <TRuntimeParameters.hxx>
 
 #include <TMatrixD.h>
+#include <TPrincipal.h>
 
 #include <memory>
 #include <cmath>
+
+namespace {
+    struct CompareRecon {
+        bool operator () (CP::THandle<CP::TReconBase> lhs, 
+                          CP::THandle<CP::TReconBase> rhs) {
+            CP::THandle<CP::TReconTrack> lt = lhs;
+            CP::THandle<CP::TReconTrack> rt = rhs;
+            CP::THandle<CP::TReconCluster> lc = lhs;
+            CP::THandle<CP::TReconCluster> rc = rhs;
+            
+            if (lt && rt) {
+                return lt->GetNodes().size() > rt->GetNodes().size();
+            }
+            
+            if (lt && !rt) return true;
+            if (!lt && rt) return false;
+
+            if (lc && rc) {
+                return lc->GetEDeposit() > rc->GetEDeposit();
+            }                
+            
+            if (lc && !rc) return true;
+            if (!lc && rc) return false;
+
+            return CP::GetPointer(lhs) < CP::GetPointer(rhs);
+        }
+    };
+};
 
 CP::TSplitTracks::TSplitTracks()
     : TAlgorithm("TSplitTracks", 
                  "Split Tracks with Kinks and Gaps") {
     fThreeInLineCut = 3.0;
-    fSplitDistanceCut = 50.0*unit::mm;
+    fSplitDistanceCut = 30.0*unit::mm;
     fEndDistanceCut = 10.0*unit::mm;
+    fKinkAngleCut = 20*unit::degree;
 }
 
 CP::TSplitTracks::~TSplitTracks() { }
@@ -34,7 +64,7 @@ void CP::TSplitTracks::SaveTrack(
 
     // First make sure there are enough clusters for a track.
     if (end-begin < 2) {
-        CaptNamedLog("Split", "Save track clusters.  To short");
+        CaptNamedInfo("Split", "Save track clusters.  To short");
         std::copy(begin,end,std::back_inserter(container));
         return;
     }
@@ -47,17 +77,23 @@ void CP::TSplitTracks::SaveTrack(
             maxDist = std::max(maxDist, CP::ClusterDistance(**(i), **(i+1)));
         }
         if (maxDist > fSplitDistanceCut) {
-            CaptNamedLog("Split", "Save track clusters."
+            CaptNamedInfo("Split", "Save track clusters."
                          "  Short track with gap of " << maxDist);
             std::copy(begin,end,std::back_inserter(container));
             return;
         }
     }
 
-    CaptNamedLog("Split", "Save Track " << end-begin);
-
     CP::THandle<CP::TReconTrack> track
         = CP::CreateTrack("TSplitTracks",begin, end);
+
+    if (!track) {
+        CaptNamedLog("Split", "Track not created");
+    }
+
+    CP::TTrackFit fitter;
+    track = fitter(track);
+
     container.push_back(track);
 }
 
@@ -98,6 +134,70 @@ CP::TSplitTracks::ThreeInLine(CP::THandle<CP::TReconCluster> a,
     }
 
     return result;
+}
+
+double CP::TSplitTracks::KinkAngle(ClusterContainer::iterator here, 
+                                   ClusterContainer::iterator begin,
+                                   ClusterContainer::iterator end) {
+    // The minimum and maximum number of clusters to include in the segments
+    // to either side of the cluster being checked.  The count includes the
+    // current cluster.
+    int minStep = 5;
+    int maxStep = 10;
+
+    // No kinks right at the end.
+    if (here-begin+1 < minStep) return 0;
+    if (end-here < minStep) return 0;
+
+    double p0[3] = {0.0,0,0};
+    double p1[3] = {1.0,0,0};
+    double x[3];
+
+    // Do a simple fit in the backward direction.  This includes the cluster
+    // being checked.
+    int backStep = here-begin;
+    if (backStep > maxStep) backStep = maxStep;
+    TPrincipal pca1(3,"");
+    for (ClusterContainer::iterator i = here-backStep; i != here+1; ++i) {
+        double row[3] 
+            = {(*i)->GetPosition().X(),
+               (*i)->GetPosition().Y(),
+               (*i)->GetPosition().Z()};
+        pca1.AddRow(row);
+    }
+    pca1.MakePrincipals();
+    pca1.P2X(p0,x,1);
+    TVector3 base1(x);
+    pca1.P2X(p1,x,1);
+    TVector3 dir1(x); 
+    dir1 = (dir1-base1).Unit();
+
+    // Do a simple fit in the forward direction.  This includes the cluster
+    // being checked.
+    int foreStep = end-here;
+    if (foreStep > maxStep) foreStep = maxStep;
+    TPrincipal pca2(3,"");
+    for (ClusterContainer::iterator i = here; i != here+foreStep; ++i) {
+        double row[3] 
+            = {(*i)->GetPosition().X(),
+               (*i)->GetPosition().Y(),
+               (*i)->GetPosition().Z()};
+        pca2.AddRow(row);
+    }
+    pca2.MakePrincipals();
+    pca2.P2X(p0,x,1);
+    TVector3 base2(x);
+    pca2.P2X(p1,x,1);
+    TVector3 dir2(x); 
+    dir2 = (dir2-base2).Unit();
+
+    // Find the cosine of the angle between the fore and back segments.
+    double dcos = std::abs(dir1*dir2);
+    if (dcos >= 1.0) return 0.0;
+
+    // Return the angle between the segments.  This could be done with the
+    // sine (using a sqrt), but I think acos is fast enough.
+    return std::acos(dcos);
 }
 
 CP::THandle<CP::TAlgorithmResult>
@@ -146,7 +246,7 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
         CP::THandle<CP::TReconTrack> track = trackStack.back();
         trackStack.pop_back();
 
-        CaptNamedLog("Split",
+        CaptNamedInfo("Split",
                      "Track Stack: " << trackStack.size()
                      << "    Track size: " << track->GetNodes().size());
 
@@ -178,11 +278,11 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
         while ((begin + 3) != end) {
             double v = ThreeInLine(*begin, *(begin+1), *(begin+2));
             double d = ClusterDistance(**begin, **(begin+1));
-            CaptNamedLog("Split", "At front X2: " << v << "   D: " << d);
+            CaptNamedInfo("Split", "At front X2: " << v << "   D: " << d);
             if (v < fThreeInLineCut && d < fEndDistanceCut) break;
             final->push_back(*begin);
             ++begin;
-            CaptNamedLog("Split",
+            CaptNamedInfo("Split",
                          "Discard a front cluster. New length: "<<end-begin);
         }
 
@@ -192,11 +292,11 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
             double v = ThreeInLine(*(end-1), *(end-2), *(end-3));
             if (v < fThreeInLineCut) break;
             double d = ClusterDistance(**(end-1), **(end-2));
-            CaptNamedLog("Split", "At back X2: " << v << "   D: " << d);
+            CaptNamedInfo("Split", "At back X2: " << v << "   D: " << d);
             if (v < fThreeInLineCut && d < fEndDistanceCut) break;
             final->push_back(*(end-1));
             --end;
-            CaptNamedLog("Split",
+            CaptNamedInfo("Split",
                          "Discard a back cluster. New length: "<<end-begin);
         }
 
@@ -209,7 +309,7 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
                 // This is a very short track stub after removing clusters, so
                 // just save the clusters.
                 std::copy(begin,end,std::back_inserter(*final));
-                CaptNamedLog("Split","Discard a short track.  Length: "
+                CaptNamedInfo("Split","Discard a short track.  Length: "
                         << end-begin);
             }
             else if (end-begin == 3) {
@@ -219,13 +319,13 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
                 double v = ThreeInLine(*begin, *(begin+1), *(begin+2));
                 double d = std::max(ClusterDistance(**begin, **(begin+1)),
                                     ClusterDistance(**(begin+1), **(begin+2)));
-                CaptNamedLog("Split", "Short check " << v << " " << d);
+                CaptNamedInfo("Split", "Short check " << v << " " << d);
                 if (v < fThreeInLineCut && d < fEndDistanceCut) {
                     SaveTrack(*final,begin,end);
                 } 
                 else {
                     std::copy(begin,end,std::back_inserter(*final));
-                    CaptNamedLog("Split","Discard a short track.  Length: "
+                    CaptNamedInfo("Split","Discard a short track.  Length: "
                             << end-begin);
                 }
             }
@@ -238,22 +338,23 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
                 double v = std::max(v1,v2);
                 double d = std::max(ClusterDistance(**begin, **(begin+1)),
                                     ClusterDistance(**(begin+2), **(begin+3)));
-                CaptNamedLog("Split", "Medium check " << v << " " << d);
+                CaptNamedInfo("Split", "Medium check " << v << " " << d);
                 if (v < fThreeInLineCut && d < fEndDistanceCut) {
                     SaveTrack(*final,begin,end);
                 } 
                 else {
                     std::copy(begin,end,std::back_inserter(*final));
-                    CaptNamedLog("Split","Discard a short track.  Length: "
+                    CaptNamedInfo("Split","Discard a short track.  Length: "
                             << end-begin);
                 }
             }
             continue;
         }
 
-        // Find the sharpest kink in the track.  There are at least five
-        // clusters in the track when this bit of code starts.  The kink can't
-        // be right at either end.
+        // Look for parts of the track where three clusters are not in a line.
+        // The segment with the worst chi2 will be a "short" kink in the
+        // track.  There are at least five clusters in the track when this bit
+        // of code starts.  The kink can't be right at either end.
         ClusterContainer::iterator sharpestKink;
         double worstChi2 = 0.0;
         for (ClusterContainer::iterator i = begin+1; i+3 != end; ++i) {
@@ -263,7 +364,7 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
                 sharpestKink = i+1;
             }
         }
-        CaptNamedLog("Split", "Three in line for split: " << worstChi2);
+        CaptNamedInfo("Split", "Three in line for split: " << worstChi2);
 
         // If the worstChi2 is too big, there is a kink and the track should
         // be split.  The two pieces are put back on the stack and we start
@@ -273,7 +374,7 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
             trackStack.push_back(track);
             track = CreateTrack("TSplitTracks",sharpestKink,end);
             trackStack.push_back(track);
-            CaptNamedLog("Split","Split a track."
+            CaptNamedInfo("Split","Split a track."
                          << " X2: " << worstChi2
                          << "  Original: "   << end-begin
                          << "  First: "   << sharpestKink-begin+1
@@ -281,8 +382,9 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
             continue;
         }
 
-        // Find the biggest gap in the track.  There are at least five
-        // clusters in the track when this bit of code starts.  
+        // Find the biggest gap in the track.  The can't be right at the end
+        // of the track.  There are at least 5 clusters in the track to get to
+        // this point, so the check (i+3 != end) should be OK.
         ClusterContainer::iterator biggestGap;
         double maxDist = 0.0;
         for (ClusterContainer::iterator i = begin+1; i+3 != end; ++i) {
@@ -292,28 +394,63 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
                 biggestGap = i+1;
             }
         }
-        CaptNamedLog("Split", "Cluster distance for split: " << maxDist);
+        CaptNamedInfo("Split", "Cluster distance for split: " << maxDist);
 
-        // If the maxDist is too big, there is a kink and the track should
-        // be split.  The two pieces are put back on the stack and we start
-        // over again.
+        // If the biggest gap is too big the track should be split.  The two
+        // pieces are put back on the stack and we start over again.
         if (maxDist > fSplitDistanceCut) {
             track = CreateTrack("TSplitTracks",begin,biggestGap);
             trackStack.push_back(track);
             track = CreateTrack("TSplitTracks",biggestGap,end);
             trackStack.push_back(track);
-            CaptNamedLog("Split","Split a track at a gap."
+            CaptNamedInfo("Split","Split a track at a gap."
                          << "  Gap: " << maxDist 
                          << "  Original: "   << end-begin
                          << "  First: "   << biggestGap-begin
                          << "  Second: "   << end-biggestGap);
             continue;
         }
-        
+        CaptNamedInfo("Split", "Cluster distance for split: " << maxDist);
+
+        // Look through the clusters and find the one with the sharpest kink
+        // based on the track segments to either side of the current cluster.
+        // This reuses the sharpestKink iterator.
+        double biggestAngle = 0.0;
+        for (ClusterContainer::iterator i = begin; i != end; ++i) {
+            double v = KinkAngle(i,begin,end);
+            if (biggestAngle < v) {
+                biggestAngle = v;
+                sharpestKink = i;
+            }
+        }
+        CaptNamedLog("Split","Split a track."
+                     << " Angle: " << biggestAngle
+                     << "  max angle: " << fKinkAngleCut);
+
+        // If the kink angle is to big there is a kink and the track should
+        // be split.  The two pieces are put back on the stack and we start
+        // over again.
+        if (biggestAngle > fKinkAngleCut) {
+            track = CreateTrack("TSplitTracks",begin,sharpestKink+1);
+            trackStack.push_back(track);
+            track = CreateTrack("TSplitTracks",sharpestKink,end);
+            trackStack.push_back(track);
+            CaptNamedLog("Split","Split a track."
+                         << " Angle: " << biggestAngle
+                         << "  Original: "   << end-begin
+                         << "  First: "   << sharpestKink-begin+1
+                         << "  Second: "   << end-sharpestKink);
+            continue;
+        }
+
         // Whatever gets here should just be saved...
         SaveTrack(*final,begin,end);
     }
     
+    CaptError("Sort the tracks");
+
+    std::sort(final->begin(), final->end(), CompareRecon());
+
     result->AddResultsContainer(final.release());
 
     return result;
