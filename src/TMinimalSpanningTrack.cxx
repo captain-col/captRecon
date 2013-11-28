@@ -153,8 +153,6 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
             g[*vi].marked = false;
         }
 
-        CaptNamedLog("MST","Number of vertices: " << boost::num_vertices(g));
-
         // Add the edges.  The distance cut is a preliminary cut to reduce the
         // total number of edges.  The hit distance cut is the actual closest
         // approach between the hits in the clusters.  These should be made
@@ -175,7 +173,7 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
             }
         }
 
-        CaptNamedLog("MST","Number of edges: " << boost::num_edges(g));
+        CaptNamedInfo("MST","Number of edges: " << boost::num_edges(g));
 
         // There are not enough edges!  Stop now.
         if (boost::num_edges(g) < 2) break;
@@ -200,9 +198,6 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
                 }
             }
         }
-
-        CaptNamedLog("MST","Most central object " << mostCentral
-                  << " " << maxCentrality);
 
         // This finds the MST with vertex mostCentral as the root, and uses
         // the EdgeProperties::length field for the edge length (the
@@ -231,8 +226,6 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
             maxDistance = std::max(maxDistance, g[i].rootDistance);
         }
 
-        CaptNamedLog("MST","Maximum distance to root " << maxDistance);
-
         // Find the terminal vertices
         typedef std::pair<double,MST::vertex_t> termDist;
         std::vector<termDist> terminals;
@@ -243,7 +236,6 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
             terminals.push_back(std::make_pair(g[*vi].rootDistance, *vi));
         }
         std::sort(terminals.begin(), terminals.end());
-        CaptNamedLog("MST","Number of terminal vertices " << terminals.size());
 
         // Build tracks starting from the terminal vertex furthest from the
         // root.
