@@ -202,7 +202,6 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     /////////////////////////////////////////////////////////////////////
     for (std::size_t step = 0; step < nodes.size(); ++step) {
         measurement[0] = step;
-        CaptNamedDebug("BFL","Start forward step " << step);
         CP::THandle<CP::TReconNode> node = nodes[step];
 
         // Get the measurement from the node.
@@ -237,11 +236,22 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
             }
         }
 
-        CaptNamedDebug("BFL","Fitted Position " 
+        // This is the first step, so give it a large variance.  Otherwise the
+        // prior has too much weight.
+        if (step < 1) {
+            for (int i=0; i<3; ++i) {
+                trackState->SetPositionCovariance(i,i,10*unit::cm);
+                trackState->SetDirectionCovariance(i,i,1.0);
+            }
+        }
+
+        CaptNamedVerbose("BFL","Forward State Position " 
                      << trackState->GetPosition().Vect()
                      << " for cluster " << cluster->GetPosition().Vect()
                      << " diff " << (trackState->GetPosition().Vect()
                                      - cluster->GetPosition().Vect()).Mag());
+        CaptNamedVerbose("BFL","Forward State Direction " 
+                       << trackState->GetDirection());
 
     }
 
@@ -266,7 +276,7 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         if (diff > 2*unit::cm) break;
         otherNode = nodes[nodes.size()-i];
     }
-    BTF::GeneratePrior(priorSamples,firstNode, otherNode);
+    BTF::GeneratePrior(priorSamples,otherNode, firstNode);
     BFL::MCPdf<BTF::ColumnVector> backwardPrior(numSamples,stateSize);
     backwardPrior.ListOfSamplesSet(priorSamples);
 
@@ -314,14 +324,9 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
 
         // Set the values and covariances based on the back filtering, but
         // drop the correlations between position and direction (it makes life
-        // simpler...)  SUPER MAJOR HACK ALERT: This doesn't properly combine
-        // the forward and backward filtering.  Since we are mostly interested
-        // in the states at the ends of the track, this fudges in the center
-        // and just takes the state (forward or backward) with the lowest
-        // covariance.  The forward states are already in the track state, so
-        // skip the set if the backward covariance is larger.  It can lead to
-        // some odd discontinuities in the states at the center of the track!
-        // Why do this?  It saves a couple of matrix inversions.
+        // simpler, and makes the calculation more stable).  
+
+        // First check that the covariances are OK.
         double oldCov = 0.0;
         double newCov = 0.0;
         for (int i=0; i<3; ++i) {
@@ -337,44 +342,110 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
             return CP::THandle<CP::TReconTrack>();
         }
 
-        if ((1E-6 < oldCov && oldCov < newCov)
-             || (newCov < 1E-6)) {
-            CaptNamedDebug("BFL","Old Position " 
-                           << trackState->GetPosition().Vect()
-                           << " for cluster " << cluster->GetPosition().Vect()
-                           << " diff " 
-                           << (trackState->GetPosition().Vect()
-                               - cluster->GetPosition().Vect()).Mag());
-            double r = measurementPDF.ProbabilityGet(
-                trackState->GetPosition().Vect());
-            if (r>0) logLikelihood += std::log(r);
-            continue;
+        // Save the forward filtering position, direction and variances.
+        TVector3 posF(trackState->GetPosition().Vect());
+        TVector3 vPosF(trackState->GetPositionVariance().Vect());
+        TVector3 dirF(trackState->GetDirection());
+        double vDirF = 0.0;
+        for (int i=0; i<3; ++i) {
+            vDirF += trackState->GetDirectionCovariance(i,i);
+            // Turn the variance into a sigma, and make sure that zeros have
+            // no weight.
+            vPosF[i] = std::sqrt(vPosF[i]);
+            if (vPosF[i] < 0.001*unit::mm) vPosF[i] = 1000*unit::meter;
         }
 
-        // The new covariance is smaller, use the new state.
-        trackState->SetPosition(ev[BTF::kXPos],ev[BTF::kYPos],ev[BTF::kZPos],
-                                cluster->GetPosition().T());
-        trackState->SetDirection(ev[BTF::kXDir],ev[BTF::kYDir],ev[BTF::kZDir]);
+        // Save the backward filtering position, direction and variances
+        TVector3 posB(ev[BTF::kXPos],ev[BTF::kYPos],ev[BTF::kZPos]);
+        TVector3 vPosB(cv(BTF::kXPos+1, BTF::kXPos+1),
+                       cv(BTF::kYPos+1, BTF::kYPos+1),
+                       cv(BTF::kZPos+1, BTF::kZPos+1));
+        TVector3 dirB(ev[BTF::kXDir],ev[BTF::kYDir],ev[BTF::kZDir]);
+        double vDirB = 0.0;
+        for (int i=0; i<3; ++i) {
+            vDirB += cv(BTF::kXDir+i+1, BTF::kXDir+i+1);
+            // Turn the variance into a sigma, and make sure that zeros have
+            // no weight.
+            vPosB[i] = std::sqrt(vPosB[i]);
+            if (vPosB[i] < 0.001*unit::mm) vPosB[i] = 1000*unit::meter;
+        }
+
+        // Find the average position.
+        double xx = posF.X()/vPosF.X() + posB.X()/vPosB.X();
+        xx = xx/(1.0/vPosF.X() + 1.0/vPosB.X());
+        double yy = posF.Y()/vPosF.Y() + posB.Y()/vPosB.Y();
+        yy = yy/(1.0/vPosF.Y() + 1.0/vPosB.Y());
+        double zz = posF.Z()/vPosF.Z() + posB.Z()/vPosB.Z();
+        zz = zz/(1.0/vPosF.Z() + 1.0/vPosB.Z());
+        
+        // Find the average direction.
+        TVector3 dir = (1.0/vDirF)*dirF + (1.0/vDirB)*dirB;
+        dir = dir.Unit();
+
+        // Set the final state.
+        trackState->SetPosition(xx, yy, zz, cluster->GetPosition().T());
+        trackState->SetDirection(dir.X(), dir.Y(), dir.Z());
+
+        TMatrixD pcov1(3,3);
         for (int i=0; i<3; ++i) {
             for (int j=0; j<3; ++j) {
-                double v = cv(BTF::kXPos+i+1, BTF::kXPos+j+1);
-                trackState->SetPositionCovariance(i,j,v);
-                v = cv(BTF::kXDir+i+1, BTF::kXDir+j+1);
-                trackState->SetDirectionCovariance(i,j,v);
+                pcov1(i,j) = trackState->GetPositionCovariance(i,j);
+            }
+        }
+        pcov1.InvertFast();
+
+        TMatrixD dcov1(3,3);
+        for (int i=0; i<3; ++i) {
+            for (int j=0; j<3; ++j) {
+                dcov1(i,j) = trackState->GetDirectionCovariance(i,j);
+            }
+        }
+        dcov1.InvertFast();
+
+        TMatrixD pcov2(3,3);
+        for (int i=0; i<3; ++i) {
+            for (int j=0; j<3; ++j) {
+                pcov2(i,j) = cv(BTF::kXPos+i+1, BTF::kXPos+j+1);
+                if (step == nodes.size()-1 && i == j) pcov2(i,j) = 10*unit::cm;
+            }
+        }
+        pcov2.InvertFast();
+
+        TMatrixD dcov2(3,3);
+        for (int i=0; i<3; ++i) {
+            for (int j=0; j<3; ++j) {
+                dcov2(i,j) = cv(BTF::kXDir+i+1, BTF::kXDir+j+1);
+                if (step == nodes.size()-1 && i == j) dcov2(i,j) = 1.0;
+            }
+        }
+        dcov2.InvertFast();
+        
+        TMatrixD pcov(3,3);
+        pcov = pcov1 + pcov2;
+        pcov.InvertFast();
+        TMatrixD dcov(3,3);
+        dcov = dcov1 + dcov2;
+        dcov.InvertFast();
+
+        for (int i=0; i<3; ++i) {
+            for (int j=0; j<3; ++j) {
+                trackState->SetPositionCovariance(i,j,pcov(i,j));
+                trackState->SetDirectionCovariance(i,j,dcov(i,j));
             }
         }
 
-        CaptNamedDebug("BFL","New Position " 
-                     << trackState->GetPosition().Vect()
-                     << " for cluster " << cluster->GetPosition().Vect()
-                     << " diff " 
-                     << (trackState->GetPosition().Vect()
-                         - cluster->GetPosition().Vect()).Mag());
-        
+        CaptNamedVerbose("BFL","Backward State Position " 
+                         << trackState->GetPosition().Vect()
+                         << " for cluster " << cluster->GetPosition().Vect()
+                         << " diff " 
+                         << (trackState->GetPosition().Vect()
+                             - cluster->GetPosition().Vect()).Mag());
+        CaptNamedVerbose("BFL","Backward State Direction " 
+                         << trackState->GetDirection());
+
         double r = measurementPDF.ProbabilityGet(
             trackState->GetPosition().Vect());
         if (r>0) logLikelihood += std::log(r);
-        
     }
 
     // Set the front state of the track.
@@ -437,8 +508,6 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         backState->SetPosition(pos.X(), pos.Y(), pos.Z(),
                                 backState->GetPosition().T());
     }
-
-
 
     int trackDOF = 3*nodes.size() - 6;
     input->SetStatus(TReconBase::kSuccess);
