@@ -124,6 +124,18 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
                          << " with " << points.size() << " hits");
             CP::THandle<CP::TReconCluster> cluster(new CP::TReconCluster);
             cluster->FillFromHits("zCluster",points.begin(),points.end());
+// #define ADJUST_COVARIANCE
+#ifdef ADJUST_COVARIANCE
+            // Adjust the covariance...
+            const CP::TReconCluster::MomentMatrix& moments 
+                = cluster->GetMoments();
+            CP::THandle<CP::TClusterState> state = cluster->GetState();
+            for (int i=0; i<3; ++i) {
+                for (int j=0; j<3; ++j) {
+                    state->SetPositionCovariance(i,j,moments(i,j));
+                }
+            }
+#endif
             result->push_back(cluster);
         }
         // Reset first to start looking for a new set of hits.
@@ -142,6 +154,17 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
                          << " with " << points.size() << " hits");
             CP::THandle<CP::TReconCluster> cluster(new CP::TReconCluster);
             cluster->FillFromHits("zCluster",points.begin(),points.end());
+#ifdef ADJUST_COVARIANCE
+            // Adjust the covariance...
+            const CP::TReconCluster::MomentMatrix& moments 
+                = cluster->GetMoments();
+            CP::THandle<CP::TClusterState> state = cluster->GetState();
+            for (int i=0; i<3; ++i) {
+                for (int j=0; j<3; ++j) {
+                    state->SetPositionCovariance(i,j,moments(i,j));
+                }
+            }
+#endif
             result->push_back(cluster);
         }
     }
