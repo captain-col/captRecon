@@ -285,7 +285,7 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
 
     } while ((0 < --throttle) && (2 < remainingClusters.size()));
 
-    CaptNamedLog("MST","Clusters not added to an track: " 
+    CaptNamedLog("MST","Clusters not added to any track: " 
                  << remainingClusters.size());
 
     // Save any remaining clusters into the output container.
