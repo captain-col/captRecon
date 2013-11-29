@@ -3,11 +3,22 @@
 
 #include "TSegmentTrackFit.hxx"
 #include "HitUtilities.hxx"
+#include "ECaptRecon.hxx"
 
 #include <TReconTrack.hxx>
 #include <THandle.hxx>
 
 namespace CP {
+
+    /// A base exception for the create track template.
+    EXCEPTION(ECreateTrack,ECaptRecon);
+
+    /// An exception that there are repeated objects in the track.
+    EXCEPTION(ETrackRepeatedObject, ECreateTrack);
+
+    /// An exception that there are repeated objects in the track.
+    EXCEPTION(ETrackNonCluster, ECreateTrack);
+
 
     /// Take iterators from a container holding TReconCluster objects in the
     /// right order for the track nodes, and construct a track.  The first
@@ -17,7 +28,20 @@ namespace CP {
     /// track can be refit by TTrackFit.
     template<typename iterator>
     CP::THandle<CP::TReconTrack> 
-    CreateTrack(const char* name, iterator begin, iterator end) {
+    CreateTrack(const char* name, iterator begin, iterator end,
+                bool verify=true) {
+
+        if (verify) {
+            for (iterator i = begin; i!=end; ++i) {
+                iterator j = i;
+                while ((++j) != end) {
+                    if (CP::GetPointer(*i) != CP::GetPointer(*j)) continue;
+                    CaptError("Invalid track: multiple copies of object");
+                    throw CP::ETrackRepeatedObject();
+                }
+            }
+        }
+
         CP::THandle<CP::TReconTrack> track(new CP::TReconTrack);
         track->SetAlgorithmName(name);
         track->SetStatus(CP::TReconBase::kSuccess);
@@ -34,8 +58,8 @@ namespace CP {
         while (begin != end) {
             CP::THandle<CP::TReconCluster> cluster = *begin;
             if (!cluster) {
-                CaptError("Create track must have iterators to clusters");
-                return CP::THandle<CP::TReconTrack>();
+                CaptError("Invalid track: object not a cluster");
+                throw CP::ETrackNonCluster();
             }
             CP::THandle<CP::TReconNode> node(new CP::TReconNode);
             CP::THandle<CP::TReconState> state(new CP::TTrackState);
