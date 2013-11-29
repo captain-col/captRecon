@@ -5,6 +5,7 @@
 #include "TBestTubeTrack.hxx"
 #include "TMinimalSpanningTrack.hxx"
 #include "TSplitTracks.hxx"
+#include "TMergeTracks.hxx"
 
 #include "HitUtilities.hxx"
 
@@ -114,6 +115,16 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
             = Run<CP::TSplitTracks>(*currentResult);
         if (!splitTracksResult) break;
         currentResult = splitTracksResult;
+        result->AddDatum(currentResult);
+#endif
+
+#define Apply_TMergeTracks
+#ifdef Apply_TMergeTracks
+        // Cluster the 3D hits by position to find object candidates. 
+        CP::THandle<CP::TAlgorithmResult> mergeTracksResult
+            = Run<CP::TMergeTracks>(*currentResult);
+        if (!mergeTracksResult) break;
+        currentResult = mergeTracksResult;
         result->AddDatum(currentResult);
 #endif
 
