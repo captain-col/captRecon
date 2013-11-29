@@ -3,6 +3,7 @@
 #include "TSegmentTrackFit.hxx"
 #include "ClusterDistance.hxx"
 #include "CreateTrack.hxx"
+#include "CompareReconObjects.hxx"
 
 #include <THandle.hxx>
 #include <TReconTrack.hxx>
@@ -17,34 +18,6 @@
 
 #include <memory>
 #include <cmath>
-
-namespace {
-    struct CompareRecon {
-        bool operator () (CP::THandle<CP::TReconBase> lhs, 
-                          CP::THandle<CP::TReconBase> rhs) {
-            CP::THandle<CP::TReconTrack> lt = lhs;
-            CP::THandle<CP::TReconTrack> rt = rhs;
-            CP::THandle<CP::TReconCluster> lc = lhs;
-            CP::THandle<CP::TReconCluster> rc = rhs;
-            
-            if (lt && rt) {
-                return lt->GetNodes().size() > rt->GetNodes().size();
-            }
-            
-            if (lt && !rt) return true;
-            if (!lt && rt) return false;
-
-            if (lc && rc) {
-                return lc->GetEDeposit() > rc->GetEDeposit();
-            }                
-            
-            if (lc && !rc) return true;
-            if (!lc && rc) return false;
-
-            return CP::GetPointer(lhs) < CP::GetPointer(rhs);
-        }
-    };
-};
 
 CP::TSplitTracks::TSplitTracks()
     : TAlgorithm("TSplitTracks", 
@@ -447,9 +420,7 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
         SaveTrack(*final,begin,end);
     }
     
-    CaptError("Sort the tracks");
-
-    std::sort(final->begin(), final->end(), CompareRecon());
+    std::sort(final->begin(), final->end(), CompareReconObjects());
 
     result->AddResultsContainer(final.release());
 
