@@ -52,6 +52,7 @@ CP::TClusterTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     /// Find the center position and direction of the track from the nodes.
     /////////////////////////////////////////////////////////////////////
     std::auto_ptr<TPrincipal> pca(new TPrincipal(3,""));
+    TMatrixD posCov(3,3);
     for (TReconNodeContainer::iterator n = nodes.begin();
          n != nodes.end(); ++n) {
         // Get the object from the node.  It had better be a cluster.
@@ -79,8 +80,13 @@ CP::TClusterTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
             pca->AddRow(row2);
             pca->AddRow(row3);
         }
+
+        CP::TReconCluster::MomentMatrix moments = cluster->GetMoments();
+        moments.InvertFast();
+        posCov += moments;
     }
     pca->MakePrincipals();
+    posCov.InvertFast();
 
     /// Find the front and last positions of the track and then find the track
     /// direction.
@@ -103,8 +109,8 @@ CP::TClusterTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     CP::THandle<CP::TClusterState> backState = backCluster->GetState();
     for (int i=0; i<3; ++i) {
         for (int j=0; j<3; ++j) {
-            double v = frontState->GetPositionCovariance(i,j)
-                + backState->GetPositionCovariance(i,j);
+            double v = frontCluster->GetMoments()(i,j)
+                + backCluster->GetMoments()(i,j);
             v = v/length2;
             dirCov(i,j) = v;
         }
@@ -137,13 +143,19 @@ CP::TClusterTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         CP::THandle<CP::TClusterState> clusterState = cluster->GetState();
         for (int i=0; i<3; ++i) {
             for (int j=0; j<3; ++j) {
-                double v = clusterState->GetPositionCovariance(i,j);
+                double v = posCov(i,j);
                 trackState->SetPositionCovariance(i,j,v);
                 v = dirCov(i,j);
                 trackState->SetDirectionCovariance(i,j,v);
             }
         }
 
+        // Calculate the goodness.
+        TVector3 nodeDiff = nodePosition - cluster->GetPosition().Vect();
+        for (int i=0; i<3; ++i) {
+            logLikelihood += 
+                nodeDiff[i]*nodeDiff[i]/cluster->GetPositionVariance()[i];
+        }
     }
 
     // Set the front state of the track.
@@ -210,7 +222,7 @@ CP::TClusterTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     int trackDOF = 3*nodes.size() - 6;
     input->SetStatus(TReconBase::kSuccess);
     input->SetAlgorithmName("TClusterTrackFit");
-    input->SetQuality(-logLikelihood);
+    input->SetQuality(logLikelihood);
     input->SetNDOF(trackDOF);
 
     return input;

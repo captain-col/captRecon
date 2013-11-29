@@ -530,6 +530,24 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
     TVector3 pos(state[BTF::kXPos], state[BTF::kYPos], state[BTF::kZPos]);
     TVector3 dir(state[BTF::kXDir], state[BTF::kYDir], state[BTF::kZDir]);
 
+    for (int i=0; i<3; ++i) {
+        if (!std::isfinite(pos[i])) {
+            CaptError("Error in position " << pos);
+            break;
+        }
+    }
+            
+    for (int i=0; i<3; ++i) {
+        if (!std::isfinite(dir[i])) {
+            CaptError("Error in direction " << dir);
+            break;
+        }
+    }
+
+    if (dir.Mag() < 0.1) {
+            CaptError("Direction is short " << dir);
+    }
+
     // Find the distance to the closest approach to the next measurement.
     TVector3 diff1 = fMeasurement->GetPosition().Vect() - pos;
     double dist1 = diff1*dir;
@@ -540,8 +558,8 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
     // crucial, but does determine how many nodes contribute to the state
     // information since the scatter will erase the effect of very distant
     // nodes.
-    double posScatter;
-    double dirScatter;
+    double posScatter = 0.0;
+    double dirScatter = 0.0;
 #define THEORY_SCATTER
 #ifdef THEORY_SCATTER
     // Note that this is only valid for muon like tracks.  The values are
@@ -549,8 +567,10 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
     double radLen = 14*unit::cm; // For liquid argon.
     double X = std::abs(dist1)/radLen;
     double P = 100*unit::MeV; // hack for now... 
-    dirScatter = (1.0+0.038*std::log(X))*std::sqrt(X)*(13.6*unit::MeV)/(P);
-    posScatter = dist1*dirScatter;
+    if (X>0.001) {
+        dirScatter = (1.0+0.038*std::log(X))*std::sqrt(X)*(13.6*unit::MeV)/(P);
+        posScatter = dist1*dirScatter;
+    }
 #endif
 
     // Generate a random amount of multiple scattering and use it to update
@@ -560,18 +580,39 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
     // "track" fitting and not "particle" fitting, we don't have a PID
     // hypothesis yet, so the scattering isn't right anyway.
 
-    TVector3 ortho = gRandom->Gaus(0.0,dirScatter)*(dir.Orthogonal().Unit());
-    ortho.Rotate(gRandom->Uniform(unit::twopi),dir);
-
-    dir = (dir + ortho).Unit();
-
-    for (int i=0; i<3; ++i) pos[i] = pos[i] + gRandom->Gaus(0.0, posScatter);
+    if (dirScatter > 0.0) {
+        TVector3 ortho 
+            = gRandom->Gaus(0.0,dirScatter)*(dir.Orthogonal().Unit());
+        ortho.Rotate(gRandom->Uniform(unit::twopi),dir);
+        dir = (dir + ortho).Unit();
+        for (int i=0; i<3; ++i) {
+            pos[i] = pos[i] + gRandom->Gaus(0.0, posScatter);
+        }
+    }
 
     // Find the distance to the closest approach to the next measurement using
     // the updated direction.
     TVector3 diff2 = fMeasurement->GetPosition().Vect() - pos;
     double dist2 = diff2*dir;
     pos = pos + dist2*dir;
+
+    for (int i=0; i<3; ++i) {
+        if (!std::isfinite(pos[i])) {
+            CaptError("Error in position " << pos);
+            break;
+        }
+    }
+            
+    for (int i=0; i<3; ++i) {
+        if (!std::isfinite(dir[i])) {
+            CaptError("Error in direction " << dir);
+            break;
+        }
+    }
+
+    if (dir.Mag() < 0.1) {
+            CaptError("Direction is short " << dir);
+    }
 
     // Update the state.
     state[BTF::kXPos] = pos.X();
@@ -606,6 +647,7 @@ BTF::TMeasurementPDF::ProbabilityGet(const TVector3& expected) const {
     double v = std::exp(-0.5*X2)*fGaussianConstant;
     if (!std::isfinite(v)) {
         CaptError("Invalid probability " << expected 
+                  << " " << fPosition
                   << " " << X2 
                   << " " << fGaussianConstant
                   << " " << v);

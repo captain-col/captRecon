@@ -39,6 +39,10 @@ CP::TSegmentTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
 
         // Get the object from the node.  It had better be a cluster.
         CP::THandle<CP::TReconCluster> cluster = (*n)->GetObject();
+        if (!cluster) {
+            CaptError("Object is not a cluster");
+            continue;
+        }
 
         CP::THandle<CP::TReconCluster> first = prevCluster;
         if (!first) first = cluster;
@@ -48,6 +52,14 @@ CP::TSegmentTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
 
         if (first == last) {
             CaptError("This 'cannot' happen. The track node has no neighbors.");
+            CaptError("  Number of nodes " << nodes.size());
+            CaptError("  At position " << n - nodes.begin());
+            CaptError("  prevCluster " << prevCluster);
+            CaptError("  first       " << first);
+            CaptError("  cluster     " << cluster);
+            CaptError("  last        " << last);
+            CaptError("  nextCluster " << nextCluster);
+            prevCluster = cluster;
             continue;
         }
         
@@ -55,6 +67,7 @@ CP::TSegmentTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         TVector3 dir = (last->GetPosition().Vect()-first->GetPosition().Vect());
         TMatrixD dirCov(3,3);
         double length2 = dir.Mag2();
+        dir = dir.Unit();
         CP::THandle<CP::TClusterState> firstState = first->GetState();
         CP::THandle<CP::TClusterState> lastState = last->GetState();
         for (int i=0; i<3; ++i) {
