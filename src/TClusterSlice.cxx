@@ -4,12 +4,14 @@
 
 #include <THandle.hxx>
 #include <TReconCluster.hxx>
+#include <TReconHit.hxx>
 #include <TCaptLog.hxx>
 #include <HEPUnits.hxx>
 #include <TUnitsTable.hxx>
 #include <TRuntimeParameters.hxx>
 
 #include <memory>
+#include <set>
 #include <iostream>
 #include <cmath>
 
@@ -66,6 +68,15 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
 
     std::auto_ptr<CP::HitProximity::Cluster> 
         clusterAlgorithm(new CP::HitProximity::Cluster(1,6*unit::mm));
+
+    double totalCharge = 0.0;
+    double totalVariance = 0.0;
+    double totalXCharge = 0.0;
+    double totalXVariance = 0.0;
+    double totalVCharge = 0.0;
+    double totalVVariance = 0.0;
+    double totalUCharge = 0.0;
+    double totalUVariance = 0.0;
 
     int trials = 0;
     CP::THitSelection::iterator curr = hits->begin();
@@ -124,7 +135,69 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
                          << " with " << points.size() << " hits");
             CP::THandle<CP::TReconCluster> cluster(new CP::TReconCluster);
             cluster->FillFromHits("zCluster",points.begin(),points.end());
-// #define ADJUST_COVARIANCE
+            // Find the correct charge for the cluster.
+            std::set< CP::THandle<CP::THit> > xHits;
+            std::set< CP::THandle<CP::THit> > vHits;
+            std::set< CP::THandle<CP::THit> > uHits;
+            for (CP::HitProximity::Cluster::Points::const_iterator p
+                     =points.begin();
+                 p != points.end(); ++p) {
+                CP::THandle<CP::TReconHit> rHit = *p;
+                xHits.insert(rHit->GetContributor(0));
+                vHits.insert(rHit->GetContributor(1));
+                uHits.insert(rHit->GetContributor(2));
+            }
+            double xCharge = 0.0;
+            double xVariance = 0.0;
+            for (std::set< CP::THandle<CP::THit> >::iterator h = xHits.begin();
+                 h != xHits.end(); ++h) {
+                xCharge += (*h)->GetCharge();
+                double v = (*h)->GetChargeUncertainty();
+                xVariance += v*v;
+            }
+            double vCharge = 0.0;
+            double vVariance = 0.0;
+            for (std::set< CP::THandle<CP::THit> >::iterator h = vHits.begin();
+                 h != vHits.end(); ++h) {
+                vCharge += (*h)->GetCharge();
+                double v = (*h)->GetChargeUncertainty();
+                vVariance += v*v;
+            }
+            double uCharge = 0.0;
+            double uVariance = 0.0;
+            for (std::set< CP::THandle<CP::THit> >::iterator h = uHits.begin();
+                 h != uHits.end(); ++h) {
+                uCharge += (*h)->GetCharge();
+                double v = (*h)->GetChargeUncertainty();
+                uVariance += v*v;
+            }
+            CP::THandle<CP::TClusterState> state = cluster->GetState();
+            double charge = xCharge/xVariance 
+                + vCharge/vVariance
+                + uCharge/uVariance;
+            double chargeVar = 1.0/xVariance + 1.0/vVariance + 1.0/uVariance;
+            charge /= chargeVar;
+            chargeVar = 1.0/chargeVar; 
+            state->SetEDeposit(charge);
+            state->SetEDepositVariance(chargeVar);
+            totalCharge += charge;
+            totalVariance += chargeVar;
+            totalXCharge += xCharge;
+            totalXVariance += xVariance;
+            totalVCharge += vCharge;
+            totalVVariance += vVariance;
+            totalUCharge += uCharge;
+            totalUVariance += uVariance;
+            CaptNamedVerbose(
+                "TClusterSlice", "Charge: "
+                << unit::AsString(charge, 
+                                  std::sqrt(chargeVar), "charge")
+                << " X: " << unit::AsString(xCharge, 
+                                            std::sqrt(xVariance), "charge")
+                << " V: " << unit::AsString(vCharge, 
+                                            std::sqrt(vVariance), "charge")
+                << " U: " << unit::AsString(uCharge, 
+                                            std::sqrt(uVariance), "charge"));
 #ifdef ADJUST_COVARIANCE
             // Adjust the covariance...
             const CP::TReconCluster::MomentMatrix& moments 
@@ -154,11 +227,73 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
                          << " with " << points.size() << " hits");
             CP::THandle<CP::TReconCluster> cluster(new CP::TReconCluster);
             cluster->FillFromHits("zCluster",points.begin(),points.end());
+            // Find the correct charge for the cluster.
+            std::set< CP::THandle<CP::THit> > xHits;
+            std::set< CP::THandle<CP::THit> > vHits;
+            std::set< CP::THandle<CP::THit> > uHits;
+            for (CP::HitProximity::Cluster::Points::const_iterator p
+                     =points.begin();
+                 p != points.end(); ++p) {
+                CP::THandle<CP::TReconHit> rHit = *p;
+                xHits.insert(rHit->GetContributor(0));
+                vHits.insert(rHit->GetContributor(1));
+                uHits.insert(rHit->GetContributor(2));
+            }
+            double xCharge = 0.0;
+            double xVariance = 0.0;
+            for (std::set< CP::THandle<CP::THit> >::iterator h = xHits.begin();
+                 h != xHits.end(); ++h) {
+                xCharge += (*h)->GetCharge();
+                double v = (*h)->GetChargeUncertainty();
+                xVariance += v*v;
+            }
+            double vCharge = 0.0;
+            double vVariance = 0.0;
+            for (std::set< CP::THandle<CP::THit> >::iterator h = vHits.begin();
+                 h != vHits.end(); ++h) {
+                vCharge += (*h)->GetCharge();
+                double v = (*h)->GetChargeUncertainty();
+                vVariance += v*v;
+            }
+            double uCharge = 0.0;
+            double uVariance = 0.0;
+            for (std::set< CP::THandle<CP::THit> >::iterator h = uHits.begin();
+                 h != uHits.end(); ++h) {
+                uCharge += (*h)->GetCharge();
+                double v = (*h)->GetChargeUncertainty();
+                uVariance += v*v;
+            }
+            CP::THandle<CP::TClusterState> state = cluster->GetState();
+            double charge = xCharge/xVariance 
+                + vCharge/vVariance
+                + uCharge/uVariance;
+            double chargeVar = 1.0/xVariance + 1.0/vVariance + 1.0/uVariance;
+            charge /= chargeVar;
+            chargeVar = 1.0/chargeVar; 
+            state->SetEDeposit(charge);
+            state->SetEDepositVariance(chargeVar);
+            totalCharge += charge;
+            totalVariance += chargeVar;
+            totalXCharge += xCharge;
+            totalXVariance += xVariance;
+            totalVCharge += vCharge;
+            totalVVariance += vVariance;
+            totalUCharge += uCharge;
+            totalUVariance += uVariance;
+            CaptNamedVerbose(
+                "TClusterSlice", "Charge: "
+                << unit::AsString(charge, 
+                                  std::sqrt(chargeVar), "charge")
+                << " X: " << unit::AsString(xCharge, 
+                                            std::sqrt(xVariance), "charge")
+                << " V: " << unit::AsString(vCharge, 
+                                            std::sqrt(vVariance), "charge")
+                << " U: " << unit::AsString(uCharge, 
+                                            std::sqrt(uVariance), "charge"));
 #ifdef ADJUST_COVARIANCE
             // Adjust the covariance...
             const CP::TReconCluster::MomentMatrix& moments 
                 = cluster->GetMoments();
-            CP::THandle<CP::TClusterState> state = cluster->GetState();
             for (int i=0; i<3; ++i) {
                 for (int j=0; j<3; ++j) {
                     state->SetPositionCovariance(i,j,moments(i,j));
@@ -169,6 +304,26 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
         }
     }
 
+    CaptNamedLog("TClusterSlice",
+                 "Event Charge: "
+                 << unit::AsString(totalCharge,
+                                   std::sqrt(totalVariance),"charge"));
+            
+    CaptNamedLog("TClusterSlice",
+                 "Event X Charge: "
+                 << unit::AsString(totalXCharge,
+                                   std::sqrt(totalXVariance),"charge"));
+            
+    CaptNamedLog("TClusterSlice",
+                 "Event V Charge: "
+                 << unit::AsString(totalVCharge,
+                                   std::sqrt(totalVVariance),"charge"));
+            
+    CaptNamedLog("TClusterSlice",
+                 "Event U Charge: "
+                 << unit::AsString(totalUCharge,
+                                   std::sqrt(totalUVariance),"charge"));
+            
     return result;
 }
 
@@ -194,7 +349,6 @@ CP::TClusterSlice::Process(const CP::TAlgorithmResult& input,
         final(new CP::TReconObjectContainer("final"));
 
     if (inputObjects) {
-        CaptLog("   Using " <<  inputObjects->size() << " objects");
         for (CP::TReconObjectContainer::iterator obj = inputObjects->begin();
              obj != inputObjects->end(); ++obj) {
             CP::THandle<CP::THitSelection> hits = (*obj)->GetHits(); 
@@ -202,14 +356,12 @@ CP::TClusterSlice::Process(const CP::TAlgorithmResult& input,
                 CaptError("Input object without hits");
                 continue;
             }
-            CaptLog("   Hits in object: " << hits->size());
             CP::THandle<CP::TReconObjectContainer> cuts = MakeSlices(hits);
             CaptLog("   Clusters made: " << cuts->size());
             std::copy(cuts->begin(), cuts->end(), std::back_inserter(*final));
         }
     }
     else if (inputHits) {
-        CaptLog("   Using " <<  inputHits->size() << " hits");
         CP::THandle<CP::TReconObjectContainer> cuts = MakeSlices(inputHits);
         CaptLog("   Clusters made: " << cuts->size());
         std::copy(cuts->begin(), cuts->end(), std::back_inserter(*final));
