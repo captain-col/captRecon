@@ -98,6 +98,50 @@ double CP::TCluster3D::OverlapTime(double r1, double r2, double step) const {
 #endif
 }
 
+namespace {
+    double hitRMS(CP::THitSelection::iterator begin, 
+                  CP::THitSelection::iterator end) {
+        double mean = 0;
+        double mean2 = 0;
+        double w = 0.0;
+        while (begin != end) {
+            double v = (*begin)->GetCharge();
+            mean += v;
+            mean2 += v*v;
+            w += 1.0;
+            ++begin;
+        }
+        mean /= w;
+        mean2 /= w;
+        return std::sqrt(mean2 - mean*mean);
+    }
+
+    double hitMean(CP::THitSelection::iterator begin, 
+                   CP::THitSelection::iterator end) {
+        double mean = 0;
+        double w = 0.0;
+        while (begin != end) {
+            double v = (*begin)->GetCharge();
+            mean += v;
+            w += 1.0;
+            ++begin;
+        }
+        mean /= w;
+        return mean;
+    }
+
+    double hitTotal(CP::THitSelection::iterator begin, 
+                   CP::THitSelection::iterator end) {
+        double mean = 0;
+        while (begin != end) {
+            double v = (*begin)->GetCharge();
+            mean += v;
+            ++begin;
+        }
+        return mean;
+    }
+};
+
 CP::THandle<CP::TAlgorithmResult>
 CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                         const CP::TAlgorithmResult& pmts,
@@ -108,7 +152,6 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
         CaptError("No input hits");
         return CP::THandle<CP::TAlgorithmResult>();
     }
-    CaptLog("2D Hits in event " << wireHits->size());
 
     CP::THandle<CP::THitSelection> pmtHits = pmts.GetHits();
     if (!pmtHits) {
@@ -117,7 +160,6 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     }
 
     double t0 = TimeZero(*pmtHits,*wireHits);
-    CaptLog("Event time zero is " << t0);
         
     CP::THandle<CP::TAlgorithmResult> result = CreateResult();
     std::auto_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
@@ -296,8 +338,43 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 // measure the total charge very well.  The charge for
                 // "overlapping" hits will need to be calculated once all of
                 // the TReconHits are constructed.
-                hit.SetCharge((*xh)->GetCharge());
-                hit.SetChargeUncertainty((*xh)->GetChargeUncertainty());
+                CaptNamedVerbose("Hit",
+                              "X: "
+                              << unit::AsString((*xh)->GetCharge(), 
+                                                (*xh)->GetChargeUncertainty(), 
+                                                "pe")
+                              << "   V: " 
+                              << unit::AsString((*vh)->GetCharge(), 
+                                                (*vh)->GetChargeUncertainty(), 
+                                                "pe")
+                              << "   U: " 
+                              << unit::AsString((*uh)->GetCharge(), 
+                                                (*uh)->GetChargeUncertainty(), 
+                                                "pe"));
+                
+                double w = (*xh)->GetChargeUncertainty();
+                double charge = (*xh)->GetCharge()/(w*w);
+                double chargeUnc = 1.0/(w*w);
+
+#define USE_V_CHARGE
+#ifdef USE_V_CHARGE
+                w = (*vh)->GetChargeUncertainty();
+                charge += (*vh)->GetCharge()/(w*w);
+                chargeUnc += 1.0/(w*w);
+#endif
+
+#define USE_U_CHARGE
+#ifdef USE_U_CHARGE
+                w = (*uh)->GetChargeUncertainty();
+                charge += (*uh)->GetCharge()/(w*w);
+                chargeUnc += 1.0/(w*w);
+#endif
+
+                charge /= chargeUnc;
+                chargeUnc = std::sqrt(1.0/chargeUnc);
+
+                hit.SetCharge(charge);
+                hit.SetChargeUncertainty(chargeUnc);
                 
                 // Find the position for the 3D hit.  Take the average
                 // position of the crossing points as the hit position.  It's
@@ -347,10 +424,27 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
         }
     }
         
-    CaptLog("Used Hits: " << used->size());
-    CaptLog("Unused Hits: " << unused->size());
-    CaptLog("Clustered Hits: " << clustered->size());
-    CaptLog("Trials: " << trials);
+    CaptVerbose("Mean X Hit Charge " 
+            << unit::AsString(hitMean(xHits->begin(), xHits->end()),
+                              hitRMS(xHits->begin(), xHits->end()),
+                              "pe"));
+    CaptVerbose("Total X Hit Charge " 
+            << unit::AsString(hitTotal(xHits->begin(), xHits->end()),
+                              "pe"));
+    CaptVerbose("Mean V Hit Charge " 
+            << unit::AsString(hitMean(vHits->begin(), vHits->end()),
+                              hitRMS(vHits->begin(), vHits->end()),
+                              "pe"));
+    CaptVerbose("Total V Hit Charge " 
+            << unit::AsString(hitTotal(vHits->begin(), vHits->end()),
+                              "pe"));
+    CaptVerbose("Mean U Hit Charge "
+            << unit::AsString(hitMean(uHits->begin(), uHits->end()),
+                              hitRMS(uHits->begin(), uHits->end()),
+                              "pe"));
+    CaptVerbose("Total U Hit Charge " 
+            << unit::AsString(hitTotal(uHits->begin(), uHits->end()),
+                              "pe"));
 
     CP::TReconObjectContainer* final = new CP::TReconObjectContainer("final");
     CP::THandle<CP::TReconCluster> usedCluster(new CP::TReconCluster);
