@@ -132,7 +132,7 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
     // Loop until all of the remaining clusters are handled.
     int throttle = 10;
     do {
-        CaptNamedLog("MST","Remaining Iterations " << throttle 
+        CaptNamedInfo("MST","Remaining Iterations " << throttle 
                   << " " << remainingClusters.size());
 
         // Create the new graph.

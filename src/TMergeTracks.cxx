@@ -138,7 +138,7 @@ CP::TMergeTracks::MergeTracks(CP::THandle<CP::TReconTrack> first,
         for (ClusterContainer::iterator s = clusters.begin();
              s != clusters.end(); ++s) {
             if (c == *s) {
-                CaptError("Overlapping cluster at " 
+                CaptDebug("Overlapping cluster at " 
                           << s-clusters.begin()
                           << " of " << clusters.size()-1);
                 overlap = true;
@@ -303,16 +303,10 @@ CP::TMergeTracks::MatchGoodness(CP::THandle<CP::TReconTrack> t1,
 
     double result = dirGoodness + pos1Goodness + pos2Goodness;
 
-    CaptNamedLog("Merge","Goodness " << result
+    CaptNamedInfo("Merge","Goodness " << result
                  << " " << dirGoodness
                  << " " << pos1Goodness
                  << " " << pos2Goodness);
-    CaptNamedLog("Merge","direction " << dirDiff << " " << dirGoodness);
-    CaptNamedLog("Merge","direction1 " << dir1 << " " << dirGoodness);
-    CaptNamedLog("Merge","direction2 " << dir2 << " " << dirGoodness);
-
-    CaptNamedLog("Merge","pos1 " << pos1Diff << " " << pos1Goodness);
-    CaptNamedLog("Merge","pos2 " << pos2Diff << " " << pos2Goodness);
 
     return result;
 }
@@ -361,7 +355,7 @@ CP::TMergeTracks::Process(const CP::TAlgorithmResult& input,
     while (!trackList.empty()) {
         CP::THandle<CP::TReconTrack> track1 = trackList.front();
         trackList.pop_front();
-        CaptNamedLog("Merge",
+        CaptNamedInfo("Merge",
                      "Track Stack: " << trackList.size()
                      << "    Track size: " << track1->GetNodes().size());
 
@@ -371,7 +365,7 @@ CP::TMergeTracks::Process(const CP::TAlgorithmResult& input,
             ++index;
             CP::THandle<CP::TReconTrack> track2 = *t;
             
-            CaptNamedLog("Merge", "Check Tracks"
+            CaptNamedInfo("Merge", "Check Tracks"
                          << " w/ stack: " << trackList.size() 
                          << "  track: " << index
                          << "  sizes: " 
@@ -386,7 +380,7 @@ CP::TMergeTracks::Process(const CP::TAlgorithmResult& input,
             ///////////////////////////////////////////////////////
 
             // Merge the tracks.
-            CaptNamedLog("Merge", "Merge Tracks");
+            CaptNamedInfo("Merge", "Merge Tracks");
 
             // Remove the track iterator (the track is held in track2).
             trackList.erase(t);
@@ -406,7 +400,7 @@ CP::TMergeTracks::Process(const CP::TAlgorithmResult& input,
         // If we get to the bottom of the loop with a track, then push it on
         // to the final objects.
         if (track1) {
-            CaptNamedLog("Merge", "Save Track");
+            CaptNamedInfo("Merge", "Save Track");
             final->push_back(track1);
         }
 

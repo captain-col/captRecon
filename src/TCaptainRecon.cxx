@@ -70,6 +70,7 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         allHits = currentResult->GetHits();
         result->AddDatum(currentResult);
 
+// Not usually applied because it is replaced by TClusterSlice.
 #ifdef Apply_TDensityCluster
         // Cluster the 3D hits by position to find object candidates. 
         CP::THandle<CP::TAlgorithmResult> densityClusterResult
@@ -89,6 +90,7 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         result->AddDatum(currentResult);
 #endif
 
+// Not usually applied because it is very slow.
 #ifdef Apply_TBestTubeTrack
         // Cluster the 3D hits by position to find object candidates. 
         CP::THandle<CP::TAlgorithmResult> bestTubeResult
