@@ -367,6 +367,7 @@ void TTmplDensityCluster<T, MetricModel>::FindSeeds(
         if (out.size() < i) { 
             out = seeds;
             out.push_back(*h);
+            return;    // Return the first seed found.
         }
     }
 }
