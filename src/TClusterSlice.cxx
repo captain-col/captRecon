@@ -63,7 +63,7 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
 
     CaptNamedLog("TClusterSlice","Make a maximum of " << steps << " slices"
                  << " in " 
-                 << unit::AsString(deltaZ,"length") << " mm"
+                 << unit::AsString(deltaZ,"length") 
                  << " (" << unit::AsString(zStep,"length") << " mm each)");
 
     std::auto_ptr<CP::HitProximity::Cluster> 
