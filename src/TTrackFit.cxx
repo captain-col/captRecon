@@ -3,8 +3,9 @@
 #include "TClusterTrackFit.hxx"
 #include "TSegmentTrackFit.hxx"
 
-CP::TTrackFit::TTrackFit()
-    : fBootstrap(NULL), fCluster(NULL), fSegment(NULL) {}
+CP::TTrackFit::TTrackFit(int bootstrapIterations)
+    : fBootstrap(NULL), fCluster(NULL), fSegment(NULL),
+      fBootstrapIterations(bootstrapIterations) {}
 CP::TTrackFit::~TTrackFit() {}
 
 CP::THandle<CP::TReconTrack>
@@ -15,7 +16,12 @@ CP::TTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         // track information and produces a good result that follows the
         // multiple scattering of the track.
         if (!fBootstrap) {
-            fBootstrap = new TBootstrapTrackFit;
+            if (fBootstrapIterations>0) {
+                fBootstrap = new TBootstrapTrackFit(fBootstrapIterations);
+            }
+            else {
+                fBootstrap = new TBootstrapTrackFit;
+            }
         }
         result = fBootstrap->Apply(input);
     }

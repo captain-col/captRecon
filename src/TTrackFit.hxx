@@ -40,7 +40,13 @@ namespace CP {
 /// track.
 class CP::TTrackFit : public CP::TTrackFitBase {
 public:
-    TTrackFit();
+    // Creat a track fitter.  This takes arguments to control the track
+    // fitters.
+    //
+    //  * bootstrapIterations -- This is the number of iterations to use in
+    //         the bootstrap fitter.  If this value is less than one, then the
+    //         default is used (see TBootstrapTrackFit.hxx).
+    explicit TTrackFit(int bootstrapIterations = 0);
     virtual ~TTrackFit();
 
     /// Fit the skeleton of a track.  The track is expected to have nodes
@@ -66,6 +72,11 @@ private:
     /// A pointer to the segment fitter.  This is only instantiated if the
     /// fitter is used.
     CP::TTrackFitBase* fSegment;
+
+    /// The number of iterations to use with the TBootstrapTrackFit.  A zero
+    /// or negative value uses the default.
+    int fBootstrapIterations;
+
 };
 
 #endif

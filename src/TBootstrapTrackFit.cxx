@@ -142,7 +142,7 @@ private:
     double fGaussianConstant;
 };
 
-CP::TBootstrapTrackFit::TBootstrapTrackFit() {}
+CP::TBootstrapTrackFit::TBootstrapTrackFit(int trials) : fTrials(trials) { }
 CP::TBootstrapTrackFit::~TBootstrapTrackFit() {}
 
 CP::THandle<CP::TReconTrack>
@@ -157,7 +157,7 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     CaptLog("Start bootstrap fit with " << nodes.size() << " nodes");
 
     // Define the number of states to use in the particle filter.
-    const int numSamples = 1000;
+    const int numSamples = fTrials;
 
     // Define the size of the state.
     const int stateSize = BTF::kStateSize;
@@ -289,7 +289,7 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     /////////////////////////////////////////////////////////////////////
     /// Estimate the state at each node.
     /////////////////////////////////////////////////////////////////////
-    for (int step = nodes.size()-1; 0 <= step; --step) {
+    for (int step = (int) nodes.size()-1; 0 <= step; --step) {
         CaptNamedDebug("BFL","Start backward step " << step);
         measurement[0] = step;
         CP::THandle<CP::TReconNode> node = nodes[step];
@@ -406,7 +406,9 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         for (int i=0; i<3; ++i) {
             for (int j=0; j<3; ++j) {
                 pcov2(i,j) = cv(BTF::kXPos+i+1, BTF::kXPos+j+1);
-                if (step == nodes.size()-1 && i == j) pcov2(i,j) = 10*unit::cm;
+                if (step == (int) nodes.size()-1 && i == j) {
+                    pcov2(i,j) = 10*unit::cm;
+                }
             }
         }
         pcov2.InvertFast();
@@ -415,7 +417,7 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         for (int i=0; i<3; ++i) {
             for (int j=0; j<3; ++j) {
                 dcov2(i,j) = cv(BTF::kXDir+i+1, BTF::kXDir+j+1);
-                if (step == nodes.size()-1 && i == j) dcov2(i,j) = 1.0;
+                if (step == (int) nodes.size()-1 && i == j) dcov2(i,j) = 1.0;
             }
         }
         dcov2.InvertFast();
