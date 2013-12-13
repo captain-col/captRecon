@@ -17,6 +17,7 @@ use captainPolicy
 use ROOT * LCG_Interfaces
 use Boost * LCG_Interfaces
 use orocos-bfl * LCG_Interfaces
+use CGAL * LCG_Interfaces
 
 # Build the documentation.
 document doxygen doxygen -group=documentation *.cxx *.hxx ../doc/*.dox
@@ -27,15 +28,21 @@ macro captRecon_linkopts " -L$(CAPTRECONROOT)/$(captRecon_tag) "
 macro_append captRecon_linkopts " -lcaptRecon "
 macro captRecon_stamps " $(captReconstamp) $(linkdefstamp) "
 
-# The paths to find this library and it's executables
+# The paths to find this library
 path_remove LD_LIBRARY_PATH "$(CAPTRECONROOT)" 
 path_prepend LD_LIBRARY_PATH "$(CAPTRECONROOT)/$(captRecon_tag)"
 
+# Put the executables in the path.
 path_remove PATH "$(CAPTRECONROOT)"
 path_prepend PATH "$(CAPTRECONROOT)/$(captRecon_tag)"
 
+# The main library.
 library captRecon *.cxx *.hxx 
 
 # The main application
 application CAPTRECON ../app/captRecon.cxx
 macro_append CAPTRECON_dependencies " captRecon " 
+
+# Test applications to build
+application captReconTUT -check ../test/captReconTUT.cxx ../test/tut*.cxx
+macro_append captReconTUT_dependencies " captRecon "
