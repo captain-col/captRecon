@@ -1,6 +1,5 @@
 #include "TSplitTracks.hxx"
 #include "TTrackFit.hxx"
-#include "TSegmentTrackFit.hxx"
 #include "ClusterDistance.hxx"
 #include "CreateTrack.hxx"
 #include "CompareReconObjects.hxx"
