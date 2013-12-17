@@ -95,7 +95,9 @@ public:
     /// An input iterator that returns the values in order of closest to
     /// furthest.  The iterator points to a std::pair<ValueType,float> where
     /// the first element is the value at the point, and the second element is
-    /// the distance to the search point provided in the begin method.
+    /// the distance to the search point provided in the begin method.  The
+    /// iterator holds a copy of the ValueType so the original object cannot
+    /// be modified (even if you use const_cast.
     class iterator {
     public:
         typedef typename Neighbors::iterator base_iterator;
@@ -106,12 +108,12 @@ public:
         iterator() {}
         iterator(const base_iterator& i) : fBase(i) {}
         iterator& operator ++() {++fBase; return *this;} 
-        value_type& operator *() {
+        const value_type& operator *() {
             fValue.first = fBase->first.fValue;
             fValue.second = fBase->second;
             return fValue;
         }
-        value_type* operator ->() {
+        const value_type* operator ->() {
             fValue.first = fBase->first.fValue;
             fValue.second = fBase->second;
             return &fValue;

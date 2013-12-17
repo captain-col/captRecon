@@ -97,9 +97,9 @@ namespace tut {
                     ensure_distance("Neighbor X coordinate agrees",
                                     value->X(), neighbor->first.X(), 0.001);
                     ensure_distance("Neighbor Y coordinate agrees",
-                                    value->X(), neighbor->first.X(), 0.001);
+                                    value->Y(), neighbor->first.Y(), 0.001);
                     ensure_distance("Neighbor Z coordinate agrees",
-                                    value->X(), neighbor->first.X(), 0.001);
+                                    value->Z(), neighbor->first.Z(), 0.001);
                 }
                 ++count;
                 ++neighbor;
