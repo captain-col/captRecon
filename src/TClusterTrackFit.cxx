@@ -46,7 +46,7 @@ CP::TClusterTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         return CP::THandle<CP::TReconTrack>();
     }
 
-    CaptLog("Start cluster fit with " << nodes.size() << " nodes");
+    CaptInfo("Start cluster fit with " << nodes.size() << " nodes");
 
     /////////////////////////////////////////////////////////////////////
     /// Find the center position and direction of the track from the nodes.
