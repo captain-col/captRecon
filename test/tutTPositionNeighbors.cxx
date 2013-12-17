@@ -105,13 +105,16 @@ namespace tut {
                 if (!count) {
                     ensure_distance("Neighbor X coordinate agrees",
                                     (*value)->GetPosition().X(), 
-                                    neighbor->first->GetPosition().X(), 0.001);
+                                    neighbor->first->GetPosition().X(),
+                                    0.001);
                     ensure_distance("Neighbor Y coordinate agrees",
                                     (*value)->GetPosition().Y(), 
-                                    neighbor->first->GetPosition().Y(), 0.001);
+                                    neighbor->first->GetPosition().Y(),
+                                    0.001);
                     ensure_distance("Neighbor Z coordinate agrees",
                                     (*value)->GetPosition().Z(), 
-                                    neighbor->first->GetPosition().Z(), 0.001);
+                                    neighbor->first->GetPosition().Z(),
+                                    0.001);
 
                 }
                 ++count;

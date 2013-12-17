@@ -78,7 +78,8 @@ public:
     /// Get the i-th cluster.  This is only valid after the cluster method has
     /// been used.  If the index is equal to the number of found clusters,
     /// then the return value will be the list of unclustered points.
-    const Points& GetCluster(unsigned int i) const {
+    const Points& GetCluster(std::size_t i) const {
+        if (fClusters.size() <= i) return fRemaining;
         return fClusters.at(i); 
     }
     
@@ -120,6 +121,9 @@ private:
 
     /// The clusters that have been found.
     std::vector<Points> fClusters;
+
+    /// The objects that didn't make it into a cluster.
+    Points fRemaining;
 
     /// The mapping of color to each point in the neighborTree.  This is
     /// indexed by the fColorIndex field of the NeighborEntry.
@@ -196,6 +200,14 @@ void CP::TPositionDensityCluster<PositionHandle>::Cluster(
 
     std::sort(fClusters.begin(), fClusters.end(),
               ClusterOrdering<Points>());
+
+    fRemaining.clear();
+    for (typename Neighbors::value_iterator p = neighborTree.begin_values(); 
+         p != neighborTree.end_values(); ++p) {
+        if (fColorMap[p->fColorIndex]) continue;
+        fRemaining.push_back(p->fHandle);
+    }
+    
 }
     
 template <class PositionHandle>
