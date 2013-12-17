@@ -1,5 +1,4 @@
 #include "TMergeTracks.hxx"
-#include "TSegmentTrackFit.hxx"
 #include "TTrackFit.hxx"
 #include "ClusterDistance.hxx"
 #include "CreateTrack.hxx"
@@ -358,6 +357,15 @@ CP::TMergeTracks::Process(const CP::TAlgorithmResult& input,
         CaptNamedInfo("Merge",
                      "Track Stack: " << trackList.size()
                      << "    Track size: " << track1->GetNodes().size());
+
+        // Don't use a very short track as a base for merging.  The tracks are
+        // in order of number of nodes (decreasing), and a short track will
+        // already be merged, or doesn't have a good partner.
+        if (track1->GetNodes().size() < 3) {
+            CaptNamedInfo("Merge", "Save Track");
+            final->push_back(track1);
+            continue;
+        }
 
         int index = 0;
         for (TrackList::iterator t = trackList.begin();
