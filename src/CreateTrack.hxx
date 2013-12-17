@@ -48,10 +48,10 @@ namespace CP {
         track->AddDetector(CP::TReconBase::kTPC);
         track->SetName("track");
 
-        CP::THandle<CP::THitSelection> hits 
-            = CP::hits::ReconHits(begin,end);
+        std::set< CP::THandle<CP::THit> > hits;
+        CP::hits::ReconHits(begin,end,hits);
         CP::THitSelection* trackHits = new CP::THitSelection("trackHits");
-        std::copy(hits->begin(), hits->end(),std::back_inserter(*trackHits));
+        std::copy(hits.begin(), hits.end(),std::back_inserter(*trackHits));
         track->AddHits(trackHits);
 
         TReconNodeContainer& nodes = track->GetNodes();

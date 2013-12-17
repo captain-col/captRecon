@@ -1,6 +1,8 @@
 #include "TDensityCluster.hxx"
 #include "THitProximityCluster.hxx"
 #include "HitUtilities.hxx"
+#include "TPositionDensityCluster.hxx"
+#include "CreateCluster.hxx"
 
 #include <THandle.hxx>
 #include <TReconCluster.hxx>
@@ -46,9 +48,16 @@ CP::TDensityCluster::Process(const CP::TAlgorithmResult& input,
         final(new CP::TReconObjectContainer("final"));
     std::auto_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
 
-#ifdef USE_DENSITY_CLUSTER
-    std::auto_ptr<CP::HitProximity::Cluster> 
-        clusterAlgorithm(new CP::HitProximity::Cluster(fMinPoints,fMaxDist));
+#ifndef USE_HIT_PROXIMITY
+    // This is the (dramatically) faster clustering algorithm for hits.
+    typedef CP::TPositionDensityCluster< CP::THandle<CP::THit> > 
+        ClusterAlgorithm;
+#else
+    typedef CP::HitProximity::Cluster ClusterAlgorithm;
+#endif
+
+    std::auto_ptr<ClusterAlgorithm> 
+        clusterAlgorithm(new ClusterAlgorithm(fMinPoints,fMaxDist));
 
     clusterAlgorithm->Cluster(inputHits->begin(), inputHits->end());
 
@@ -56,19 +65,11 @@ CP::TDensityCluster::Process(const CP::TAlgorithmResult& input,
     for (int i=0; i<nClusters; ++i) {
         const CP::HitProximity::Cluster::Points& points 
             = clusterAlgorithm->GetCluster(i);
-        CP::THandle<CP::TReconCluster> cluster(new CP::TReconCluster);
-        cluster->FillFromHits("TDensityCluster",points.begin(),points.end());
+        CP::THandle<CP::TReconCluster> cluster
+            = CreateCluster("TDensityCluster",points.begin(),points.end());
         CaptLog("   Cluster with " << cluster->GetHits()->size() << " hits");
         final->push_back(cluster);
     }
-#else
-    CP::THandle<CP::TReconCluster> cluster(new CP::TReconCluster);
-    cluster->FillFromHits("TDensityCluster",
-                          inputHits->begin(),
-                          inputHits->end());
-    CaptLog("   Cluster with " << cluster->GetHits()->size() << " hits");
-    final->push_back(cluster);
-#endif
 
     // Copy all of the hits that got added to a reconstruction object into the
     // used hit selection.

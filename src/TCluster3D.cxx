@@ -1,5 +1,6 @@
 #include "TCluster3D.hxx"
 #include "TDriftPosition.hxx"
+#include "CreateCluster.hxx"
 
 #include <THandle.hxx>
 #include <TReconHit.hxx>
@@ -447,8 +448,8 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                               "pe"));
 
     CP::TReconObjectContainer* final = new CP::TReconObjectContainer("final");
-    CP::THandle<CP::TReconCluster> usedCluster(new CP::TReconCluster);
-    usedCluster->FillFromHits("clustered",*clustered);
+    CP::THandle<CP::TReconCluster> usedCluster 
+        = CreateCluster("clustered", clustered->begin(), clustered->end());
     final->push_back(usedCluster);
     result->AddResultsContainer(final);
 

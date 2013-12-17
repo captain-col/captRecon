@@ -1,7 +1,6 @@
 #include "TMinimalSpanningTrack.hxx"
-#include "TSegmentTrackFit.hxx"
-#include "TTrackFit.hxx"
 #include "ClusterDistance.hxx"
+#include "CreateTrack.hxx"
 
 #include <THandle.hxx>
 #include <TReconTrack.hxx>
@@ -241,22 +240,14 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
         // root.
         for (std::vector<termDist>::reverse_iterator t = terminals.rbegin();
              t != terminals.rend(); ++t) {
-            CP::THandle<CP::TReconTrack> track(new CP::TReconTrack);
-            track->SetAlgorithmName("TMinimumSpanningTrack");
-            track->SetStatus(CP::TReconBase::kSuccess);
-            track->AddDetector(CP::TReconBase::kTPC);
-            track->SetName("track");
-            TReconNodeContainer& nodes = track->GetNodes();
-            
+            std::vector< CP::THandle<CP::TReconBase> > nodes;
             int current = t->second; 
             for (;;) {
+                // Check if we're at the root, or not connected.
                 if (current < 0) break;
-                CP::THandle<CP::TReconNode> node(new CP::TReconNode);
-                CP::THandle<CP::TReconState> state(new CP::TTrackState);
                 CP::THandle<CP::TReconBase> object = g[current].cluster ;
-                node->SetState(state);
-                node->SetObject(object);
-                nodes.push_back(node);
+                // Add the object to the vector of nodes.
+                nodes.push_back(object);
                 // The current vertex was already added to a track, so it's
                 // the last one for the current track.
                 if (g[current].marked) break;
@@ -268,8 +259,9 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
 
             // There are enough nodes in the new track to save.
             if (nodes.size() > 1) {
-                CP::TSegmentTrackFit fitter;
-                track = fitter.Apply(track);
+                CP::THandle<CP::TReconTrack> track 
+                    = CreateTrack("TMinimalSpanningTrack",
+                                  nodes.begin(), nodes.end());
                 final->push_back(track);
             }
 

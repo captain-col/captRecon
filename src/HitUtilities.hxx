@@ -5,6 +5,9 @@
 #include <THandle.hxx>
 #include <THitSelection.hxx>
 #include <TReconBase.hxx>
+#include <TReconNode.hxx>
+
+#include <set>
 
 namespace CP {
 namespace hits {
@@ -21,39 +24,34 @@ namespace hits {
     /// Remove duplicate hits from a hit selection.
     void Unique(CP::THitSelection& a);
 
+    /// Collect all of the hits used in a TReconBase object into a single set.
+    void ReconHits(CP::THandle< CP::TReconBase > object, 
+                    std::set< CP::THandle<CP::THit> >& output);
+
     /// Collect all of the hits used by TReconBase objects in a
-    /// reconstruction object container into a single hit selection.
-    template<typename T>
-    CP::THandle<CP::THitSelection> 
-    ReconHits(T begin, T end) {
-        CP::THandle<CP::THitSelection> hits(new CP::THitSelection);
-        
+    /// reconstruction object container into a single set of hits.
+    template<typename InputIterator>
+    void ReconHits(InputIterator begin, InputIterator end, 
+                   std::set< CP::THandle<CP::THit> >& output) {
         while (begin != end) {
-            // Add the hits for the object.
-            CP::THandle<CP::THitSelection> objHits = (*begin)->GetHits();
-            if (objHits) {
-                for (CP::THitSelection::iterator hit = objHits->begin();
-                     hit != objHits->end();
-                     ++hit) {
-                    hits->AddHit(*hit);
-                }
-            }
-            // Add hits for the constituents.  
-            CP::THandle<CP::TReconObjectContainer> parts 
-                = (*begin)->GetConstituents();
-            if (parts) {
-                objHits = ReconHits(parts->begin(), parts->end());
-                if (objHits) {
-                    for (CP::THitSelection::iterator hit = objHits->begin();
-                         hit != objHits->end();
-                         ++hit) {
-                        hits->AddHit(*hit);
-                    }
-                }
-            }
+            ReconHits(*begin, output);
             ++begin;
         }
-        
+    }
+
+    /// Collect all of the hits used by TReconBase objects in a reconstruction
+    /// object container into a THitSelection.  A hit will only appear in the
+    /// selection once.
+    template<typename InputIterator>
+    CP::THandle< CP::THitSelection >
+    ReconHits(InputIterator begin, InputIterator end) {
+        std::set< CP::THandle<CP::THit> > theSet;
+        ReconHits(begin,end,theSet);
+
+        CP::THandle<CP::THitSelection> hits(new CP::THitSelection);
+        hits->reserve(theSet.size());
+        std::copy(theSet.begin(), theSet.end(), std::back_inserter(*hits));
+
         return hits;
     }
 
