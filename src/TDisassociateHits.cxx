@@ -26,8 +26,8 @@ CP::TDisassociateHits::~TDisassociateHits() { }
 
 CP::THandle<CP::TAlgorithmResult>
 CP::TDisassociateHits::Process(const CP::TAlgorithmResult& input,
-                          const CP::TAlgorithmResult&,
-                          const CP::TAlgorithmResult&) {
+                               const CP::TAlgorithmResult&,
+                               const CP::TAlgorithmResult&) {
     
     CP::THandle<CP::TReconObjectContainer> inputObjects 
         = input.GetResultsContainer();
@@ -51,6 +51,17 @@ CP::TDisassociateHits::Process(const CP::TAlgorithmResult& input,
         small(new CP::TReconObjectContainer("small"));
     std::auto_ptr<CP::TReconObjectContainer>
         showers(new CP::TReconObjectContainer("showers"));
+
+    // Check to see if there are tracks and clusters to disassociate.
+    std::size_t bigTrackThreshold = 5;
+    int trackCount = 0;
+    for (CP::TReconObjectContainer::iterator t = inputObjects->begin();
+         t != inputObjects->end(); ++t) {
+        CP::THandle<CP::TReconTrack> track = *t;
+        if (track) ++trackCount;
+    }    
+    if (trackCount < 15) bigTrackThreshold = 0;
+
     // Objects to break up.
     std::auto_ptr<CP::TReconObjectContainer> 
         disassociate(new CP::TReconObjectContainer("disassociate"));
@@ -61,7 +72,7 @@ CP::TDisassociateHits::Process(const CP::TAlgorithmResult& input,
         CP::THandle<CP::TReconTrack> track = *t;
         CP::THandle<CP::TReconCluster> cluster = *t;
         if (track) {
-            if (track->GetNodes().size() > 5) {
+            if (track->GetNodes().size() > bigTrackThreshold) {
                 // Save all the "big" tracks to final.
                 final->push_back(*t);
                 tracks->push_back(*t);
