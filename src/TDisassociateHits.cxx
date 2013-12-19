@@ -2,6 +2,7 @@
 #include "HitUtilities.hxx"
 #include "TPositionDensityCluster.hxx"
 #include "CreateCluster.hxx"
+#include "CreateShower.hxx"
 #include "CompareReconObjects.hxx"
 
 #include <THandle.hxx>
@@ -47,10 +48,9 @@ CP::TDisassociateHits::Process(const CP::TAlgorithmResult& input,
     std::auto_ptr<CP::TReconObjectContainer> 
         big(new CP::TReconObjectContainer("big"));
     std::auto_ptr<CP::TReconObjectContainer> 
-        medium(new CP::TReconObjectContainer("medium"));
-    std::auto_ptr<CP::TReconObjectContainer> 
         small(new CP::TReconObjectContainer("small"));
-
+    std::auto_ptr<CP::TReconObjectContainer>
+        showers(new CP::TReconObjectContainer("showers"));
     // Objects to break up.
     std::auto_ptr<CP::TReconObjectContainer> 
         disassociate(new CP::TReconObjectContainer("disassociate"));
@@ -113,8 +113,7 @@ CP::TDisassociateHits::Process(const CP::TAlgorithmResult& input,
             = midClusters.GetCluster(i);
         CP::THandle<CP::TReconCluster> cluster
             = CreateCluster("cluster",points.begin(),points.end());
-        medium->push_back(cluster);
-        final->push_back(cluster);
+        small->push_back(cluster);
     }
     
     // Find the small clusters.
@@ -132,18 +131,28 @@ CP::TDisassociateHits::Process(const CP::TAlgorithmResult& input,
         CP::THandle<CP::TReconCluster> cluster
             = CreateCluster("cluster",points.begin(),points.end());
         small->push_back(cluster);
-        final->push_back(cluster);
     }
     
     std::sort(final->begin(), final->end(), CompareReconObjects());
     std::sort(tracks->begin(), tracks->end(), CompareReconObjects());
     std::sort(big->begin(), big->end(), CompareReconObjects());
-    std::sort(medium->begin(), medium->end(), CompareReconObjects());
     std::sort(small->begin(), small->end(), CompareReconObjects());
 
+    // Now break up the big clusters as if we were making showers.
+    for (CP::TReconObjectContainer::iterator c= big->begin();
+         c != big->end(); ++c) {
+        CP::THandle<CP::TReconCluster> bigCluster = (*c);
+        CP::THandle<CP::TReconObjectContainer> tmp
+            = CreateShowerClusters("clusters", 
+                                   bigCluster->GetHits()->begin(),
+                                   bigCluster->GetHits()->end(),
+                                   bigCluster->GetLongAxis());
+        std::copy(tmp->begin(), tmp->end(), std::back_inserter((*showers)));
+    }
+
     result->AddResultsContainer(small.release());
-    result->AddResultsContainer(medium.release());
     result->AddResultsContainer(big.release());
+    result->AddResultsContainer(showers.release());
     result->AddResultsContainer(tracks.release());
     result->AddResultsContainer(final.release());
 
