@@ -131,7 +131,7 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
     // Loop until all of the remaining clusters are handled.
     int throttle = 10;
     do {
-        CaptNamedLog("MST","Remaining Iterations " << throttle 
+        CaptNamedLog("MST","Remaining iterations " << throttle 
                   << " " << remainingClusters.size());
 
         // Create the new graph.
@@ -172,7 +172,7 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
             }
         }
 
-        CaptNamedInfo("MST","Number of edges: " << boost::num_edges(g));
+        CaptNamedLog("MST","Number of edges: " << boost::num_edges(g));
 
         // There are not enough edges!  Stop now.
         if (boost::num_edges(g) < 2) break;
