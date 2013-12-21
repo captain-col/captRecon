@@ -45,12 +45,12 @@ CP::TDisassociateHits::Process(const CP::TAlgorithmResult& input,
         final(new CP::TReconObjectContainer("final"));
     std::auto_ptr<CP::TReconObjectContainer> 
         tracks(new CP::TReconObjectContainer("tracks"));
+    std::auto_ptr<CP::TReconObjectContainer>
+        showers(new CP::TReconObjectContainer("showers"));
     std::auto_ptr<CP::TReconObjectContainer> 
         big(new CP::TReconObjectContainer("big"));
     std::auto_ptr<CP::TReconObjectContainer> 
         small(new CP::TReconObjectContainer("small"));
-    std::auto_ptr<CP::TReconObjectContainer>
-        showers(new CP::TReconObjectContainer("showers"));
 
     // Check to see if there are tracks and clusters to disassociate.
     std::size_t bigTrackThreshold = 5;
@@ -107,38 +107,37 @@ CP::TDisassociateHits::Process(const CP::TAlgorithmResult& input,
         CP::THandle<CP::TReconCluster> cluster
             = CreateCluster("cluster",points.begin(),points.end());
         big->push_back(cluster);
-        final->push_back(cluster);
     }
     
     // Find the medium clusters.
-    ClusterAlgorithm midClusters(5,8*unit::mm);
-    midClusters.Cluster(bigClusters.GetCluster(nClusters).begin(), 
+    ClusterAlgorithm smallClusters(5,8*unit::mm);
+    smallClusters.Cluster(bigClusters.GetCluster(nClusters).begin(), 
                         bigClusters.GetCluster(nClusters).end());
 
-    nClusters = midClusters.GetClusterCount();
+    nClusters = smallClusters.GetClusterCount();
     CaptNamedLog("TDisassociateHits",
                  "With " << nClusters << " medium clusters"
                  << " from " << hits.size() << " hits");
     for (int i=0; i<nClusters; ++i) {
         const ClusterAlgorithm::Points& points 
-            = midClusters.GetCluster(i);
+            = smallClusters.GetCluster(i);
         CP::THandle<CP::TReconCluster> cluster
             = CreateCluster("cluster",points.begin(),points.end());
         small->push_back(cluster);
     }
     
-    // Find the small clusters.
-    ClusterAlgorithm smallClusters(1,8*unit::mm);
-    smallClusters.Cluster(midClusters.GetCluster(nClusters).begin(), 
-                        midClusters.GetCluster(nClusters).end());
+    // Find the smaller clusters.
+    ClusterAlgorithm smallerClusters(1,8*unit::mm);
+    smallerClusters.Cluster(smallClusters.GetCluster(nClusters).begin(), 
+                        smallClusters.GetCluster(nClusters).end());
 
-    nClusters = smallClusters.GetClusterCount();
+    nClusters = smallerClusters.GetClusterCount();
     CaptNamedLog("TDisassociateHits",
-                 "With " << nClusters << " small clusters"
+                 "With " << nClusters << " smaller clusters"
                  << " from " << hits.size() << " hits");
     for (int i=0; i<nClusters; ++i) {
         const ClusterAlgorithm::Points& points 
-            = smallClusters.GetCluster(i);
+            = smallerClusters.GetCluster(i);
         CP::THandle<CP::TReconCluster> cluster
             = CreateCluster("cluster",points.begin(),points.end());
         small->push_back(cluster);
@@ -153,12 +152,18 @@ CP::TDisassociateHits::Process(const CP::TAlgorithmResult& input,
     for (CP::TReconObjectContainer::iterator c= big->begin();
          c != big->end(); ++c) {
         CP::THandle<CP::TReconCluster> bigCluster = (*c);
-        CP::THandle<CP::TReconObjectContainer> tmp
-            = CreateShowerClusters("clusters", 
-                                   bigCluster->GetHits()->begin(),
-                                   bigCluster->GetHits()->end(),
-                                   bigCluster->GetLongAxis());
-        std::copy(tmp->begin(), tmp->end(), std::back_inserter((*showers)));
+        CP::THandle<CP::TReconShower> shower
+            = CreateShower("shower", 
+                           bigCluster->GetHits()->begin(),
+                           bigCluster->GetHits()->end(),
+                           bigCluster->GetLongAxis());
+        if (shower) {
+            showers->push_back(shower);
+            final->push_back(shower);
+        }
+        else {
+            final->push_back(bigCluster);
+        }
     }
 
     result->AddResultsContainer(small.release());
