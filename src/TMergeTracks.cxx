@@ -23,7 +23,7 @@
 CP::TMergeTracks::TMergeTracks()
     : TAlgorithm("TMergeTracks", 
                  "Merge Tracks with Kinks and Gaps") {
-    fGoodnessCut = 9.0;
+    fGoodnessCut = 16.0;
     fMergeDistanceCut = 5.0*unit::cm;
 }
 
@@ -302,10 +302,10 @@ CP::TMergeTracks::MatchGoodness(CP::THandle<CP::TReconTrack> t1,
 
     double result = dirGoodness + pos1Goodness + pos2Goodness;
 
-    CaptNamedInfo("Merge","Goodness " << result
-                 << " " << dirGoodness
-                 << " " << pos1Goodness
-                 << " " << pos2Goodness);
+    CaptNamedInfo("Merge","Goodness: " << result
+                 << " Dir X2: " << dirGoodness
+                 << " P1 X2: " << pos1Goodness
+                 << " P2 X2: " << pos2Goodness);
 
     return result;
 }
