@@ -82,18 +82,34 @@ CP::TMergeTracks::TrackOrientation(const TVector3& firstFront,
     // the clusters get added.
     if (ffDist<fbDist && ffDist<bfDist && ffDist<bbDist) {
         // A front to front track.
+        CaptNamedInfo("Merge","Orient FF " << ffDist
+                      << " " << fbDist
+                      << " " << bfDist
+                      << " " << bbDist);
         return kFrontFront;
     }
     else if (fbDist<ffDist && fbDist<bfDist && fbDist<bbDist) {
         // A front to back track.
+        CaptNamedInfo("Merge","Orient FB " << ffDist
+                      << " " << fbDist
+                      << " " << bfDist
+                      << " " << bbDist);
         return kFrontBack;
     }
     else if (bfDist<fbDist && bfDist<ffDist && bfDist<bbDist) {
         // A back to front track.
+        CaptNamedInfo("Merge","Orient BF " << ffDist
+                      << " " << fbDist
+                      << " " << bfDist
+                      << " " << bbDist);
         return kBackFront;
     }
     else if (bbDist<fbDist && bbDist<bfDist && bbDist<ffDist) {
         // A back to back track.
+        CaptNamedInfo("Merge","Orient BB " << ffDist
+                      << " " << fbDist
+                      << " " << bfDist
+                      << " " << bbDist);
         return kBackBack;
     }
 
@@ -208,7 +224,8 @@ CP::TMergeTracks::MatchGoodness(CP::THandle<CP::TReconTrack> t1,
     // The overall direction covariance.
     TMatrixD dirCov(3,3);
 
-    // Get the matching position for the first track.
+    // Get the matching position for the first track.  The direction is set so
+    // that it points toward the "interior" of the track.
     TVector3 pos1;
     TMatrixD posCov1(3,3);
     TVector3 dir1;
@@ -227,7 +244,7 @@ CP::TMergeTracks::MatchGoodness(CP::THandle<CP::TReconTrack> t1,
     case kBackFront:
     case kBackBack:
         pos1 = t1->GetBack()->GetPosition().Vect();
-        dir1 = t1->GetBack()->GetDirection();
+        dir1 = -t1->GetBack()->GetDirection();
         for (int i=0; i<3; ++i) {
             for (int j=0; j<3; ++j) {
                 posCov1(i,j) = t1->GetBack()->GetPositionCovariance(i,j);
@@ -240,7 +257,8 @@ CP::TMergeTracks::MatchGoodness(CP::THandle<CP::TReconTrack> t1,
     }
         
 
-    // Get the matching position for the second track.
+    // Get the matching position for the second track.  The direction is set
+    // so that it points toward the "interior" of the track.
     TVector3 pos2;
     TMatrixD posCov2(3,3);
     TVector3 dir2;
@@ -259,7 +277,7 @@ CP::TMergeTracks::MatchGoodness(CP::THandle<CP::TReconTrack> t1,
     case kFrontBack:
     case kBackBack:
         pos2 = t2->GetBack()->GetPosition().Vect();
-        dir2 = t2->GetBack()->GetDirection();
+        dir2 = - t2->GetBack()->GetDirection();
         for (int i=0; i<3; ++i) {
             for (int j=0; j<3; ++j) {
                 posCov2(i,j) = t2->GetBack()->GetPositionCovariance(i,j);
@@ -270,6 +288,11 @@ CP::TMergeTracks::MatchGoodness(CP::THandle<CP::TReconTrack> t1,
     default:
         CaptError("This can't happen!");
     }
+
+    // Make sure that the tracks don't overlap.  The directions are pointing
+    // to the interior of the tracks, so they should be pointing in opposite
+    // directions.
+    double dirOverlap = dir1*dir2;
 
     // Make sure the two directions are pointing in the same general direction
     // (i.e. not opposites).
@@ -301,11 +324,13 @@ CP::TMergeTracks::MatchGoodness(CP::THandle<CP::TReconTrack> t1,
     double pos2Goodness = pos2Diff*(posCov2*pos2Diff);
 
     double result = dirGoodness + pos1Goodness + pos2Goodness;
+    if (dirOverlap > 0.0) result += 100.0;
 
     CaptNamedInfo("Merge","Goodness: " << result
-                 << " Dir X2: " << dirGoodness
-                 << " P1 X2: " << pos1Goodness
-                 << " P2 X2: " << pos2Goodness);
+                  << " Dir: " << dirGoodness
+                  << " P1: " << pos1Goodness
+                  << " P2: " << pos2Goodness
+                  << " Ovlp: " << dirOverlap);
 
     return result;
 }

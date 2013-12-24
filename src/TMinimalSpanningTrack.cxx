@@ -172,7 +172,7 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
             }
         }
 
-        CaptNamedLog("MST","Number of edges: " << boost::num_edges(g));
+        CaptNamedInfo("MST","Number of edges: " << boost::num_edges(g));
 
         // There are not enough edges!  Stop now.
         if (boost::num_edges(g) < 2) break;
