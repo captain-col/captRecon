@@ -23,6 +23,8 @@ public:
             const CP::TAlgorithmResult& input1 = CP::TAlgorithmResult::Empty,
             const CP::TAlgorithmResult& input2 = CP::TAlgorithmResult::Empty);
 
+    /// The container type for the clusters being built into tracks.  This
+    /// needs to have a random acces iterator.
     typedef std::vector< CP::THandle<CP::TReconCluster> > ClusterContainer;
 
 private:

@@ -145,12 +145,20 @@ double CP::TSplitTracks::KinkAngle(ClusterContainer::iterator here,
     double p1[3] = {1.0,0,0};
     double x[3];
 
+    // Find out where to start the fit in the backward direction.  This makes
+    // sure the distance isn't too big.
+    ClusterContainer::iterator startStep = here;
+    while (startStep != begin) {
+        --startStep;
+        if (here-startStep+1 < minStep) continue;
+        double r = ((*startStep)->GetPosition()-(*here)->GetPosition()).Mag();
+        if (r > 4*unit::cm) break;
+    }
+
     // Do a simple fit in the backward direction.  This includes the cluster
     // being checked.
-    int backStep = here-begin;
-    if (backStep > maxStep) backStep = maxStep;
     TPrincipal pca1(3,"");
-    for (ClusterContainer::iterator i = here-backStep; i != here+1; ++i) {
+    for (ClusterContainer::iterator i = startStep; i != here+1; ++i) {
         double row[3] 
             = {(*i)->GetPosition().X(),
                (*i)->GetPosition().Y(),
@@ -164,12 +172,20 @@ double CP::TSplitTracks::KinkAngle(ClusterContainer::iterator here,
     TVector3 dir1(x); 
     dir1 = (dir1-base1).Unit();
 
+    ClusterContainer::iterator endStep = here;
+    while (endStep != end) {
+        if (end-here < minStep) continue;
+        double r = ((*endStep)->GetPosition()-(*here)->GetPosition()).Mag();
+        ++endStep;
+        if (r > 4*unit::cm) break; // Yes.. the "if" comes after the increment.
+    }
+
     // Do a simple fit in the forward direction.  This includes the cluster
     // being checked.
     int foreStep = end-here;
     if (foreStep > maxStep) foreStep = maxStep;
     TPrincipal pca2(3,"");
-    for (ClusterContainer::iterator i = here; i != here+foreStep; ++i) {
+    for (ClusterContainer::iterator i = here; i != endStep; ++i) {
         double row[3] 
             = {(*i)->GetPosition().X(),
                (*i)->GetPosition().Y(),
