@@ -2,12 +2,21 @@
 #define TBootstrapTrackFit_hxx_seen
 
 #include "TTrackFitBase.hxx"
+#include "ECaptRecon.hxx"
 
 #include <THitSelection.hxx>
 #include <TReconTrack.hxx>
 #include <THandle.hxx>
+#include <ECore.hxx>
 
 namespace CP {
+
+    /// A base fitting object.
+    EXCEPTION(EBootstrapTrackFit,ECaptRecon);
+
+    /// A base fitting object.
+    EXCEPTION(EBootstrapMissingNodeObject,EBootstrapTrackFit);
+
     class TBootstrapTrackFit;
 };
 

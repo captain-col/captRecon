@@ -245,14 +245,13 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
             }
         }
 
-        CaptNamedVerbose("BFL","Forward State Position " 
-                     << trackState->GetPosition().Vect()
-                     << " for cluster " << cluster->GetPosition().Vect()
-                     << " diff " << (trackState->GetPosition().Vect()
-                                     - cluster->GetPosition().Vect()).Mag());
-        CaptNamedVerbose("BFL","Forward State Direction " 
-                       << trackState->GetDirection());
-
+        CaptNamedVerbose("BFL","Forward " 
+                         << trackState->GetPosition().Vect()
+                         << " -> " << trackState->GetDirection()
+                         << " diff " 
+                         << (trackState->GetPosition().Vect()
+                             - cluster->GetPosition().Vect()).Mag());
+        
     }
 
     /////////////////////////////////////////////////////////////////////
@@ -276,7 +275,7 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         if (diff > 2*unit::cm) break;
         otherNode = nodes[nodes.size()-i];
     }
-    BTF::GeneratePrior(priorSamples,otherNode, firstNode);
+    BTF::GeneratePrior(priorSamples, otherNode, firstNode);
     BFL::MCPdf<BTF::ColumnVector> backwardPrior(numSamples,stateSize);
     backwardPrior.ListOfSamplesSet(priorSamples);
 
@@ -333,9 +332,6 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
             oldCov += trackState->GetPositionCovariance(i,i);
             newCov += cv(BTF::kXPos+i+1,BTF::kXPos+i+1);
         }
-        CaptNamedDebug("BFL",
-                       "Old Covariance " << oldCov
-                       << "   New Covariance " << newCov);
 
         if (oldCov < 1E-6 || newCov < 1E-6) {
             CaptNamedError("BFL", "Fit failed");
@@ -436,15 +432,13 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
             }
         }
 
-        CaptNamedVerbose("BFL","Backward State Position " 
+        CaptNamedVerbose("BFL","Backward " 
                          << trackState->GetPosition().Vect()
-                         << " for cluster " << cluster->GetPosition().Vect()
+                         << " -> " << trackState->GetDirection()
                          << " diff " 
                          << (trackState->GetPosition().Vect()
                              - cluster->GetPosition().Vect()).Mag());
-        CaptNamedVerbose("BFL","Backward State Direction " 
-                         << trackState->GetDirection());
-
+        
         double r = measurementPDF.ProbabilityGet(
             trackState->GetPosition().Vect());
         if (r>0) logLikelihood += std::log(r);
@@ -455,67 +449,79 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     CP::THandle<CP::TTrackState> firstNodeState = nodes.front()->GetState();
     *frontState = *firstNodeState;
 
+    if (!nodes.front()->GetObject()) {
+        // Make sure there is an object, and there had *better* be one or
+        // something is going horribly wrong.
+        CaptError("Missing object for the front node");
+        throw EBootstrapMissingNodeObject();
+    }
+
     // Now move the front state upstream to the position of the first hit.
     // Notice that the front state is not at the same location as the first
     // node.  
-    if (nodes.front()->GetObject()) {
-        // There is an object, and there had *better* be one or something is
-        // going horribly wrong.
-        TVector3 pos = frontState->GetPosition().Vect();
-        TVector3 dir = frontState->GetDirection();
-        CP::THandle<CP::THitSelection> hits 
-            = nodes.front()->GetObject()->GetHits();
-        if (!hits) {
-            // There had also better be hits!
-            CaptError("No hits in object!");
-            abort();
-        }
-        double upstream = 0.0;
-        for (CP::THitSelection::iterator h = hits->begin(); 
-             h != hits->end(); ++h) {
-            TVector3 diff = (*h)->GetPosition() - pos;
-            upstream = std::min(upstream, diff*dir);
-        }
-        pos = pos + upstream*dir;
-        frontState->SetPosition(pos.X(), pos.Y(), pos.Z(),
-                                frontState->GetPosition().T());
+    TVector3 frontPos = frontState->GetPosition().Vect();
+    TVector3 frontDir = frontState->GetDirection();
+    CP::THandle<CP::THitSelection> frontHits 
+        = nodes.front()->GetObject()->GetHits();
+    if (!frontHits) {
+        // There had also better be hits!
+        CaptError("No hits in object!");
+        abort();
     }
+    double upstream = 0.0;
+    for (CP::THitSelection::iterator h = frontHits->begin(); 
+         h != frontHits->end(); ++h) {
+        TVector3 diff = (*h)->GetPosition() - frontPos;
+        upstream = std::min(upstream, diff*frontDir);
+    }
+    frontPos = frontPos + upstream*frontDir;
+    frontState->SetPosition(frontPos.X(), frontPos.Y(), frontPos.Z(),
+                            frontState->GetPosition().T());
 
     // Set the back state of the track.
     CP::THandle<CP::TTrackState> backState = input->GetBack();
     CP::THandle<CP::TTrackState> lastNodeState = nodes.back()->GetState();
     *backState = *lastNodeState;
 
+    if (!nodes.back()->GetObject()) {
+        // Make sure there is an object, and there had *better* be one or
+        // something is going horribly wrong.
+        CaptError("Missing object for the front node");
+        throw EBootstrapMissingNodeObject();
+    }
+
     // Now move the back state downstream to the position of the last hit.
     // See the comments for "frontState".
-    if (nodes.back()->GetObject()) {
-        // There is an object, and there had *better* be one or something is
-        // going horribly wrong.
-        TVector3 pos = backState->GetPosition().Vect();
-        TVector3 dir = backState->GetDirection();
-        CP::THandle<CP::THitSelection> hits 
-            = nodes.back()->GetObject()->GetHits();
-        if (!hits) {
-            // There had also better be hits!
-            CaptError("No hits in object!");
-            abort();
-        }
-        double downstream = 0.0;
-        for (CP::THitSelection::iterator h = hits->begin(); 
-             h != hits->end(); ++h) {
-            TVector3 diff = (*h)->GetPosition() - pos;
-            downstream = std::max(downstream, diff*dir);
-        }
-        pos = pos + downstream*dir;
-        backState->SetPosition(pos.X(), pos.Y(), pos.Z(),
-                                backState->GetPosition().T());
+    TVector3 backPos = backState->GetPosition().Vect();
+    TVector3 backDir = backState->GetDirection();
+    CP::THandle<CP::THitSelection> backHits 
+        = nodes.back()->GetObject()->GetHits();
+    if (!backHits) {
+        // There had also better be hits!
+        CaptError("No hits in object!");
+        abort();
     }
+    double downstream = 0.0;
+    for (CP::THitSelection::iterator h = backHits->begin(); 
+         h != backHits->end(); ++h) {
+        TVector3 diff = (*h)->GetPosition() - backPos;
+        downstream = std::max(downstream, diff*backDir);
+    }
+    backPos = backPos + downstream*backDir;
+    backState->SetPosition(backPos.X(), backPos.Y(), backPos.Z(),
+                           backState->GetPosition().T());
 
     int trackDOF = 3*nodes.size() - 6;
     input->SetStatus(TReconBase::kSuccess);
     input->SetAlgorithmName("TBootstrapTrackFit");
     input->SetQuality(-logLikelihood);
     input->SetNDOF(trackDOF);
+
+    if (backDir * frontDir < 0.0) {
+        CaptError("Front and back in opposite directions"
+                  << " front " << frontDir
+                  << " back " << backDir);
+    }
 
     CaptLog("Bootstrap filter finished.  Quality: " 
             << - logLikelihood 
@@ -583,9 +589,10 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
     // hypothesis yet, so the scattering isn't right anyway.
 
     if (dirScatter > 0.0) {
-        TVector3 ortho 
-            = gRandom->Gaus(0.0,dirScatter)*(dir.Orthogonal().Unit());
-        ortho.Rotate(gRandom->Uniform(unit::twopi),dir);
+        double scatter = gRandom->Gaus(0.0, dirScatter);
+        TVector3 ortho = scatter * (dir.Orthogonal().Unit());
+        double phi = gRandom->Uniform(unit::twopi);
+        ortho.Rotate(phi,dir);
         dir = (dir + ortho).Unit();
         for (int i=0; i<3; ++i) {
             pos[i] = pos[i] + gRandom->Gaus(0.0, posScatter);
@@ -758,7 +765,7 @@ void BTF::GeneratePrior(std::vector< BFL::Sample<BTF::ColumnVector> >& samples,
     TDecompChol decomp2(mat2);
     decomp1.Decompose();
     decomp2.Decompose();
-
+    
     // And generate states with the right correllations. 
     BTF::ColumnVector sample(BTF::kStateSize);
     for (std::vector< BFL::Sample<BTF::ColumnVector> >::iterator 
@@ -777,4 +784,5 @@ void BTF::GeneratePrior(std::vector< BFL::Sample<BTF::ColumnVector> >& samples,
         sample[BTF::kZDir] = dir.Z();
         s->ValueSet(sample);
     }
+
 };
