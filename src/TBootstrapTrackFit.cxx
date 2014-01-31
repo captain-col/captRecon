@@ -444,10 +444,18 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         if (r>0) logLikelihood += std::log(r);
     }
 
+    double energyDeposit = 0.0;
+    for (TReconNodeContainer::iterator n = nodes.begin();
+         n != nodes.end(); ++n) {
+        CP::THandle<CP::TTrackState> state = (*n)->GetState();
+        energyDeposit += state->GetEDeposit();
+    }
+
     // Set the front state of the track.
     CP::THandle<CP::TTrackState> frontState = input->GetFront();
     CP::THandle<CP::TTrackState> firstNodeState = nodes.front()->GetState();
     *frontState = *firstNodeState;
+    frontState->SetEDeposit(energyDeposit);
 
     if (!nodes.front()->GetObject()) {
         // Make sure there is an object, and there had *better* be one or
@@ -482,6 +490,7 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     CP::THandle<CP::TTrackState> backState = input->GetBack();
     CP::THandle<CP::TTrackState> lastNodeState = nodes.back()->GetState();
     *backState = *lastNodeState;
+    backState->SetEDeposit(0.0);
 
     if (!nodes.back()->GetObject()) {
         // Make sure there is an object, and there had *better* be one or

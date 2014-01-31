@@ -28,6 +28,7 @@ CP::TSegmentTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     /////////////////////////////////////////////////////////////////////
     // Hold the last cluster seen.
     CP::THandle<CP::TReconCluster> prevCluster;
+    double energyDeposit = 0.0;
     for (TReconNodeContainer::iterator n = nodes.begin();
          n != nodes.end(); ++n) {
         // Find the next cluster in the track.
@@ -80,6 +81,7 @@ CP::TSegmentTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         }            
 
         // Set the track state.
+        energyDeposit += cluster->GetEDeposit();
         trackState->SetEDeposit(cluster->GetEDeposit());
         trackState->SetPosition(cluster->GetPosition().X(), 
                                 cluster->GetPosition().Y(),
@@ -103,11 +105,13 @@ CP::TSegmentTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     CP::THandle<CP::TTrackState> trackFront = input->GetFront();
     CP::THandle<CP::TTrackState> firstNodeState = nodes.front()->GetState();
     *trackFront = *firstNodeState;
+    trackFront->SetEDeposit(energyDeposit);
 
     // Set the back state of the track.
     CP::THandle<CP::TTrackState> trackBack = input->GetBack();
     CP::THandle<CP::TTrackState> lastNodeState = nodes.back()->GetState();
     *trackBack = *lastNodeState;
+    trackBack->SetEDeposit(0.0);
 
     int trackDOF = 3*nodes.size() - 6;
     input->SetStatus(TReconBase::kSuccess);
