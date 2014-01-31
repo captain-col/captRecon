@@ -11,6 +11,15 @@ namespace CP {
     class TTrackFit;
 };
 
+
+/// A class to fit the skeleton of a track.  The track is expected to have
+/// nodes constructed with a CP::TTrackState and an object derived from
+/// CP::TReconBase.  The nodes must be in order from one end of the track to
+/// the other.  The input track is expected to be modified by the fitter so
+/// that the result handle will be equal to the input handle.  However, this
+/// is not guarranteed.  The result track may be a different object than the
+/// input track.  If the fit fails, this returns a NULL handle.
+///
 /// This is a wrapper around other track fitting classes (all derived from
 /// TTrackFitBase that chooses the correct fitter to be applied.  The
 /// TTrackFit class is the "main" class serving as a switch yard to determine

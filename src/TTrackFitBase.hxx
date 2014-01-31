@@ -11,9 +11,17 @@ namespace CP {
 
 /// A base class for track fitting. Classes derived from this class implement
 /// a specific track fitting algorithm.  There is also a "main" TTrackFit class
-/// which serves as a switch yart to determine the best fitter for each type of
+/// which serves as a switch yard to determine the best fitter for each type of
 /// track.  Notice that this is fitting TReconTrack objects, not TReconPID
 /// objects.  TReconPID objects must be fit with a different class.
+///
+/// This fits a skeleton of a track.  The track is expected to have nodes
+/// constructed with a CP::TTrackState and an object derived from
+/// CP::TReconBase.  The nodes must be in order from one end of the track to
+/// the other.  The input track is expected to be modified by the fitter so
+/// that the result handle will be equal to the input handle.  However, this
+/// is not guarranteed.  The result track may be a different object than the
+/// input track.  If the fit fails, this returns a NULL handle.
 ///
 /// Most code should be using TTrackFit which will choose the best fitter to
 /// use in each circumstance.  How to use these fitting classes:
