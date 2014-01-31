@@ -424,11 +424,6 @@ CP::TLinearRoad::CreateTrackState(CP::THandle<CP::TReconCluster> object,
     tstate->SetDirection(direction);
     tstate->SetDirectionVariance(0,0,0);
     
-    // Set the curvature.  It should be zero and fixed, since we assume
-    // straight line.
-    tstate->SetCurvature(0.0);
-    tstate->SetCurvatureVariance(0.0);
-    
     return tstate;
 }
 
