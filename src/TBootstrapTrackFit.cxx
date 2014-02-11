@@ -584,10 +584,11 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
     double radLen = 14*unit::cm; // For liquid argon.
     double X = std::abs(dist1)/radLen;
     double P = 100*unit::MeV; // hack for now... 
-    if (X>0.001) {
-        dirScatter = (1.0+0.038*std::log(X))*std::sqrt(X)*(13.6*unit::MeV)/(P);
-        posScatter = dist1*dirScatter;
-    }
+    if (X < 0.001) X = 0.001;
+    // Set the minimum amount of scattering.  This isn't very physical, but
+    // there needs to be scattering or the fit doesn't work.
+    dirScatter = (1.0+0.038*std::log(X))*std::sqrt(X)*(13.6*unit::MeV)/(P);
+    posScatter = dist1*dirScatter;
 #endif
 
     // Generate a random amount of multiple scattering and use it to update
