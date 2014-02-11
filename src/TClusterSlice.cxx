@@ -68,16 +68,12 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
                  << unit::AsString(deltaZ,"length") 
                  << " (" << unit::AsString(zStep,"length") << " each)");
 
-#ifndef USE_HIT_PROXIMITY
     // This is the (dramatically) faster clustering algorithm for hits.
     typedef CP::TPositionDensityCluster<CP::THandle<CP::THit> > 
         ClusterAlgorithm;
-#else
-    typedef CP::HitProximity::Cluster ClusterAlgorithm;
-#endif
 
     std::auto_ptr<ClusterAlgorithm> 
-        clusterAlgorithm(new ClusterAlgorithm(1,6*unit::mm));
+        clusterAlgorithm(new ClusterAlgorithm(1, 6*unit::mm));
 
     double totalCharge = 0.0;
     double totalVariance = 0.0;
@@ -118,10 +114,12 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
 
         // Time for a new slice of clusters.
         ++curr;
+
         // Check that there are enough hits left for a new cluster.  If not,
         // then add all the remaining points to this cluster. (not really a
         // good plan, but it's got to suffice for now...}
         if (end-curr < 2*fMinPoints) break;
+
         // The hits between first and curr should be run through the density
         // cluster again since it's very likely that the hits are disjoint in
         // the Z slice.

@@ -3,6 +3,8 @@
 
 #include "TIterativeNeighbors.hxx"
 
+#include "TCaptLog.hxx"
+
 #include <vector>
 #include <list>
 #include <functional>
@@ -107,6 +109,12 @@ protected:
     /// a cluster.
     std::size_t CountNeighbors(PositionHandle reference, Neighbors& input);
 
+    /// Color all of the grey handles in the map to black.
+    void MakeGreyBlack();
+
+    /// Color all of the grey handles in the map to white.
+    void MakeGreyWhite();
+
 private:
     /// The minimum number of points that must be within the fMaxDist
     /// radius of the current point.  If there are at least fMinPoints with in
@@ -126,7 +134,11 @@ private:
     Points fRemaining;
 
     /// The mapping of color to each point in the neighborTree.  This is
-    /// indexed by the fColorIndex field of the NeighborEntry.
+    /// indexed by the fColorIndex field of the NeighborEntry.  The color map
+    /// has three shades: 0) white -- this is when the point is free.  1) grey
+    /// -- this is when a point is currently being checked.  2) black -- this
+    /// is when a point has been included in a cluster.
+    enum {kWhite=0, kGrey, kBlack};
     std::vector<int> fColorMap;
 
     /// The sorting comparison to order the clusters at the end of the search.
@@ -149,6 +161,22 @@ CP::TPositionDensityCluster<PositionHandle>::TPositionDensityCluster(
     : fMinPoints(MinPts), fMaxDist(maxDist) { }
 
 template <class PositionHandle>
+void CP::TPositionDensityCluster<PositionHandle>::MakeGreyBlack() {
+    for (std::vector<int>::iterator c = fColorMap.begin();
+         c != fColorMap.end(); ++c) {
+        if (*c == kGrey) *c = kBlack;
+    }
+}
+
+template <class PositionHandle>
+void CP::TPositionDensityCluster<PositionHandle>::MakeGreyWhite() {
+    for (std::vector<int>::iterator c = fColorMap.begin();
+         c != fColorMap.end(); ++c) {
+        if (*c == kGrey) *c = kWhite;
+    }
+}
+
+template <class PositionHandle>
 template <class InputIterator>
 void CP::TPositionDensityCluster<PositionHandle>::Cluster(
     InputIterator begin, InputIterator end) {
@@ -166,7 +194,9 @@ void CP::TPositionDensityCluster<PositionHandle>::Cluster(
                               (*handle)->GetPosition().Z());
     }
     fColorMap.resize(index);
-    std::fill(fColorMap.begin(), fColorMap.end(), 0);
+    std::fill(fColorMap.begin(), fColorMap.end(), kWhite);
+
+    CaptNamedDebug("cluster", "Input points: " << index);
 
     // Now continue removing points until there aren't any more points, or a
     // seed isn't found.
@@ -177,7 +207,13 @@ void CP::TPositionDensityCluster<PositionHandle>::Cluster(
         // enough to form a cluster, and are marked in FindSeeds (by way of
         // GetNeighbors) as being in a cluster.
         seeds.clear();
-        if (!FindSeeds(neighborTree,seeds)) break;
+        if (!FindSeeds(neighborTree,seeds)) {
+            CaptNamedDebug("cluster", "No seed found");
+            break;
+        }
+
+        CaptNamedDebug("cluster", "Start seed with " 
+                       << seeds.size() << " points");
 
         // Start a new cluster and add the current seeds to it.
         Points cluster;
@@ -191,10 +227,13 @@ void CP::TPositionDensityCluster<PositionHandle>::Cluster(
             if (count < fMinPoints) continue;
             tmp.clear();
             GetNeighbors(handle,neighborTree,tmp);
+            MakeGreyBlack();
             std::copy(tmp.begin(),tmp.end(),std::back_inserter(seeds));
             std::copy(tmp.begin(),tmp.end(),std::back_inserter(cluster));
         }
 
+        CaptNamedDebug("cluster", "Cluster with "
+                       << cluster.size() << " points");
         fClusters.push_back(cluster);
     }
 
@@ -218,7 +257,9 @@ bool CP::TPositionDensityCluster<PositionHandle>::FindSeeds(
     int seedCount = 0;
     for (typename Neighbors::value_iterator p = in.begin_values(); 
          p != in.end_values(); ++p) {
-        if (fColorMap[p->fColorIndex]) continue;
+        if (fColorMap[p->fColorIndex] == kBlack) {
+            continue;
+        }
         std::size_t count = 0;
         PositionHandle h = p->fHandle;
         typename Neighbors::iterator neighbor = in.begin(h->GetPosition().X(),
@@ -227,30 +268,41 @@ bool CP::TPositionDensityCluster<PositionHandle>::FindSeeds(
         typename Neighbors::iterator neighbor_end = in.end();
         for (;neighbor != neighbor_end; ++neighbor) {
             // Stop looking at distant handles.
-            if (neighbor->second > dist2) break;
-            // Don't count the current handle.
-            // if (neighbor->second < 1E-6) continue;
+            if (neighbor->second > dist2) {
+                break;
+            }
             // Don't count a handle that's already in a cluster.
-            if (fColorMap[neighbor->first.fColorIndex]) continue;
+            if (fColorMap[neighbor->first.fColorIndex] == kBlack) {
+                continue;
+            }
             ++count;
             // Short-circuit the search.
-            if (count>fMinPoints) break;
+            if (count>2*fMinPoints) break;
         }
         // Increment count since the current point is also part of the seed.
         ++count;
         // Not enough points, so look at the next value.
-        if (count<fMinPoints) continue;
+        if (count<fMinPoints) {
+            continue;
+        }
         // We already have a bigger seed.
-        if (count<out.size()) continue;
+        if (count<out.size()) {
+            continue;
+        }
         // We found that "h" is a better seed, so copy it into out. This
         // adds the test hit as well as it's neighbors to the seeds.
         out.clear();
+        MakeGreyWhite();
         GetNeighbors(h, in, out);
         // Sort-circuit the search if we've found a good enough seed.
-        if (seedCount > 5 && count > 3*fMinPoints) return true;
+        if (seedCount > 5 && count > 3*fMinPoints) break;
         ++seedCount;
     }
-    if (out.size() < fMinPoints) return false;
+    if (out.size() < fMinPoints) {
+        MakeGreyWhite();
+        return false;
+    }
+    MakeGreyBlack();
     return true;
 }
 
@@ -268,7 +320,7 @@ void CP::TPositionDensityCluster<PositionHandle>::GetNeighbors(
         // Don't add handle that's already in a cluster.
         if (fColorMap[neighbor->first.fColorIndex]) continue;
         // Mark the handle as in a cluster.
-        fColorMap[neighbor->first.fColorIndex] = 1;
+        fColorMap[neighbor->first.fColorIndex] = kGrey;
         // Add the value to the output
         out.push_back(neighbor->first.fHandle);
     }
