@@ -1,6 +1,5 @@
 #include "TClusterSlice.hxx"
 #include "HitUtilities.hxx"
-#include "THitProximityCluster.hxx"
 #include "TPositionDensityCluster.hxx"
 #include "CreateCluster.hxx"
 

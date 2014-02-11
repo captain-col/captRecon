@@ -1,5 +1,4 @@
 #include "TDensityCluster.hxx"
-#include "THitProximityCluster.hxx"
 #include "HitUtilities.hxx"
 #include "TPositionDensityCluster.hxx"
 #include "CreateCluster.hxx"
@@ -48,13 +47,9 @@ CP::TDensityCluster::Process(const CP::TAlgorithmResult& input,
         final(new CP::TReconObjectContainer("final"));
     std::auto_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
 
-#ifndef USE_HIT_PROXIMITY
     // This is the (dramatically) faster clustering algorithm for hits.
     typedef CP::TPositionDensityCluster< CP::THandle<CP::THit> > 
         ClusterAlgorithm;
-#else
-    typedef CP::HitProximity::Cluster ClusterAlgorithm;
-#endif
 
     std::auto_ptr<ClusterAlgorithm> 
         clusterAlgorithm(new ClusterAlgorithm(fMinPoints,fMaxDist));
@@ -63,7 +58,7 @@ CP::TDensityCluster::Process(const CP::TAlgorithmResult& input,
 
     int nClusters = clusterAlgorithm->GetClusterCount();
     for (int i=0; i<nClusters; ++i) {
-        const CP::HitProximity::Cluster::Points& points 
+        const ClusterAlgorithm::Points& points 
             = clusterAlgorithm->GetCluster(i);
         CP::THandle<CP::TReconCluster> cluster
             = CreateCluster("TDensityCluster",points.begin(),points.end());
