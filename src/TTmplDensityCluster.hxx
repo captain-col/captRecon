@@ -309,6 +309,7 @@ void TTmplDensityCluster<T, MetricModel>::Cluster(InputIterator begin,
     // seed isn't found.
     while (!fRemainingPoints.empty()) {
         FindSeeds(fRemainingPoints,seeds);
+        CaptNamedLog("cluster", "Seeds found " << seeds.size());
         if (seeds.size() < fMinPoints) break;
 
         // Remove the seeds from the remaining points.
@@ -319,19 +320,22 @@ void TTmplDensityCluster<T, MetricModel>::Cluster(InputIterator begin,
         std::copy(seeds.begin(), seeds.end(), std::back_inserter(cluster));
 
         Points tmp;
-        while (!seeds.empty())
-        {
+        while (!seeds.empty()) {
             T currentP = seeds.front();
             seeds.erase(seeds.begin());
             tmp.clear();
             std::size_t i = GetNeighbors(currentP, fRemainingPoints, tmp);
             i += CountNeighbors(currentP, seeds);
+            i += 1;             // Include the current point in the count.
             if (i < fMinPoints) continue;
             std::copy(tmp.begin(),tmp.end(),std::back_inserter(seeds));
             std::copy(tmp.begin(),tmp.end(),std::back_inserter(cluster));
+            CaptNamedLog("cluster","Seed: " << seeds.size()
+                             << " cluster: " << cluster.size());
             RemoveSeeds(fRemainingPoints,tmp);
         }
 
+        CaptNamedLog("cluster","Cluster Found: " << cluster.size());
         fClusters.push_back(cluster);
     }
 
@@ -340,8 +344,7 @@ void TTmplDensityCluster<T, MetricModel>::Cluster(InputIterator begin,
 }
     
 template <typename T, typename MetricModel>
-void TTmplDensityCluster<T, MetricModel>::Check()
-{
+void TTmplDensityCluster<T, MetricModel>::Check() {
     typedef typename std::vector<Points>::const_iterator Iterator;
     std::size_t clusterPointCount = 0;
     for (Iterator c = fClusters.begin(); c != fClusters.end(); ++c) {
@@ -356,30 +359,31 @@ void TTmplDensityCluster<T, MetricModel>::Check()
     
 template <typename T, typename MetricModel>
 void TTmplDensityCluster<T, MetricModel>::FindSeeds(
-    const Points& in, Points& out)
-{
+    const Points& in, Points& out) {
     out.clear();
     Points seeds;
+    int seedsFound = 0;
     for (ConstIterator h = in.begin(); h != in.end(); ++h) {
         seeds.clear();
         std::size_t i = GetNeighbors(*h, in, seeds); 
-        if (i<fMinPoints) continue;
+        i += 1;                 // Include the current point in the count.
+        if (i < fMinPoints) continue;
         if (out.size() < i) { 
-            out = seeds;
-            out.push_back(*h);
-            return;    // Return the first seed found.
+            ++seedsFound;       // Count the number of "largest" seeds found.
+            out = seeds;        // Copy the points in the seed to output
+            out.push_back(*h);  // Add the starting hit to the output.
+            if (seedsFound > 5 && i > 3*fMinPoints) break;
         }
     }
+    // This returns with the best seed found.
 }
 
 template <typename T, typename MetricModel>
 std::size_t
 TTmplDensityCluster<T, MetricModel>::GetNeighbors(
-    T pnt, const Points& in, Points& out)
-{
+    T pnt, const Points& in, Points& out) {
     std::size_t size = 0;
-    for (ConstIterator h = in.begin(); h != in.end(); ++h)
-    {
+    for (ConstIterator h = in.begin(); h != in.end(); ++h) {
         if (pnt == (*h)) continue;
         double distance = fMetricModel(pnt, *h);
         if (distance < fMaxDist) {
@@ -393,11 +397,9 @@ TTmplDensityCluster<T, MetricModel>::GetNeighbors(
 
 template <typename T, typename MetricModel>
 std::size_t
-TTmplDensityCluster<T, MetricModel>::CountNeighbors(T pnt, const Points& in)
-{
+TTmplDensityCluster<T, MetricModel>::CountNeighbors(T pnt, const Points& in) {
     std::size_t size = 0;
-    for (ConstIterator h = in.begin(); h != in.end(); ++h)
-    {
+    for (ConstIterator h = in.begin(); h != in.end(); ++h) {
         if (pnt == (*h)) continue;
         double distance = fMetricModel(pnt, *h);
         if (distance < fMaxDist) {
@@ -410,8 +412,7 @@ TTmplDensityCluster<T, MetricModel>::CountNeighbors(T pnt, const Points& in)
 
 template <typename T, typename MetricModel>
 void
-TTmplDensityCluster<T, MetricModel>::RemoveSeeds(Points& input, Points& seeds)
-{
+TTmplDensityCluster<T, MetricModel>::RemoveSeeds(Points& input, Points& seeds) {
     Iterator target = input.begin();
     seeds.sort();
     for (ConstIterator h = seeds.begin(); h != seeds.end(); ++h) {
@@ -428,8 +429,7 @@ TTmplDensityCluster<T, MetricModel>::RemoveSeeds(Points& input, Points& seeds)
 
 template <typename T, typename MetricModel>
 std::vector<T>
-TTmplDensityCluster<T, MetricModel>::GetPoints(unsigned int index) const
-{
+TTmplDensityCluster<T, MetricModel>::GetPoints(unsigned int index) const {
     std::vector<T> points;
     const Points& cluster = GetCluster(index);
     std::copy(cluster.begin(), cluster.end(), std::back_inserter(points));

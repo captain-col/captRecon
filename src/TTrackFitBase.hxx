@@ -1,7 +1,6 @@
 #ifndef TTrackFitBase_hxx_seen
 #define TTrackFitBase_hxx_seen
 
-#include <THitSelection.hxx>
 #include <TReconTrack.hxx>
 #include <THandle.hxx>
 

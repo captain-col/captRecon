@@ -92,12 +92,12 @@ protected:
     /// if a new cluster seed was found.
     bool FindSeeds(Neighbors& input, Points& output);
 
-    /// Find the neighbors for a reference in the input points and place them
-    /// into the output.  Neighbors are defined as all points for which the
-    /// distance to the reference is less than fMaxDist (a point is a neighbor
-    /// to itself).  Any neighbors that are not currently in a cluster will be
-    /// returned in the output variable.  Any point added to the output has
-    /// it's color changed from black to white.
+    /// Find the neighbors for a reference hit in the input points and place
+    /// them into the output.  Neighbors are defined as all points for which
+    /// the distance to the reference is less than fMaxDist (a point is a
+    /// neighbor to itself).  Any neighbors that are not currently in a
+    /// cluster will be returned in the output variable.  Any point added to
+    /// the output has it's color changed from black to white.
     void GetNeighbors(PositionHandle reference, 
                       Neighbors& input, Points& output);
 
@@ -215,6 +215,7 @@ bool CP::TPositionDensityCluster<PositionHandle>::FindSeeds(
     Neighbors& in, Points& out) {
     out.clear();
     double dist2 = fMaxDist*fMaxDist;
+    int seedCount = 0;
     for (typename Neighbors::value_iterator p = in.begin_values(); 
          p != in.end_values(); ++p) {
         if (fColorMap[p->fColorIndex]) continue;
@@ -228,21 +229,29 @@ bool CP::TPositionDensityCluster<PositionHandle>::FindSeeds(
             // Stop looking at distant handles.
             if (neighbor->second > dist2) break;
             // Don't count the current handle.
-            if (neighbor->second < 1E-6) continue;
+            // if (neighbor->second < 1E-6) continue;
             // Don't count a handle that's already in a cluster.
             if (fColorMap[neighbor->first.fColorIndex]) continue;
             ++count;
             // Short-circuit the search.
             if (count>fMinPoints) break;
         }
+        // Increment count since the current point is also part of the seed.
+        ++count;
         // Not enough points, so look at the next value.
         if (count<fMinPoints) continue;
-        // We found that "h" is an acceptable seed, so copy it into out. This
+        // We already have a bigger seed.
+        if (count<out.size()) continue;
+        // We found that "h" is a better seed, so copy it into out. This
         // adds the test hit as well as it's neighbors to the seeds.
+        out.clear();
         GetNeighbors(h, in, out);
-        return true;
+        // Sort-circuit the search if we've found a good enough seed.
+        if (seedCount > 5 && count > 3*fMinPoints) return true;
+        ++seedCount;
     }
-    return false;
+    if (out.size() < fMinPoints) return false;
+    return true;
 }
 
 template <class PositionHandle>
