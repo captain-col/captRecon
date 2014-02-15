@@ -17,6 +17,7 @@
 
 #include <memory>
 #include <cmath>
+#include <sstream>
 
 CP::TSplitTracks::TSplitTracks()
     : TAlgorithm("TSplitTracks", 
@@ -64,12 +65,13 @@ void CP::TSplitTracks::SaveTrack(
         CaptNamedInfo("Split", "Track not created");
     }
     
-    CaptNamedInfo("Split", "Save track with "
-                 << end-begin << " clusters");
-
     CP::TTrackFit fitter;
     track = fitter(track);
-
+    
+    CaptNamedInfo("Split", "Save track with "
+                  << end-begin << " clusters"
+                  << " (UID " << track->GetUniqueID() << ")");
+    
     container.push_back(track);
 }
 
@@ -177,7 +179,7 @@ double CP::TSplitTracks::KinkAngle(ClusterContainer::iterator here,
         if (end-here < minStep) continue;
         double r = ((*endStep)->GetPosition()-(*here)->GetPosition()).Mag();
         ++endStep;
-        if (r > 4*unit::cm) break; // Yes.. the "if" comes after the increment.
+        if (r > 4*unit::cm) break; // Yes... the "if" comes after the increment.
     }
 
     // Do a simple fit in the forward direction.  This includes the cluster
@@ -223,10 +225,13 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
         return CP::THandle<CP::TAlgorithmResult>();
     }
 
-    // Create the output containers.
+    // Create the result container.
     CP::THandle<CP::TAlgorithmResult> result = CreateResult();
-    std::auto_ptr<CP::TReconObjectContainer> 
-        final(new CP::TReconObjectContainer("final"));
+
+    // Create an output queue to stage output objects into.  This might
+    // contain duplicate objects so it's filtered just before saving the
+    // objects to final.
+    CP::TReconObjectContainer outputStack;
 
     // Create a stack to keep tracks in.  When the stack is empty, all the
     // tracks that need to be split have been split.
@@ -240,7 +245,8 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
          t != inputObjects->end(); ++t) {
         CP::THandle<CP::TReconTrack> track = *t;
         if (!track) {
-            final->push_back(*t);
+            CaptNamedInfo("Split", "Non-track object in input");
+            outputStack.push_back(*t);
             continue;
         }
         trackStack.push_back(track);
@@ -255,12 +261,14 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
         trackStack.pop_back();
 
         CaptNamedInfo("Split",
-                     "Track Stack: " << trackStack.size()
-                     << "    Track size: " << track->GetNodes().size());
-
+                      "Track Stack: " << trackStack.size()
+                      << "    Track size: " << track->GetNodes().size()
+                      << "    UID: " << track->GetUniqueID());
+        
         // Make a copy of the clusters in the track.  These are basically the
         // track nodes.
         ClusterContainer clusters;
+        std::ostringstream clusterIds;
         for (CP::TReconNodeContainer::iterator n = track->GetNodes().begin();
              n != track->GetNodes().end(); ++n) {
             CP::THandle<CP::TReconCluster> c = (*n)->GetObject();
@@ -268,16 +276,19 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
                 CaptError("Track node not made from a cluster");
                 throw;
             }
+            if (n != track->GetNodes().begin()) clusterIds << ", ";
+            clusterIds << c->GetUniqueID();
             clusters.push_back(c);
         }
-            
+        CaptNamedInfo("Split","Clusters: " << clusterIds.str());
+        
         ClusterContainer::iterator begin, end;
         begin = clusters.begin();
         end = clusters.end();
 
         // Protect against small tracks...
         if (end-begin < 3) {
-            SaveTrack(*final,begin,end);
+            SaveTrack(outputStack,begin,end);
             continue;
         }
 
@@ -289,14 +300,15 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
             double d = ClusterDistance(**begin, **(begin+1));
             if (v < fThreeInLineCut && d < fEndDistanceCut) break;
             if (r > fRadiusOfCurvature && d < fEndDistanceCut) break;
-            final->push_back(*begin);
-            ++begin;
             CaptNamedInfo("Split",
-                          "Discard front --"
+                          "Discard front UID "
+                          << (*begin)->GetUniqueID() << " --"
                           << " In Line: " << v
                           << " Radius: " << r
                           << " End Dist: " << d
-                          << " Clusters: " << end-begin);
+                          << " Clusters: " << (end-begin)-1);
+            outputStack.push_back(*begin);
+            ++begin;
         }
 
         // Check to see if the back clusters should be removed from the track.
@@ -307,14 +319,15 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
             double d = ClusterDistance(**(end-1), **(end-2));
             if (v < fThreeInLineCut && d < fEndDistanceCut) break;
             if (r > fRadiusOfCurvature && d < fEndDistanceCut) break;
-            final->push_back(*(end-1));
-            --end;
             CaptNamedInfo("Split",
-                          "Discard back --"
+                          "Discard back UID " 
+                          << (*(end-1))->GetUniqueID() << " --"
                           << " In Line: " << v
                           << " Radius: " << r
                           << " End Dist: " << d
-                          << " Clusters: " << end-begin);
+                          << " Clusters: " << (end-begin)-1);
+            outputStack.push_back(*(end-1));
+            --end;
         }
 
         // Check to see if the track length has been reduced so much that it
@@ -325,7 +338,7 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
             if (end-begin < 3) {
                 // This is a very short track stub after removing clusters, so
                 // just save the clusters.
-                std::copy(begin,end,std::back_inserter(*final));
+                std::copy(begin,end,std::back_inserter(outputStack));
                 CaptNamedInfo("Split","Discard short track.  Length: "
                         << end-begin);
             }
@@ -338,13 +351,13 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
                 double d = std::max(ClusterDistance(**begin, **(begin+1)),
                                     ClusterDistance(**(begin+1), **(begin+2)));
                 if (v < fThreeInLineCut && d < fEndDistanceCut) {
-                    SaveTrack(*final,begin,end);
+                    SaveTrack(outputStack,begin,end);
                 } 
                 else if (r < fRadiusOfCurvature && d < fEndDistanceCut) {
-                    SaveTrack(*final,begin,end);
+                    SaveTrack(outputStack,begin,end);
                 } 
                 else {
-                    std::copy(begin,end,std::back_inserter(*final));
+                    std::copy(begin,end,std::back_inserter(outputStack));
                     CaptNamedInfo("Split","Discard a short track."
                                   << " In Line: " << v
                                   << " Radius: " << r
@@ -365,13 +378,13 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
                 double d = std::max(ClusterDistance(**begin, **(begin+1)),
                                     ClusterDistance(**(begin+2), **(begin+3)));
                 if (v < fThreeInLineCut && d < fEndDistanceCut) {
-                    SaveTrack(*final,begin,end);
+                    SaveTrack(outputStack,begin,end);
                 } 
                 else if (r < fRadiusOfCurvature && d < fEndDistanceCut) {
-                    SaveTrack(*final,begin,end);
+                    SaveTrack(outputStack,begin,end);
                 } 
                 else {
-                    std::copy(begin,end,std::back_inserter(*final));
+                    std::copy(begin,end,std::back_inserter(outputStack));
                     CaptNamedInfo("Split","Discard a short track."
                                   << " In Line1: " << v1
                                   << " In Line2: " << v2
@@ -409,8 +422,12 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
         // over again.
         if (worstChi2 > fThreeInLineCut) {
             track = CreateTrack("TSplitTracks",begin,sharpestKink+1);
+            CaptNamedInfo("Split", "Stack track "
+                          << " (UID " << track->GetUniqueID() << ")");
             trackStack.push_back(track);
             track = CreateTrack("TSplitTracks",sharpestKink,end);
+            CaptNamedInfo("Split", "Stack track "
+                          << " (UID " << track->GetUniqueID() << ")");
             trackStack.push_back(track);
             CaptNamedInfo("Split","Split in line --"
                          << " X2: " << worstChi2
@@ -438,8 +455,12 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
         // pieces are put back on the stack and we start over again.
         if (maxDist > fSplitDistanceCut) {
             track = CreateTrack("TSplitTracks",begin,biggestGap);
+            CaptNamedInfo("Split", "Stack track with "
+                          << " (UID " << track->GetUniqueID() << ")");
             trackStack.push_back(track);
             track = CreateTrack("TSplitTracks",biggestGap,end);
+            CaptNamedInfo("Split", "Stack track with "
+                          << " (UID " << track->GetUniqueID() << ")");
             trackStack.push_back(track);
             CaptNamedInfo("Split","Split at gap --"
                          << "  Gap: " << maxDist 
@@ -466,8 +487,12 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
         // over again.
         if (biggestAngle > fKinkAngleCut) {
             track = CreateTrack("TSplitTracks",begin,sharpestKink+1);
+            CaptNamedInfo("Split", "Stack track "
+                          << " (UID " << track->GetUniqueID() << ")");
             trackStack.push_back(track);
             track = CreateTrack("TSplitTracks",sharpestKink,end);
+            CaptNamedInfo("Split", "Stack track "
+                          << " (UID " << track->GetUniqueID() << ")");
             trackStack.push_back(track);
             CaptNamedInfo("Split","Split at kink --"
                          << " Angle: " << biggestAngle
@@ -478,11 +503,56 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
         }
 
         // Whatever gets here should just be saved...
-        SaveTrack(*final,begin,end);
+        SaveTrack(outputStack,begin,end);
     }
     
-    std::sort(final->begin(), final->end(), CompareReconObjects());
+    // Copy the outputStack objects to final.
+    std::auto_ptr<CP::TReconObjectContainer> 
+        final(new CP::TReconObjectContainer("final"));
 
+    // A stack of clusters that have been seen.
+    CP::TReconObjectContainer clusterStack;
+
+    // Filter the tracks out of the outputStack and save their clusters to
+    // the clusterStack.
+    for (CP::TReconObjectContainer::iterator o = outputStack.begin();
+         o != outputStack.end(); ++o) {
+        CP::THandle<CP::TReconTrack> track = *o;
+        if (track) {
+            final->push_back(track);
+            // Add the clusters in the track to the cluster stack.
+            for (CP::TReconNodeContainer::iterator n 
+                     = track->GetNodes().begin();
+                 n != track->GetNodes().end(); ++n) {
+                CP::THandle<CP::TReconCluster> c = (*n)->GetObject();
+                if (!c) {
+                    CaptError("Track node not made from a cluster");
+                    throw;
+                }
+                clusterStack.push_back(c);
+            }
+            continue;
+        }
+        // Put any non cluster objects into the final container.
+        CP::THandle<CP::TReconCluster> cluster = *o;
+        if (cluster) continue;
+        final->push_back(*o);
+    }
+
+    // Filter the clusters out of the outputStack and save any that are not in
+    // the clusterStack to the final output container.
+    for (CP::TReconObjectContainer::iterator o = outputStack.begin();
+         o != outputStack.end(); ++o) {
+        CP::THandle<CP::TReconCluster> cluster = *o;
+        if (!cluster) continue;
+        CP::TReconObjectContainer::iterator obj 
+            = std::find(clusterStack.begin(), clusterStack.end(), cluster);
+        if (obj != clusterStack.end()) continue;
+        final->push_back(cluster);
+        clusterStack.push_back(cluster);
+    }
+
+    std::sort(final->begin(), final->end(), CompareReconObjects());
     result->AddResultsContainer(final.release());
 
     return result;
