@@ -82,7 +82,7 @@ CP::TMergeTracks::TrackOrientation(const TVector3& firstFront,
     // the clusters get added.
     if (ffDist<fbDist && ffDist<bfDist && ffDist<bbDist) {
         // A front to front track.
-        CaptNamedInfo("Merge","Orient FF " << ffDist
+        CaptNamedVerbose("Merge","Orient FF " << ffDist
                       << " " << fbDist
                       << " " << bfDist
                       << " " << bbDist);
@@ -90,7 +90,7 @@ CP::TMergeTracks::TrackOrientation(const TVector3& firstFront,
     }
     else if (fbDist<ffDist && fbDist<bfDist && fbDist<bbDist) {
         // A front to back track.
-        CaptNamedInfo("Merge","Orient FB " << ffDist
+        CaptNamedVerbose("Merge","Orient FB " << ffDist
                       << " " << fbDist
                       << " " << bfDist
                       << " " << bbDist);
@@ -98,7 +98,7 @@ CP::TMergeTracks::TrackOrientation(const TVector3& firstFront,
     }
     else if (bfDist<fbDist && bfDist<ffDist && bfDist<bbDist) {
         // A back to front track.
-        CaptNamedInfo("Merge","Orient BF " << ffDist
+        CaptNamedVerbose("Merge","Orient BF " << ffDist
                       << " " << fbDist
                       << " " << bfDist
                       << " " << bbDist);
@@ -106,7 +106,7 @@ CP::TMergeTracks::TrackOrientation(const TVector3& firstFront,
     }
     else if (bbDist<fbDist && bbDist<bfDist && bbDist<ffDist) {
         // A back to back track.
-        CaptNamedInfo("Merge","Orient BB " << ffDist
+        CaptNamedVerbose("Merge","Orient BB " << ffDist
                       << " " << fbDist
                       << " " << bfDist
                       << " " << bbDist);
@@ -229,6 +229,9 @@ CP::TMergeTracks::MatchGoodness(CP::THandle<CP::TReconTrack> t1,
     TVector3 pos1;
     TMatrixD posCov1(3,3);
     TVector3 dir1;
+    double q1 = 1.0;
+    if (t1->GetNDOF() > 1) q1 = t1->GetQuality()/t1->GetNDOF();
+    if (q1<1.0) q1 = 1.0;
     switch (orient) {
     case kFrontFront:
     case kFrontBack:
@@ -236,8 +239,8 @@ CP::TMergeTracks::MatchGoodness(CP::THandle<CP::TReconTrack> t1,
         dir1 = t1->GetFront()->GetDirection();
         for (int i=0; i<3; ++i) {
             for (int j=0; j<3; ++j) {
-                posCov1(i,j) = t1->GetFront()->GetPositionCovariance(i,j);
-                dirCov(i,j) += t1->GetFront()->GetDirectionCovariance(i,j);
+                posCov1(i,j) = q1*t1->GetFront()->GetPositionCovariance(i,j);
+                dirCov(i,j) += q1*t1->GetFront()->GetDirectionCovariance(i,j);
             }
         }
         break;
@@ -247,8 +250,8 @@ CP::TMergeTracks::MatchGoodness(CP::THandle<CP::TReconTrack> t1,
         dir1 = -t1->GetBack()->GetDirection();
         for (int i=0; i<3; ++i) {
             for (int j=0; j<3; ++j) {
-                posCov1(i,j) = t1->GetBack()->GetPositionCovariance(i,j);
-                dirCov(i,j) += t1->GetBack()->GetDirectionCovariance(i,j);
+                posCov1(i,j) = q1*t1->GetBack()->GetPositionCovariance(i,j);
+                dirCov(i,j) += q1*t1->GetBack()->GetDirectionCovariance(i,j);
             }
         }
         break;
@@ -262,6 +265,9 @@ CP::TMergeTracks::MatchGoodness(CP::THandle<CP::TReconTrack> t1,
     TVector3 pos2;
     TMatrixD posCov2(3,3);
     TVector3 dir2;
+    double q2 = 1.0;
+    if (t2->GetNDOF() > 1) q2 = t2->GetQuality()/t2->GetNDOF();
+    if (q2<1.0) q2 = 1.0;
     switch (orient) {
     case kFrontFront:
     case kBackFront:
@@ -269,8 +275,8 @@ CP::TMergeTracks::MatchGoodness(CP::THandle<CP::TReconTrack> t1,
         dir2 = t2->GetFront()->GetDirection();
         for (int i=0; i<3; ++i) {
             for (int j=0; j<3; ++j) {
-                posCov2(i,j) = t2->GetFront()->GetPositionCovariance(i,j);
-                dirCov(i,j) += t2->GetFront()->GetDirectionCovariance(i,j);
+                posCov2(i,j) = q2*t2->GetFront()->GetPositionCovariance(i,j);
+                dirCov(i,j) += q2*t2->GetFront()->GetDirectionCovariance(i,j);
             }
         }
         break;
@@ -280,8 +286,8 @@ CP::TMergeTracks::MatchGoodness(CP::THandle<CP::TReconTrack> t1,
         dir2 = - t2->GetBack()->GetDirection();
         for (int i=0; i<3; ++i) {
             for (int j=0; j<3; ++j) {
-                posCov2(i,j) = t2->GetBack()->GetPositionCovariance(i,j);
-                dirCov(i,j) += t2->GetBack()->GetDirectionCovariance(i,j);
+                posCov2(i,j) = q2*t2->GetBack()->GetPositionCovariance(i,j);
+                dirCov(i,j) += q2*t2->GetBack()->GetDirectionCovariance(i,j);
             }
         }
         break;
@@ -316,7 +322,7 @@ CP::TMergeTracks::MatchGoodness(CP::THandle<CP::TReconTrack> t1,
     posCov1.InvertFast();
     double pos1Goodness = pos1Diff*(posCov1*pos1Diff);
 
-    // Fid out how well the second track matches the average position.
+    // Find out how well the second track matches the average position.
     TVector3 pos2Diff = pos2-posAvg;
     dist = pos2Diff*dir2;
     pos2Diff = pos2 - dist*dir2 - posAvg;
@@ -324,7 +330,7 @@ CP::TMergeTracks::MatchGoodness(CP::THandle<CP::TReconTrack> t1,
     double pos2Goodness = pos2Diff*(posCov2*pos2Diff);
 
     double result = dirGoodness + pos1Goodness + pos2Goodness;
-    if (dirOverlap > 0.0) result += 100.0;
+    if (dirOverlap > 0.0) result += 1000.0;
 
     CaptNamedInfo("Merge","Goodness: " << result
                   << " Dir: " << dirGoodness
@@ -380,14 +386,16 @@ CP::TMergeTracks::Process(const CP::TAlgorithmResult& input,
         CP::THandle<CP::TReconTrack> track1 = trackList.front();
         trackList.pop_front();
         CaptNamedInfo("Merge",
-                     "Track Stack: " << trackList.size()
-                     << "    Track size: " << track1->GetNodes().size());
+                      "Track Stack: " << trackList.size()
+                      << "    Track size: " << track1->GetNodes().size()
+                      << "    UID: " << track1->GetUniqueID());
 
         // Don't use a very short track as a base for merging.  The tracks are
         // in order of number of nodes (decreasing), and a short track will
         // already be merged, or doesn't have a good partner.
         if (track1->GetNodes().size() < 3) {
-            CaptNamedInfo("Merge", "Save Track");
+            CaptNamedInfo("Merge", "Save short track  (" 
+                          << track1->GetUniqueID() << ")");
             final->push_back(track1);
             continue;
         }
@@ -399,11 +407,12 @@ CP::TMergeTracks::Process(const CP::TAlgorithmResult& input,
             CP::THandle<CP::TReconTrack> track2 = *t;
             
             CaptNamedInfo("Merge", "Check Tracks"
-                         << " w/ stack: " << trackList.size() 
-                         << "  track: " << index
-                         << "  sizes: " 
-                         << track1->GetNodes().size() 
-                         << ", " << track2->GetNodes().size());
+                          << " w/ stack: " << trackList.size() 
+                          << "  tracks: " << track1->GetUniqueID()
+                          << ", " << track2->GetUniqueID()
+                          << "  sizes: " 
+                          << track1->GetNodes().size() 
+                          << ", " << track2->GetNodes().size());
 
             double match = MatchGoodness(track1,track2);
             if (match > fGoodnessCut) continue;
@@ -412,16 +421,18 @@ CP::TMergeTracks::Process(const CP::TAlgorithmResult& input,
             // If we get here then the tracks should be merged.
             ///////////////////////////////////////////////////////
 
-            // Merge the tracks.
-            CaptNamedInfo("Merge", "Merge Tracks");
-
             // Remove the track iterator (the track is held in track2).
             trackList.erase(t);
 
-            track1 = MergeTracks(track1,track2);
+            CP::THandle<CP::TReconTrack> merged = MergeTracks(track1,track2);
+
+            // Merge the tracks.
+            CaptNamedInfo("Merge", "Merge Tracks " << track1->GetUniqueID()
+                          << ", " << track2->GetUniqueID()
+                          << " into " << merged->GetUniqueID());
 
             // Put the new track back into the list.
-            trackList.push_front(track1);
+            trackList.push_front(merged);
 
             // Clear out the track variable.
             track1 = CP::THandle<CP::TReconTrack>();
