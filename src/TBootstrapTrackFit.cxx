@@ -68,8 +68,10 @@ namespace BTF {
 class BTF::TSystemPDF 
     : public BFL::ConditionalPdf<ColumnVector,ColumnVector> {
 public:
-    TSystemPDF() 
-        : BFL::ConditionalPdf<ColumnVector,ColumnVector>(kStateSize,1) {}
+    TSystemPDF(double momentumEstimate) 
+        : BFL::ConditionalPdf<ColumnVector,ColumnVector>(kStateSize,1) {
+        fMomentumEstimate = momentumEstimate;
+    }
     virtual ~TSystemPDF() {}
     
     /// Set whether this is a forward or backward update.  Comment: The
@@ -101,6 +103,9 @@ private:
     
     /// This is the measurement that will be associated with the state.
     CP::THandle<CP::TReconCluster> fMeasurement;
+
+    /// The momentum estimate needed for multiple scattering.
+    double fMomentumEstimate;
 };
 
 /// A class to calculate the probability of an expected measurement
@@ -145,6 +150,36 @@ private:
 CP::TBootstrapTrackFit::TBootstrapTrackFit(int trials) : fTrials(trials) { }
 CP::TBootstrapTrackFit::~TBootstrapTrackFit() {}
 
+double
+CP::TBootstrapTrackFit::EstimateRange(const CP::TReconNodeContainer& nodes) { 
+    CP::THandle<CP::TReconCluster> lastCluster;
+    double range = 0.0;
+    for (CP::TReconNodeContainer::const_iterator n = nodes.begin();
+         n != nodes.end(); ++n) { 
+        CP::THandle<CP::TReconCluster> cluster = (*n)->GetObject();
+        if (!cluster) {
+            throw EBootstrapMissingNodeObject();
+        }
+        if (lastCluster) {
+            range += (lastCluster->GetPosition().Vect() 
+                      - cluster->GetPosition().Vect()).Mag();
+        }
+        lastCluster = cluster;
+    }
+    return range;
+}
+
+double
+CP::TBootstrapTrackFit::EstimateMomentum(const CP::TReconNodeContainer& nodes) {
+    double range = EstimateRange(nodes);
+    double dEdX = 0.2*unit::MeV/unit::mm;
+    double offset = 40*unit::MeV;
+    double mass = 105*unit::MeV;
+    double energy = range*dEdX + offset + mass;
+    double momentum = std::sqrt(energy*energy - mass*mass);
+    return momentum;
+}
+
 CP::THandle<CP::TReconTrack>
 CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
 
@@ -154,7 +189,13 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         return CP::THandle<CP::TReconTrack>();
     }
 
-    CaptLog("Start bootstrap fit with " << nodes.size() << " nodes");
+    double range = EstimateRange(nodes);
+    double momentum = EstimateMomentum(nodes);
+
+    CaptLog("Bootstrap " << input->GetUniqueID() 
+            << " w/ " << nodes.size() << " nodes"
+            << "    range: " << range/unit::mm << " mm"
+            << "    rough momentum: " << momentum << " MeV/c");
 
     // Define the number of states to use in the particle filter.
     const int numSamples = fTrials;
@@ -162,7 +203,7 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     // Define the size of the state.
     const int stateSize = BTF::kStateSize;
 
-    BTF::TSystemPDF systemPDF;
+    BTF::TSystemPDF systemPDF(momentum);
     BFL::SystemModel<BTF::ColumnVector> systemModel(&systemPDF);
     BTF::TMeasurementPDF measurementPDF;
     BFL::MeasurementModel<BTF::ColumnVector, BTF::ColumnVector> 
@@ -583,7 +624,7 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
     // taken from the PDG.
     double radLen = 14*unit::cm; // For liquid argon.
     double X = std::abs(dist1)/radLen;
-    double P = 100*unit::MeV; // hack for now... 
+    double P = fMomentumEstimate/2.0; // HACK!  Assume have total momentum
     if (X < 0.001) X = 0.001;
     // Set the minimum amount of scattering.  This isn't very physical, but
     // there needs to be scattering or the fit doesn't work.

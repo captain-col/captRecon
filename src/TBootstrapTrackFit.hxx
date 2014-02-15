@@ -39,6 +39,13 @@ public:
     Apply(CP::THandle<CP::TReconTrack>& input);
 
 private:
+    /// Estimate the range of the track.
+    double EstimateRange(const CP::TReconNodeContainer& nodes);
+
+    /// Estimate the momentum of the track (needed to estimate multiple
+    /// scattering.   This assumes a muon track so it's a really crude estimate.
+    double EstimateMomentum(const CP::TReconNodeContainer& nodes);
+
     /// The number of trials for each iteration of the fitter.
     int fTrials;
 };
