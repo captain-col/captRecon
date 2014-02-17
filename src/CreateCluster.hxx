@@ -57,9 +57,9 @@ namespace CP {
         while (p != end) {
             CP::THandle<CP::TReconHit> rHit = *p;
             if (!rHit) throw CP::EClusterNonHit();
-            xHits.insert(rHit->GetContributor(0));
-            vHits.insert(rHit->GetContributor(1));
-            uHits.insert(rHit->GetContributor(2));
+            xHits.insert(rHit->GetConstituent(0));
+            vHits.insert(rHit->GetConstituent(1));
+            uHits.insert(rHit->GetConstituent(2));
             ++p;
         }
 
