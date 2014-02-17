@@ -624,7 +624,7 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
     // taken from the PDG.
     double radLen = 14*unit::cm; // For liquid argon.
     double X = std::abs(dist1)/radLen;
-    double P = fMomentumEstimate/2.0; // HACK!  Assume have total momentum
+    double P = fMomentumEstimate/2.0; // HACK!  Assume half total momentum
     if (X < 0.001) X = 0.001;
     // Set the minimum amount of scattering.  This isn't very physical, but
     // there needs to be scattering or the fit doesn't work.
