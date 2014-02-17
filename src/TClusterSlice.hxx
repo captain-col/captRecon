@@ -45,6 +45,10 @@ private:
     /// using the cluster directly.
     unsigned int fMinHits;
 
+    /// A minimum distance to be made into a slice.  This prevents
+    /// ridiculously small slices in a very big event.
+    double fMinStep;
+
     /// The splitting distance in Z.
     double fClusterStep;
 };

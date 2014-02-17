@@ -16,6 +16,9 @@
 #include <iostream>
 #include <cmath>
 
+#include <ostreamTVector3.hxx>
+#include <ostreamTLorentzVector.hxx>
+
 namespace {
     struct HitZSort {
         bool operator() (CP::THandle<CP::THit> lhs, 
@@ -34,6 +37,8 @@ CP::TClusterSlice::TClusterSlice()
         "captRecon.clusterSlice.maxDistance");
     fMinHits = CP::TRuntimeParameters::Get().GetParameterD(
         "captRecon.clusterSlice.minHits");
+    fMinStep = CP::TRuntimeParameters::Get().GetParameterD(
+        "captRecon.clusterSlice.minStep");
     fClusterStep = CP::TRuntimeParameters::Get().GetParameterD(
         "captRecon.clusterSlice.clusterStep");
 }
@@ -82,19 +87,18 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
     CP::THitSelection::iterator end = hits->end();
     CP::THitSelection::iterator first = curr;
     while (curr != end) {
-        // Make sure each cluster has at least 2*fMinPoints)
-        if (curr-first < 2*fMinPoints) {
+
+        // Make sure each slice has at least fMinPoints)
+        if (curr-first < fMinPoints) {
             ++curr;
             continue;
         }
 
         deltaZ = std::abs((*curr)->GetPosition().Z()
                           -(*first)->GetPosition().Z());
-        // Make sure the cluster covers a minimum range in Z (determined by
-        // hit resolution).
-        double minZStep = 0.75*unit::mm;
+
         // Make sure that the cluster covers a range in Z.
-        if (deltaZ < minZStep) {
+        if (deltaZ < fMinStep) {
             ++curr;
             continue;
         }
@@ -117,7 +121,7 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
         // Check that there are enough hits left for a new cluster.  If not,
         // then add all the remaining points to this cluster. (not really a
         // good plan, but it's got to suffice for now...}
-        if (end-curr < 2*fMinPoints) break;
+        if (end-curr < fMinPoints) break;
 
         // The hits between first and curr should be run through the density
         // cluster again since it's very likely that the hits are disjoint in
