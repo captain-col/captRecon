@@ -10,6 +10,15 @@ zero.
 
 < captRecon.cluster3d.maxDrift = 1 m >
 
+The maximum time between 2d clusters and still combine them into 3d
+clusters.  This is in units of the RMS.  A value of 1.73 would mean that
+clusters with a uniform charge distribution are combined if they overlap by
+"half" 
+
+< captRecon.cluster3d.xSeparation = 1.73 >
+< captRecon.cluster3d.vSeparation = 1.73 >
+< captRecon.cluster3d.uSeparation = 1.73 >
+
 The parameters for density clustering.  The minimum points is the number of
 neighbors in the region, and maxDistance is the radius of the region.
 
@@ -22,5 +31,6 @@ the region.
 
 < captRecon.clusterSlice.clusterStep = 3 mm > 
 < captRecon.clusterSlice.minHits = 2 > 
-< captRecon.clusterSlice.minPoints = 2 >
+< captRecon.clusterSlice.minPoints = 1 >
+< captRecon.clusterSlice.minStep = 0.75 mm >
 < captRecon.clusterSlice.maxDistance = 5 mm >

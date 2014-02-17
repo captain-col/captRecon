@@ -82,9 +82,14 @@ CP::TCluster3D::TCluster3D()
             "captRecon.cluster3d.maxDrift");
 
     // These need to be turned into parameters.
-    fXSeparation = 1.0;
-    fVSeparation = 1.0;
-    fUSeparation = 1.0;
+    fXSeparation = CP::TRuntimeParameters::Get().GetParameterD(
+            "captRecon.cluster3d.xSeparation");
+    fVSeparation = CP::TRuntimeParameters::Get().GetParameterD(
+            "captRecon.cluster3d.vSeparation");
+    fUSeparation = CP::TRuntimeParameters::Get().GetParameterD(
+            "captRecon.cluster3d.uSeparation");
+
+    // This is the determined by the minimum tick of the digitizer.  
     fMinSeparation = 500*unit::ns;
 
 }
@@ -194,8 +199,21 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
         }
         if (wireHits->size() < hitLimit) unused->push_back(*h2);
     }
+    // Set the maximum time difference between 2D clusters that might become a
+    // 3D hit.  This is set to be large (i.e. clusters that are spacially
+    // separated by more than 10 mm.
+    double maxDeltaT = 16*unit::microsecond;
+
+#ifdef LIMIT_SEARCH
+    // The time range of the search needs to be limited when there are a lot
+    // of hits.  The form below works well for large numbers of hits, but
+    // needs to be tuned for smaller numbers.  It's removed from the
+    // calculation for now (2014/2/16) since I'm working on small events.  The
+    // problem is that the full, unoptimized, calculation is approximately
+    // O(nHits^3), so for large events this is a very slow.
     double deltaRMS = 2.0;
-    double maxDeltaT = deltaRMS*allRMS[allRMS.size()-1];
+    maxDeltaT = deltaRMS*allRMS[allRMS.size()-1];
+#endif
 
     std::sort(xHits->begin(), xHits->end(), compareHitTime());
     std::sort(vHits->begin(), vHits->end(), compareHitTime());
@@ -294,6 +312,7 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                     unused->RemoveHit(*uh);
                 }
 
+#ifdef USE_BEST_TIME
                 // Set the time.  It's the wire hit time after drifting to Z
                 // equal to zero.  Some of the wires might have overlapping
                 // tracks in this time bin, or the track might be at a bad
@@ -319,6 +338,24 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 }
                 hit.SetTime(tHit); // This will be overridden to be time zero.
                 hit.SetTimeUncertainty(tUnc);
+#else
+                // Average the times.
+                double tXHit = drift.GetTime(**xh);
+                double tXUnc = (*xh)->GetTimeUncertainty();
+                tXUnc = tXUnc*tXUnc;
+                double tVHit = drift.GetTime(**vh);
+                double tVUnc = (*vh)->GetTimeUncertainty();
+                tVUnc = tVUnc*tVUnc;
+                double tUHit = drift.GetTime(**uh);
+                double tUUnc = (*uh)->GetTimeUncertainty();
+                tUUnc = tUUnc*tUUnc;
+                double tHit = tXHit/tXUnc + tVHit/tVUnc + tUHit/tUUnc;
+                double tUnc = 1.0/tXUnc + 1.0/tVUnc + 1.0/tUUnc;
+                tHit /= tUnc;
+                hit.SetTime(tHit); // This will be overridden to be time zero.
+                tUnc = std::sqrt(3.0/tUnc); // sqrt(3) for correlations.
+                hit.SetTimeUncertainty(tUnc);
+#endif
 
                 // The time RMS is determined by the RMS of the narrowest hit
                 // in time.  This will slightly overestimate the time RMS for
