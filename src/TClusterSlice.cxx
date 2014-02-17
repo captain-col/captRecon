@@ -16,9 +16,6 @@
 #include <iostream>
 #include <cmath>
 
-#include <ostreamTVector3.hxx>
-#include <ostreamTLorentzVector.hxx>
-
 namespace {
     struct HitZSort {
         bool operator() (CP::THandle<CP::THit> lhs, 

@@ -116,6 +116,21 @@ CP::TSplitTracks::ThreeInLine(CP::THandle<CP::TReconCluster> a,
         }
     }
 
+    // Add in a factor for multiple scattering
+    double radLen = 14*unit::cm; // For liquid argon.
+    double X = std::abs(proj)/radLen;
+    double P = 100*unit::MeV; // HACK! 
+    if (X < 0.001) X = 0.001;
+    // Set the minimum amount of scattering.  This isn't very physical, but
+    // there needs to be scattering or the fit doesn't work.
+    double scatter = (1.0+0.038*std::log(X))*std::sqrt(X)*(13.6*unit::MeV)/(P);
+    scatter = std::abs(proj*scatter);
+    for (int i=0; i<3; ++i) {
+        cov(i,i) += scatter;
+        cov(i,i) += scatter;
+        cov(i,i) += scatter;
+    }
+
     // Invert to find the error matrix.  This modifies the covariance matrix.
     cov.InvertFast();
     
@@ -245,7 +260,8 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
          t != inputObjects->end(); ++t) {
         CP::THandle<CP::TReconTrack> track = *t;
         if (!track) {
-            CaptNamedInfo("Split", "Non-track object in input");
+            CaptNamedInfo("Split", "Non-track object in input"
+                          << " UID: " << (*t)->GetUniqueID());
             outputStack.push_back(*t);
             continue;
         }
@@ -298,6 +314,13 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
             double v = ThreeInLine(*begin, *(begin+1), *(begin+2));
             double r = RadiusOfCurvature(*begin, *(begin+1), *(begin+2));
             double d = ClusterDistance(**begin, **(begin+1));
+            CaptNamedInfo("Split",
+                          "Check front UID "
+                          << (*begin)->GetUniqueID() << " --"
+                          << " In Line: " << v
+                          << " Radius: " << r
+                          << " End Dist: " << d
+                          << " Clusters: " << (end-begin)-1);
             if (v < fThreeInLineCut && d < fEndDistanceCut) break;
             if (r > fRadiusOfCurvature && d < fEndDistanceCut) break;
             CaptNamedInfo("Split",
@@ -317,6 +340,13 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
             double v = ThreeInLine(*(end-1), *(end-2), *(end-3));
             double r = RadiusOfCurvature(*(end-1), *(end-2), *(end-3));
             double d = ClusterDistance(**(end-1), **(end-2));
+            CaptNamedInfo("Split",
+                          "Check back UID " 
+                          << (*(end-1))->GetUniqueID() << " --"
+                          << " In Line: " << v
+                          << " Radius: " << r
+                          << " End Dist: " << d
+                          << " Clusters: " << (end-begin)-1);
             if (v < fThreeInLineCut && d < fEndDistanceCut) break;
             if (r > fRadiusOfCurvature && d < fEndDistanceCut) break;
             CaptNamedInfo("Split",
@@ -353,7 +383,7 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
                 if (v < fThreeInLineCut && d < fEndDistanceCut) {
                     SaveTrack(outputStack,begin,end);
                 } 
-                else if (r < fRadiusOfCurvature && d < fEndDistanceCut) {
+                else if (r > fRadiusOfCurvature && d < fEndDistanceCut) {
                     SaveTrack(outputStack,begin,end);
                 } 
                 else {
@@ -380,7 +410,7 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
                 if (v < fThreeInLineCut && d < fEndDistanceCut) {
                     SaveTrack(outputStack,begin,end);
                 } 
-                else if (r < fRadiusOfCurvature && d < fEndDistanceCut) {
+                else if (r > fRadiusOfCurvature && d < fEndDistanceCut) {
                     SaveTrack(outputStack,begin,end);
                 } 
                 else {
