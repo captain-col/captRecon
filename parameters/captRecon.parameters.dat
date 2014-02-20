@@ -34,3 +34,11 @@ the region.
 < captRecon.clusterSlice.minPoints = 1 >
 < captRecon.clusterSlice.minStep = 0.75 mm >
 < captRecon.clusterSlice.maxDistance = 5 mm >
+
+Define the conversion between charge and energy.  The units are energy per
+charge in eV/(collected electron).  This matches the ICARUS measurement of
+29300 e- per MeV.  This is approximately the activation energy (~19.5 MeV)
+corrected by the recombination probability (~43%)
+
+< captRecon.energyPerCharge = 34.1 eV >
+
