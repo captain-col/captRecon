@@ -81,7 +81,7 @@ public:
     /// mind the caveats that this starts to break down for very thin
     /// radiators (thickness < ~0.1 gram/cm^2 or about 1 mm in water).  The
     /// fluctuations for very thin radiators is slightly underestimated.
-    double GetScaleFactor(double kinEnergy, double mass, double thickness) const;
+    double GetScaleFactor(double kinetic, double mass, double thickness) const;
 
     /// Calculate the scale factor for the energy fluctuations passing through
     /// a material.  This is basically the FWHM/4 of the Landau distribution.

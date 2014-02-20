@@ -21,7 +21,7 @@ CP::TEnergyLoss::TEnergyLoss(const char* material, double cutoff) {
     fCurrentZA = 1.0/(2.0*unit::gram/unit::mole);
     fCurrentExcitationEnergy = 10.0*unit::eV;
 
-    // By default, the detector resolution is perfect.
+    // By default, the detector resolution is not perfect.
     fConstantTerm = 0.0;
     fSqrtTerm = 0.0;
     fLinearTerm = 0.0;
@@ -40,7 +40,7 @@ CP::TEnergyLoss::TEnergyLoss(const char* material, double cutoff) {
     else if (fMaterialName == "captain") {
         SetMaterial(1.0, 18, 39.95*unit::gram/unit::mole, 10.2*unit::eV);
         SetDensity(1.396*unit::gram/unit::cm3);
-        SetEnergyResolution(0.0,0.0,0.0);
+        SetEnergyResolution(0.05,0.0,0.0);
     }
     else if (fMaterialName == "scint") {
         SetMaterial(2, 1, 1.0*unit::gram/unit::mole, 19.2*unit::eV);
@@ -147,15 +147,20 @@ double CP::TEnergyLoss::GetDepositPDF(double deposit, double logGamma,
                                       double thickness) const {
     double mp = GetMostProbable(logGamma,thickness);
     double scale = GetScaleFactor(logGamma,thickness);
-    return TMath::Landau(deposit,mp,scale,true);
+    double land = TMath::Landau(deposit,mp,scale,true);
+    double resolution = GetEnergyResolution(deposit);
+    double gaus = TMath::Gaus(deposit-mp,resolution);
+    return 0.999*land + 0.001*gaus + 1E-40;
 }
 
 double CP::TEnergyLoss::GetDepositPDF(double deposit, 
                                       double kinEnergy, double mass,
                                       double thickness) const {
-    double mp = GetMostProbable(kinEnergy,mass,thickness);
-    double scale = GetScaleFactor(kinEnergy,mass,thickness);
-    return TMath::Landau(deposit,mp,scale,true);
+    mass = std::abs(mass);
+    mass = std::max(mass, 0.510*unit::MeV);
+    kinEnergy = std::abs(kinEnergy);
+    double logGamma = std::log((mass+kinEnergy)/mass);
+    return GetDepositPDF(deposit,logGamma,thickness);
 }
     
 double CP::TEnergyLoss::GetBetheBloch(double logGamma) {
