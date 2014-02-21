@@ -3,6 +3,7 @@
 #include "ClusterDistance.hxx"
 #include "CreateTrack.hxx"
 #include "CompareReconObjects.hxx"
+#include "TTrackMassFit.hxx"
 
 #include <THandle.hxx>
 #include <TReconTrack.hxx>
@@ -396,6 +397,8 @@ CP::TMergeTracks::Process(const CP::TAlgorithmResult& input,
         if (track1->GetNodes().size() < 3) {
             CaptNamedInfo("Merge", "Save short track  (" 
                           << track1->GetUniqueID() << ")");
+            TTrackMassFit massFitter;
+            track1 = massFitter(track1);
             final->push_back(track1);
             continue;
         }
@@ -445,6 +448,8 @@ CP::TMergeTracks::Process(const CP::TAlgorithmResult& input,
         // to the final objects.
         if (track1) {
             CaptNamedInfo("Merge", "Save Track");
+            TTrackMassFit massFitter;
+            track1 = massFitter(track1);
             final->push_back(track1);
         }
 
