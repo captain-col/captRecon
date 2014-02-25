@@ -109,16 +109,16 @@ public:
     /// Get the node that is associated with this cluster bin.
     const Object& GetObject() const {return fObject;}
 
-    /// Get the total charge in the cluster.  This returns the charge for the
-    /// cluster adjusted by the current link weights (both physical and the
-    /// weights being fitted by TP0DShareCharge).
+    /// Get the total charge in the group.  This returns the charge for the
+    /// group adjusted by the current link weights (both physical and the
+    /// weights being fitted by TShareCharge).
     double GetTotalCharge() const;
 
     /// Get the charge in the group not contributed by a particular
     /// measurement.
     double GetUniqueCharge(const TMeasurement* cb) const;
 
-    void Dump(bool dumpLinks) const;
+    void Dump(bool dumpLinks = true) const;
 
 private:
     // This should never be used!
@@ -202,17 +202,7 @@ public:
     }
 
     /// Dump the values in the link.
-    void Dump() const {
-        CaptLog("TLink(" << std::hex << this << ")"
-                 << std::dec <<std::setprecision(3) << " w " << fWeight
-                 << std::dec <<std::setprecision(3) << " n " << fNewWeight
-                 << std::dec <<std::setprecision(3) << " p " << fPhysicsWeight
-                 << std::dec <<std::setprecision(3) << " q " << GetRawCharge()
-                 << std::dec <<std::setprecision(3) << " C " << GetCharge()
-                 << std::hex << " g " << fMeasurementGroup
-                 << std::hex << " M " << fMeasurement
-                 << std::dec);
-    }
+    void Dump() const;
 
 private:
     /// The weight of the link (between 0 and 1).  This gives the amount of
@@ -306,7 +296,22 @@ public:
     CP::ShareCharge::TMeasurementGroup& 
     AddGroup(CP::ShareCharge::TMeasurementGroup::Object& object);
 
+    
+    void DumpGroups(bool dumpLinks) const;
+    void DumpMeasurements(bool dumpLinks) const;
+    void Dump(bool dumpLinks) const;
+
+    /// Solve the coupled equations to find the optimal set of weight to share
+    /// the charge measurements among the measurement groups.  After this has
+    /// been called, the charge in the measurement groups have been updated.
+    /// The couple equations are solved using interative relaxation.  The
+    /// return value is the change in the last iteration. 
+    double Solve(double tolerance = 1E-5, int iterations = 5000);
+    
 private:
+    /// This returns how much the weights have changed during the iteration.
+    /// It should be called until the change is small.
+    double RelaxWeights();
 
     /// Get an measurement from the collection of measurements.  If the
     /// measurement does not exist, then it will be added to the collection.

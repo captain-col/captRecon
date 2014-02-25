@@ -4,8 +4,6 @@
 
 #include <TCaptLog.hxx>
 
-#define DUMP_LINKS
-
 //////////////////////////////////////////////////////////////////////
 // TMeasurement
 //////////////////////////////////////////////////////////////////////
@@ -16,7 +14,8 @@ CP::ShareCharge::TMeasurement::TMeasurement(const Object& hit, double charge)
 
 void CP::ShareCharge::TMeasurement::Dump(bool dumpLinks) const  {
     CaptLog("TMeasurement(" << std::hex << this << ")"
-             << std::dec << " w/ " << fLinks.size() << " links");
+             << std::dec << " w/ " << fLinks.size() << " links"
+            << "  charge: " << GetCharge());
     if (dumpLinks) {
         CP::TCaptLog::IncreaseIndentation();
         for (CP::ShareCharge::TLinks::const_iterator link = fLinks.begin(); 
@@ -121,7 +120,8 @@ CP::ShareCharge::TMeasurementGroup::TMeasurementGroup(
 
 void CP::ShareCharge::TMeasurementGroup::Dump(bool dumpLinks) const {
     CaptLog("TMeasurementGroup(" << std::hex << this << ")"
-             << std::dec << " w/ " << fLinks.size() << " links");
+             << std::dec << " w/ " << fLinks.size() << " links"
+            << "  total charge: " << GetTotalCharge());
     if (dumpLinks) {
         CP::TCaptLog::IncreaseIndentation();
         for (CP::ShareCharge::TLinks::const_iterator link = fLinks.begin(); 
@@ -164,6 +164,18 @@ CP::ShareCharge::TMeasurementGroup::AddMeasurement(
     return measurement;
 }
 
+void CP::ShareCharge::TLink::Dump() const {
+    CaptLog("TLink(" << std::hex << this << ")"
+            << std::dec <<std::setprecision(3) << " w " << fWeight
+            << std::dec <<std::setprecision(3) << " n " << fNewWeight
+            << std::dec <<std::setprecision(3) << " p " << fPhysicsWeight
+            << std::dec <<std::setprecision(3) << " q " << GetRawCharge()
+            << std::dec <<std::setprecision(3) << " C " << GetCharge()
+            << std::hex << " g " << fMeasurementGroup
+            << std::hex << " M " << fMeasurement
+            << std::dec);
+}
+
 /////////////////////////////////////////////////////////////////////
 // TShareCharge
 /////////////////////////////////////////////////////////////////////
@@ -196,4 +208,63 @@ CP::ShareCharge::TLink& CP::TShareCharge::CreateLink(
     CP::ShareCharge::TMeasurement& measurement) {
     fLinks.push_back(CP::ShareCharge::TLink(group,measurement));
     return fLinks.back();
+}
+
+void CP::TShareCharge::DumpGroups(bool dumpLinks) const {
+    CaptLog("TShareCharge(" << std::hex << this << ")  Groups:");
+    CP::TCaptLog::IncreaseIndentation();
+    for (Groups::const_iterator g = fGroups.begin(); g != fGroups.end(); ++g) {
+        g->Dump(dumpLinks);
+    }
+    CP::TCaptLog::DecreaseIndentation();
+}
+
+
+void CP::TShareCharge::Dump(bool dumpLinks) const {
+    DumpGroups(dumpLinks);
+}
+
+void CP::TShareCharge::DumpMeasurements(bool dumpLinks) const {
+    CaptLog("TShareCharge(" << std::hex << this << ")  Measurements:");
+    CP::TCaptLog::IncreaseIndentation();
+    for (Measurements::const_iterator m = fMeasurements.begin();
+         m != fMeasurements.end(); ++m) {
+        m->Dump(dumpLinks);
+    }
+    CP::TCaptLog::DecreaseIndentation();
+}
+
+double CP::TShareCharge::Solve(double tolerance, int iterations) {
+
+    // Do the relaxation, but limit the total number of iterations.
+    double change = 0.0;
+    while (0 < iterations--) {
+        change = RelaxWeights();
+        if (change < tolerance) break;
+    }
+
+    return change;
+}
+
+double CP::TShareCharge::RelaxWeights() {
+    // Make sure the input weights are normalized.
+    for (Measurements::iterator m = fMeasurements.begin();
+         m != fMeasurements.end(); ++m) {
+        m->NormalizeWeights();
+    }
+
+    // Do one iteration of relaxation.
+    for (Measurements::iterator m = fMeasurements.begin();
+         m != fMeasurements.end(); ++m) {
+        m->FindLinkWeights();
+    }
+
+    // Update the weights with the changes.
+    double delta = 0.0;
+    for (Measurements::iterator m = fMeasurements.begin();
+         m != fMeasurements.end(); ++m) {
+        delta += m->UpdateWeights();
+    }
+    
+    return delta;
 }
