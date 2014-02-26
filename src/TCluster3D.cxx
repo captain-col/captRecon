@@ -1,6 +1,7 @@
 #include "TCluster3D.hxx"
 #include "TDriftPosition.hxx"
 #include "CreateCluster.hxx"
+#include "TShareCharge.hxx"
 
 #include <THandle.hxx>
 #include <TReconHit.hxx>
@@ -234,6 +235,7 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     int trials = 0;
     CP::THitSelection::iterator vBegin = vHits->begin();
     CP::THitSelection::iterator uBegin = uHits->begin();
+    CP::THitSelection writableHits;
     for (CP::THitSelection::iterator xh=xHits->begin();
          xh!=xHits->end(); ++xh) {
         ++trials;
@@ -456,12 +458,66 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 hit.SetTime(t0);
                 hit.SetPosition(driftedPosition.Vect());
 
-                clustered->push_back(CP::THandle<CP::TReconHit>(
-                                         new CP::TReconHit(hit)));
+                writableHits.push_back(CP::THandle<CP::TWritableReconHit>(
+                                         new CP::TWritableReconHit(hit)));
             }
         }
     }
-        
+
+#define SHARE_CLUSTERED_CHARGE
+#ifdef SHARE_CLUSTERED_CHARGE
+    // Share the charge among the 3D hits so that the total charge in the
+    // event is not overcounted.
+    CP::TShareCharge share;
+
+    // Fill the charge sharing object.
+    for (CP::THitSelection::iterator h = writableHits.begin();
+         h != writableHits.end(); ++h) {
+        CP::ShareCharge::TMeasurementGroup& group = share.AddGroup(*h);
+        CP::THandle<CP::TWritableReconHit> groupHit = *h;
+        for (int i=0; i<groupHit->GetConstituentCount(); ++i) {
+            CP::THandle<CP::THit> hit = groupHit->GetConstituent(i); 
+            group.AddMeasurement(hit, hit->GetCharge());
+        }
+    }
+
+    share.Solve();
+
+    // Loops over the measurement groups, and update the charges of the 3D
+    // hits.  Since the 3D hit handles reference the hits in the writableHits
+    // THitSelection, this also updates the hits that will be copied into the
+    // output.
+    for (CP::TShareCharge::Groups::const_iterator g = share.GetGroups().begin();
+         g != share.GetGroups().end(); ++g) {
+        CP::THandle<CP::TWritableReconHit> groupHit = g->GetObject();
+        double totalCharge = 0.0;
+        double totalSigma = 0.0;
+        for(CP::ShareCharge::TLinks::const_iterator c = g->GetLinks().begin();
+            c != g->GetLinks().end(); ++c) {
+            CP::THandle<CP::THit> hit = (*c)->GetMeasurement()->GetObject();
+            double charge = (*c)->GetCharge();
+            // Notice that the sigma is not reduced by the weight.  This is an
+            // attempt to capture some of the extra charge error introduced by
+            // the charge sharing, but it's not formally correct.
+            double sigma = hit->GetChargeUncertainty();
+            totalCharge += charge/(sigma*sigma);
+            totalSigma += 1.0/(sigma*sigma);
+        }
+        totalCharge /= totalSigma;
+        totalSigma = std::sqrt(1.0/totalSigma);
+        groupHit->SetCharge(totalCharge);
+        groupHit->SetChargeUncertainty(totalSigma);
+    }
+#endif
+
+    // Copy the selection of writable hits into a selection of recon hits.
+    for (CP::THitSelection::iterator h = writableHits.begin();
+         h != writableHits.end(); ++h) {
+        CP::THandle<CP::TWritableReconHit> hit = *h;
+        clustered->push_back(
+            CP::THandle<CP::TReconHit>(new CP::TReconHit(*hit)));
+    }
+
     CaptVerbose("Mean X Hit Charge " 
             << unit::AsString(hitMean(xHits->begin(), xHits->end()),
                               hitRMS(xHits->begin(), xHits->end()),

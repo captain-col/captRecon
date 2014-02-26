@@ -37,7 +37,7 @@ public:
     explicit TMeasurement(const Object& hit, double charge);
 
     /// Get the raw measurement object used to construct the TMeasurement.
-    const Object& GetObject() {return fObject;}
+    Object GetObject() const {return fObject;}
 
     /// Get the amount of charge for this measurement. 
     double GetCharge() const {return fCharge;}
@@ -99,7 +99,7 @@ public:
     /// measurement and the current TMeasurementGroup.  If the input object is
     /// not associated with a TMeasurement, a new TMeasurement object is
     /// created and the link to this TMeasurementGroup is established.
-    TMeasurement& AddMeasurement(TMeasurement::Object& object, double charge);
+    TMeasurement* AddMeasurement(TMeasurement::Object& object, double charge);
 
     /// @{ Get the list of measurements that are part of this cluster bin.
     const TLinks& GetLinks() const {return fLinks;}
@@ -107,7 +107,7 @@ public:
     // @}
 
     /// Get the node that is associated with this cluster bin.
-    const Object& GetObject() const {return fObject;}
+    Object GetObject() const {return fObject;}
 
     /// Get the total charge in the group.  This returns the charge for the
     /// group adjusted by the current link weights (both physical and the
@@ -142,16 +142,13 @@ private:
 /// TMeasurementGroup.
 class CP::ShareCharge::TLink {
 public:
-    TLink() : fWeight(1), fNewWeight(1), fPhysicsWeight(1), 
+    TLink() : fWeight(1.0), fNewWeight(1.0), fPhysicsWeight(1.0), 
               fMeasurement(NULL), fMeasurementGroup(NULL) {}
         
-    TLink(CP::ShareCharge::TMeasurementGroup& group, 
-          CP::ShareCharge::TMeasurement& charge)
-        : fWeight(1), fNewWeight(1), fPhysicsWeight(1), 
-          fMeasurement(&charge), fMeasurementGroup(&group) {
-        charge.GetLinks().push_back(this);
-        group.GetLinks().push_back(this);
-    }
+    TLink(CP::ShareCharge::TMeasurementGroup* group, 
+          CP::ShareCharge::TMeasurement* charge)
+        : fWeight(1.0), fNewWeight(1.0), fPhysicsWeight(1.0), 
+          fMeasurement(charge), fMeasurementGroup(group) { }
 
     /// Get the weight of the measurement in the linked measurement group.
     /// This is set as the result of the TShareCharge algoritm.
@@ -296,10 +293,9 @@ public:
     CP::ShareCharge::TMeasurementGroup& 
     AddGroup(CP::ShareCharge::TMeasurementGroup::Object& object);
 
-    
-    void DumpGroups(bool dumpLinks) const;
-    void DumpMeasurements(bool dumpLinks) const;
-    void Dump(bool dumpLinks) const;
+    void DumpGroups(bool dumpLinks = true) const;
+    void DumpMeasurements(bool dumpLinks = true) const;
+    void Dump(bool dumpLinks = true) const;
 
     /// Solve the coupled equations to find the optimal set of weight to share
     /// the charge measurements among the measurement groups.  After this has
@@ -307,7 +303,11 @@ public:
     /// The couple equations are solved using interative relaxation.  The
     /// return value is the change in the last iteration. 
     double Solve(double tolerance = 1E-5, int iterations = 5000);
-    
+
+    /// Return the measurement groups.  This is how the result of the charge
+    /// sharing is accessed.
+    const Groups& GetGroups() const {return fGroups;}
+
 private:
     /// This returns how much the weights have changed during the iteration.
     /// It should be called until the change is small.
@@ -319,15 +319,15 @@ private:
     /// TMeasurementGroup class (which is a friend).  The TMeasurementGroup
     /// object will need to add the appropriate links between itself and the
     /// TMeasurement object.
-    CP::ShareCharge::TMeasurement& FindMeasurement(
+    CP::ShareCharge::TMeasurement* FindMeasurement(
         CP::ShareCharge::TMeasurement::Object& object, double charge);
 
 
     /// Create a new link between a measurement and a measurement group.  THis
     /// is used by the TMeasurementGroup object.
-    CP::ShareCharge::TLink& CreateLink(
-        CP::ShareCharge::TMeasurementGroup& group,
-        CP::ShareCharge::TMeasurement& measurement);
+    CP::ShareCharge::TLink* CreateLink(
+        CP::ShareCharge::TMeasurementGroup* group,
+        CP::ShareCharge::TMeasurement* measurement);
     
     /// All of the measurements associated with this object.
     Measurements fMeasurements;

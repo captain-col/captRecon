@@ -50,6 +50,8 @@ namespace CP {
         cluster->FillFromHits(name,begin,end);
 
         // Collect the unique X, V and U hits.
+        double summedCharge = 0.0;
+        double summedVar = 0.0;
         std::set< CP::THandle<CP::THit> > xHits;
         std::set< CP::THandle<CP::THit> > vHits;
         std::set< CP::THandle<CP::THit> > uHits;
@@ -57,6 +59,9 @@ namespace CP {
         while (p != end) {
             CP::THandle<CP::TReconHit> rHit = *p;
             if (!rHit) throw CP::EClusterNonHit();
+            double sigma = rHit->GetChargeUncertainty();
+            summedCharge += rHit->GetCharge();
+            summedVar +=  sigma*sigma;
             xHits.insert(rHit->GetConstituent(0));
             vHits.insert(rHit->GetConstituent(1));
             uHits.insert(rHit->GetConstituent(2));
@@ -94,21 +99,34 @@ namespace CP {
         }
 
         // Construct the cluster charge from the average of X, V, and U.
-        double charge = xCharge/xVariance 
+        double wireCharge = xCharge/xVariance 
             + vCharge/vVariance
             + uCharge/uVariance;
-        double chargeVar = 1.0/xVariance + 1.0/vVariance + 1.0/uVariance;
-        charge /= chargeVar;
-        chargeVar = 1.0/chargeVar; 
+        double wireVar = 1.0/xVariance + 1.0/vVariance + 1.0/uVariance;
+        wireCharge /= wireVar;
+        wireVar = 1.0/wireVar; 
 
-        // Update the cluster state with the new charge and it's variance.
         CP::THandle<CP::TClusterState> state = cluster->GetState();
-        state->SetEDeposit(charge);
-        state->SetEDepositVariance(chargeVar);
+#ifdef RESET_CLUSTER_CHARGE_WITH_WIRE_AVERAGE
+        // Update the cluster state with the new charge and it's variance.
+        state->SetEDeposit(wireCharge);
+        state->SetEDepositVariance(wireVar);
+#endif
+
+#define RESET_CLUSTER_CHARGE_WITH_WIRE_SUM
+#ifdef RESET_CLUSTER_CHARGE_WITH_WIRE_SUM
+        // Update the cluster state with the new charge and it's variance.
+        state->SetEDeposit(summedCharge);
+        state->SetEDepositVariance(summedVar);
+#endif
+
         CaptNamedInfo(
-            "CreateCluster", name << "with charge: "
-            << unit::AsString(charge, 
-                              std::sqrt(chargeVar), "charge")
+            "CreateCluster", name << " Q: "
+            << unit::AsString(state->GetEDeposit(), 
+                              std::sqrt(state->GetEDepositVariance()), 
+                              "charge")
+            << " on wires: " << unit::AsString(wireCharge, 
+                              std::sqrt(wireVar), "charge")
             << " X: " << unit::AsString(xCharge, 
                                         std::sqrt(xVariance), "charge")
             << " V: " << unit::AsString(vCharge, 
@@ -124,10 +142,10 @@ namespace CP {
         // for track fits.
         const CP::TReconCluster::MomentMatrix& moments 
             = cluster->GetMoments();
-        CP::THandle<CP::TClusterState> state = cluster->GetState();
+        CP::THandle<CP::TClusterState> covState = cluster->GetState();
         for (int i=0; i<3; ++i) {
             for (int j=0; j<3; ++j) {
-                state->SetPositionCovariance(i,j,moments(i,j));
+                covState->SetPositionCovariance(i,j,moments(i,j));
             }
         }
 #endif

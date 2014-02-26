@@ -116,7 +116,8 @@ void CP::ShareCharge::TMeasurement::FindLinkWeights() {
 
 CP::ShareCharge::TMeasurementGroup::TMeasurementGroup(
     CP::TShareCharge* owner, TMeasurementGroup::Object& object) 
-    : fOwner(owner), fObject(object) { }
+    : fOwner(owner), fObject(object) {
+}
 
 void CP::ShareCharge::TMeasurementGroup::Dump(bool dumpLinks) const {
     CaptLog("TMeasurementGroup(" << std::hex << this << ")"
@@ -154,23 +155,22 @@ double CP::ShareCharge::TMeasurementGroup::GetUniqueCharge(
     return charge;
 }
 
-CP::ShareCharge::TMeasurement& 
+CP::ShareCharge::TMeasurement* 
 CP::ShareCharge::TMeasurementGroup::AddMeasurement(
     CP::ShareCharge::TMeasurement::Object& object, double charge) {
     // Find the existing measurement, or create a new one.
-    CP::ShareCharge::TMeasurement& measurement 
+    CP::ShareCharge::TMeasurement* measurement 
         = fOwner->FindMeasurement(object,charge);
-    fOwner->CreateLink(*this,measurement);
+    fOwner->CreateLink(this,measurement);
     return measurement;
 }
 
 void CP::ShareCharge::TLink::Dump() const {
     CaptLog("TLink(" << std::hex << this << ")"
-            << std::dec <<std::setprecision(3) << " w " << fWeight
-            << std::dec <<std::setprecision(3) << " n " << fNewWeight
-            << std::dec <<std::setprecision(3) << " p " << fPhysicsWeight
-            << std::dec <<std::setprecision(3) << " q " << GetRawCharge()
             << std::dec <<std::setprecision(3) << " C " << GetCharge()
+            << std::dec <<std::setprecision(3) << " q " << GetRawCharge()
+            << std::dec <<std::setprecision(3) << " w " << fWeight
+            << std::dec <<std::setprecision(3) << " p " << fPhysicsWeight
             << std::hex << " g " << fMeasurementGroup
             << std::hex << " M " << fMeasurement
             << std::dec);
@@ -180,13 +180,16 @@ void CP::ShareCharge::TLink::Dump() const {
 // TShareCharge
 /////////////////////////////////////////////////////////////////////
     
+CP::TShareCharge::TShareCharge() {}
+CP::TShareCharge::~TShareCharge() {}
+
 CP::ShareCharge::TMeasurementGroup& 
 CP::TShareCharge::AddGroup(ShareCharge::TMeasurementGroup::Object& object) {
     fGroups.push_back(CP::ShareCharge::TMeasurementGroup(this,object));
     return fGroups.back();
 }
 
-CP::ShareCharge::TMeasurement& 
+CP::ShareCharge::TMeasurement*
 CP::TShareCharge::FindMeasurement(CP::ShareCharge::TMeasurement::Object& object,
                                   double charge) {
     for (Measurements::iterator m = fMeasurements.begin();
@@ -196,18 +199,21 @@ CP::TShareCharge::FindMeasurement(CP::ShareCharge::TMeasurement::Object& object,
                 CaptError("Charge mismatch");
                 throw;
             }
-            return *m;
+            return &(*m);
         }
     }
     fMeasurements.push_back(CP::ShareCharge::TMeasurement(object,charge));
-    return fMeasurements.back();
+    return &(fMeasurements.back());
 }
 
-CP::ShareCharge::TLink& CP::TShareCharge::CreateLink(
-    CP::ShareCharge::TMeasurementGroup& group,
-    CP::ShareCharge::TMeasurement& measurement) {
+CP::ShareCharge::TLink* CP::TShareCharge::CreateLink(
+    CP::ShareCharge::TMeasurementGroup* group,
+    CP::ShareCharge::TMeasurement* measurement) {
     fLinks.push_back(CP::ShareCharge::TLink(group,measurement));
-    return fLinks.back();
+    CP::ShareCharge::TLink* link = &fLinks.back();
+    measurement->GetLinks().push_back(link);
+    group->GetLinks().push_back(link);
+    return link;
 }
 
 void CP::TShareCharge::DumpGroups(bool dumpLinks) const {
