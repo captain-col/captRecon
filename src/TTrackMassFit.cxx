@@ -94,53 +94,76 @@ double CP::MF::TMassFitFunction::DoEval(const double *params) const {
         logLikelihood += 0.5*v*v;
     }
 
+    double sFactor = 0.5;
     if (fForwardFit) {
+        // Correct for not starting at the beginning...
+        for (int i=0; i<start; ++i) {
+            int index = fEnergyDeposit.size() - i - 1;
+            double energyDeposit = energyScale*fEnergyDeposit[index];
+            kinEnergy += energyDeposit;
+        }
         for (int i=start; i<stop; ++i) {
             int index = fEnergyDeposit.size() - i - 1;
             double energyDeposit = energyScale*fEnergyDeposit[index];
             double length = fLength[index];
-            kinEnergy += energyDeposit;
-#define PRINTIT
+            kinEnergy += sFactor*energyDeposit;
 #ifdef PRINTIT
+#undef PRINTIT
             double mostProbable = energyLoss.GetMostProbable(kinEnergy,
                                                              mass,
                                                              length);
-            std::cout << "   " << kinEnergy
+            std::cout << "   " << index
+                      << " " << kinEnergy
                       << " " << energyDeposit 
                       << " " << mostProbable 
                       << " " << energyDeposit/length
                       << std::endl;
 #endif
             double likelihood 
-                = energyLoss.GetDepositPDF(energyDeposit, kinEnergy,
-                                           mass, length);
+                = energyLoss.GetDepositPDF(energyDeposit,
+                                           kinEnergy,
+                                           mass,
+                                           length);
             logLikelihood -= std::log(likelihood);
+            kinEnergy += (1.0-sFactor)*energyDeposit;
         }
     }
     else {
+        // Correct for not starting at the beginning...
+        for (int i=0; i<start; ++i) {
+            int index = i;
+            double energyDeposit = energyScale*fEnergyDeposit[index];
+            kinEnergy += energyDeposit;
+        }
         for (int i=start; i<stop; ++i) {
             int index = i;
             double energyDeposit = energyScale*fEnergyDeposit[index];
             double length = fLength[index];
-            kinEnergy += energyDeposit;
+            kinEnergy += sFactor*energyDeposit;
 #ifdef PRINTIT
+#undef PRINTIT
             double mostProbable = energyLoss.GetMostProbable(kinEnergy,
                                                              mass,
                                                              length);
-            std::cout << "   " << kinEnergy
+            std::cout << "   " << index
+                      << " " << kinEnergy
                       << " " << energyDeposit 
                       << " " << mostProbable 
                       << " " << energyDeposit/length
                       << std::endl;
 #endif
             double likelihood 
-                = energyLoss.GetDepositPDF(energyDeposit, kinEnergy,
-                                           mass, length);
+                = energyLoss.GetDepositPDF(energyDeposit, 
+                                           kinEnergy,
+                                           mass,
+                                           length);
             logLikelihood -= std::log(likelihood);
+            kinEnergy += (1.0-sFactor)*energyDeposit;
         }
     }
 
 #ifdef PRINTIT
+#undef PRINTIT
     std::cout << "kinEnergy: " << kinEnergy/unit::MeV 
               << "  mass: " << mass
               << "  logL: " << logLikelihood << std::endl;
@@ -171,12 +194,44 @@ CP::TTrackMassFit::Apply(CP::THandle<CP::TReconTrack>& input) {
 
     // Get the energy deposition and cluster length as a function of position
     // along the track
+    double totalEnergy = 0.0;
     for (TReconNodeContainer::iterator n = nodes.begin();
          n != nodes.end(); ++n) {
         CP::THandle<CP::TTrackState> state = (*n)->GetState();
         CP::THandle<CP::TReconCluster> object = (*n)->GetObject();
+        TVector3 prevPos;
+        if (n != nodes.begin()) {
+            CP::THandle<CP::TTrackState> prevState = (*(n-1))->GetState();
+            prevPos = 0.5*(prevState->GetPosition().Vect()
+                           + state->GetPosition().Vect());
+        }
+        else {
+            CP::THandle<CP::TTrackState> prevState = input->GetFront();
+            prevPos = prevState->GetPosition().Vect();
+        }
+        TVector3 nextPos;
+        if (n+1 != nodes.end()) {
+            CP::THandle<CP::TTrackState> nextState = (*(n+1))->GetState();
+            nextPos = 0.5*(nextState->GetPosition().Vect()
+                           + state->GetPosition().Vect());
+        }
+        else {
+            CP::THandle<CP::TTrackState> nextState = input->GetFront();
+            nextPos = nextState->GetPosition().Vect();
+        }
         double energy = state->GetEDeposit();
-        double length = 2.0*object->GetLongExtent();
+        double length1 = (nextPos - prevPos).Mag();
+        double length2 = 2.0*object->GetLongExtent();
+        double length = std::min(length1,length2);
+        totalEnergy += energy;
+#ifdef PRINTIT
+#undef PRINTIT
+        std::cout << object->GetUniqueID()
+                  << " " << 34.1*unit::eV*totalEnergy
+                  << " " << 34.1*unit::eV*energy 
+                  << " " << length
+                  << " " << 34.1*unit::eV*unit::cm*energy/length << std::endl;
+#endif
         fitFunction.fEnergyDeposit.push_back(energy);
         fitFunction.fLength.push_back(length);
     }
@@ -199,6 +254,7 @@ CP::TTrackMassFit::Apply(CP::THandle<CP::TReconTrack>& input) {
                  << " S: " << forwardScale
                  << " E: " << forwardOffset);
 
+#define USE_BACKWARD
 #ifdef USE_BACKWARD
     fitFunction.fForwardFit = false;
     rootMinimizer->SetVariable(0,"log(Mass)", std::log(105.0*unit::MeV), 0.1);
