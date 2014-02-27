@@ -24,8 +24,7 @@ namespace CP {
 class CP::MF::TMassFitFunction : public ROOT::Math::IBaseFunctionMultiDim {
 public:
     TMassFitFunction() : fForwardFit(true), 
-                         fStoppingPenalty(1.0*unit::MeV),
-                         fScaleConstraint(0.01) {
+                         fStoppingPenalty(1.0*unit::MeV) {
         fEnergyPerCharge = CP::TRuntimeParameters::Get().GetParameterD(
             "captRecon.energyPerCharge");
     }
@@ -33,7 +32,7 @@ public:
     /// Calculate the function.
     double DoEval(const double *params) const;
 
-    unsigned int NDim() const {return 3;}
+    unsigned int NDim() const {return 2;}
 
     TMassFitFunction* Clone() const {return new TMassFitFunction(*this);}
 
@@ -50,11 +49,6 @@ public:
     /// The amount of energy per measured ionization electron.
     double fEnergyPerCharge;
 
-    /// A constraint on the scale parameter.  The scale give the fit a little
-    /// bit of wiggle room round the nominal energy scale, and this paramter
-    /// keeps the value close to 1.0.
-    double fScaleConstraint;
-
     /// The amount of deposited energy at this point.  This is set using the
     /// parameter file, but can be overridden once the object is created.
     std::vector<double> fEnergyDeposit;
@@ -66,9 +60,8 @@ public:
 
 double CP::MF::TMassFitFunction::DoEval(const double *params) const {
     double mass = std::exp(params[0]);
-    double scale = std::exp(params[1]);
-    double kinOffset = params[2];
-    double energyScale = scale*fEnergyPerCharge; 
+    double kinOffset = params[1];
+    double energyScale = fEnergyPerCharge; 
 
     CP::TEnergyLoss energyLoss;
 
@@ -86,11 +79,6 @@ double CP::MF::TMassFitFunction::DoEval(const double *params) const {
     double logLikelihood = 0.0;
     if (fStoppingPenalty > 0.0) {
         double v = kinOffset/fStoppingPenalty;
-        logLikelihood += 0.5*v*v;
-    }
-
-    if (fScaleConstraint > 1E-6) {
-        double v = (scale-1.0)/fScaleConstraint;
         logLikelihood += 0.5*v*v;
     }
 
@@ -180,9 +168,9 @@ CP::THandle<CP::TReconTrack>
 CP::TTrackMassFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     TReconNodeContainer& nodes = input->GetNodes();
     
-    if (nodes.size() < 2) {
+    if (nodes.size() < 4) {
         CaptError("Not enough nodes to fit.");
-        return CP::THandle<CP::TReconTrack>();
+        return input;
     }
 
     /// Create the minimizer.
@@ -190,7 +178,7 @@ CP::TTrackMassFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     std::auto_ptr<ROOT::Math::Minimizer> 
         rootMinimizer(ROOT::Math::Factory::CreateMinimizer("Minuit2"));
     rootMinimizer->SetFunction(fitFunction);
-    rootMinimizer->SetErrorDef(0.5);
+    rootMinimizer->SetErrorDef(1.0);
 
     // Get the energy deposition and cluster length as a function of position
     // along the track
@@ -238,42 +226,77 @@ CP::TTrackMassFit::Apply(CP::THandle<CP::TReconTrack>& input) {
 
     fitFunction.fForwardFit = true;
     rootMinimizer->SetVariable(0,"log(Mass)", std::log(105.0*unit::MeV), 0.1);
-    rootMinimizer->SetVariable(1,"log(Scale)", 0.0, 0.1);
-    rootMinimizer->SetVariable(2,"kinOffset", 0.0*unit::MeV, 10*unit::MeV);
+    rootMinimizer->SetVariable(1,"kinOffset", 0.0*unit::MeV, 10*unit::MeV);
     rootMinimizer->Minimize();
     double forwardMin = rootMinimizer->MinValue();
     double forwardMass = std::exp(rootMinimizer->X()[0]);
-    double forwardScale = std::exp(rootMinimizer->X()[1]);
-    double forwardOffset = std::abs(rootMinimizer->X()[2]);
+    double forwardMassSigma = rootMinimizer->Errors()[0];
+    double forwardOffset = std::abs(rootMinimizer->X()[1]);
 
-    CaptNamedLog("TTrackMassFit", 
+    CaptNamedInfo("TTrackMassFit", 
                  "forward UID: " << input->GetUniqueID()
                  << " size: " << nodes.size()
                  << " L: " << forwardMin
                  << " M: " << forwardMass
-                 << " S: " << forwardScale
                  << " E: " << forwardOffset);
 
-#define USE_BACKWARD
-#ifdef USE_BACKWARD
     fitFunction.fForwardFit = false;
     rootMinimizer->SetVariable(0,"log(Mass)", std::log(105.0*unit::MeV), 0.1);
-    rootMinimizer->SetVariable(1,"log(Scale)", 0.0, 0.1);
-    rootMinimizer->SetVariable(2,"kinOffset", 0.0*unit::MeV, 10*unit::MeV);
+    rootMinimizer->SetVariable(1,"kinOffset", 0.0*unit::MeV, 10*unit::MeV);
     rootMinimizer->Minimize();
     double backwardMin = rootMinimizer->MinValue();
     double backwardMass = std::exp(rootMinimizer->X()[0]);
-    double backwardScale = std::exp(rootMinimizer->X()[1]);
-    double backwardOffset = std::abs(rootMinimizer->X()[2]);
+    double backwardMassSigma = rootMinimizer->Errors()[0];
+    double backwardOffset = std::abs(rootMinimizer->X()[1]);
 
-    CaptNamedLog("TTrackMassFit", 
+    CaptNamedInfo("TTrackMassFit", 
                  "backward UID: " << input->GetUniqueID()
                  << " size: " << nodes.size()
                  << " L: " << backwardMin
                  << " M: " << backwardMass
-                 << " S: " << backwardScale
                  << " E: " << backwardOffset);
-#endif
+
+    double bestValue = forwardMin;
+    int bestDirection = 1;
+    double bestMass = forwardMass;
+    double bestMassSigma = forwardMassSigma;
+    double bestOffset = forwardOffset;
+    
+    // Find the best fit to the mass.
+    if (bestValue > backwardMin) {
+        bestValue = backwardMin;
+        bestDirection = -1;
+        bestMass = backwardMass;
+        bestMassSigma = backwardMassSigma;
+        bestOffset = backwardOffset;
+    }
+
+    CaptNamedLog("TTrackMassFit", 
+                 "UID: " << input->GetUniqueID()
+                 << " size: " << nodes.size()
+                 << " L: " << bestValue
+                 << " D: " << bestDirection
+                 << " M: " << bestMass
+                 << " S: " << bestMassSigma
+                 << " E: " << bestOffset);
+
+    // Set the track node values.
+    CP::THandle<CP::TTrackState> state = input->GetFront();
+    state->SetMass(bestMass);
+    state->SetMassVariance(bestMassSigma*bestMassSigma);
+
+    state = input->GetBack();
+    state->SetMass(bestMass);
+    state->SetMassVariance(bestMassSigma*bestMassSigma);
+
+    for (CP::TReconNodeContainer::iterator n = nodes.begin(); 
+         n != nodes.end(); ++n) {
+        state = (*n)->GetState();
+        state->SetMass(bestMass);
+        state->SetMassVariance(bestMassSigma*bestMassSigma);
+    }
+
+    if (bestDirection<0) input->ReverseTrack();
 
     return input;
 }
