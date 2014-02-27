@@ -398,7 +398,8 @@ CP::TMergeTracks::Process(const CP::TAlgorithmResult& input,
             CaptNamedInfo("Merge", "Save short track  (" 
                           << track1->GetUniqueID() << ")");
             TTrackMassFit massFitter;
-            track1 = massFitter(track1);
+            CP::THandle<CP::TReconTrack> massTrack = massFitter(track1);
+            if (massTrack) track1 = massTrack;
             final->push_back(track1);
             continue;
         }
@@ -449,7 +450,8 @@ CP::TMergeTracks::Process(const CP::TAlgorithmResult& input,
         if (track1) {
             CaptNamedInfo("Merge", "Save Track");
             TTrackMassFit massFitter;
-            track1 = massFitter(track1);
+            CP::THandle<CP::TReconTrack> massTrack = massFitter(track1);
+            if (massTrack) track1 = massTrack;
             final->push_back(track1);
         }
 
