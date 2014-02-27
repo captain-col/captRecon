@@ -271,6 +271,8 @@ CP::TTrackMassFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         bestOffset = backwardOffset;
     }
 
+    if (!(bestMassSigma > 0.01)) bestMassSigma = 0.01;
+
     CaptNamedLog("TTrackMassFit", 
                  "UID: " << input->GetUniqueID()
                  << " size: " << nodes.size()
