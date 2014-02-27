@@ -155,12 +155,7 @@ public:
     /// of energy.  Internally, it's added in quadrature with the Landau scale
     /// factor to determine the scale factor of the "resolution adjusted
     /// Landau".
-    double GetEnergyResolution(double energyDeposit) const {
-        double res = fConstantTerm 
-            + fSqrtTerm/std::sqrt(energyDeposit)
-            + fLinearTerm/energyDeposit;
-        return res*energyDeposit;
-    }
+    double GetEnergyResolution(double energyDeposit) const;
             
     /// Get the current density correction assuming very high energy.
     double GetDensityCorrection(double gamma) const;
