@@ -72,6 +72,11 @@ private:
     /// This protects against unreasonably small RMSs for the hit times.
     double fMinSeparation;
 
+    /// The amount of energy per measured ionization electron.  This is mostly
+    /// used for pretty output and diagnostics.  The hits have their charges
+    /// in electrons
+    double fEnergyPerCharge;
+
     /// Take the "size" of each hit, and the minimum separation (basically the
     /// time bin size), and return an overlap time.  If hits are within the
     /// overlap time of each other, then they are considered to overlap.

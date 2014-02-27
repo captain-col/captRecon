@@ -93,6 +93,9 @@ CP::TCluster3D::TCluster3D()
     // This is the determined by the minimum tick of the digitizer.  
     fMinSeparation = 500*unit::ns;
 
+    fEnergyPerCharge = CP::TRuntimeParameters::Get().GetParameterD(
+        "captRecon.energyPerCharge");
+
 }
 
 CP::TCluster3D::~TCluster3D() { }
@@ -514,29 +517,33 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     for (CP::THitSelection::iterator h = writableHits.begin();
          h != writableHits.end(); ++h) {
         CP::THandle<CP::TWritableReconHit> hit = *h;
+        // Don't include hits that have had all their charge taken away by the
+        // charge sharing.  The  10 pe cut corresponds to a hit energy of
+        // about 340 eV.
+        if (hit->GetCharge() < 10.0) continue;
         clustered->push_back(
             CP::THandle<CP::TReconHit>(new CP::TReconHit(*hit)));
     }
 
-    CaptVerbose("Mean X Hit Charge " 
+    CaptNamedInfo("Cluster","Mean X Hit Charge " 
             << unit::AsString(hitMean(xHits->begin(), xHits->end()),
                               hitRMS(xHits->begin(), xHits->end()),
                               "pe"));
-    CaptVerbose("Total X Hit Charge " 
+    CaptNamedInfo("Cluster","Total X Hit Charge " 
             << unit::AsString(hitTotal(xHits->begin(), xHits->end()),
                               "pe"));
-    CaptVerbose("Mean V Hit Charge " 
+    CaptNamedInfo("Cluster","Mean V Hit Charge " 
             << unit::AsString(hitMean(vHits->begin(), vHits->end()),
                               hitRMS(vHits->begin(), vHits->end()),
                               "pe"));
-    CaptVerbose("Total V Hit Charge " 
+    CaptNamedInfo("Cluster","Total V Hit Charge " 
             << unit::AsString(hitTotal(vHits->begin(), vHits->end()),
                               "pe"));
-    CaptVerbose("Mean U Hit Charge "
+    CaptNamedInfo("Cluster","Mean U Hit Charge "
             << unit::AsString(hitMean(uHits->begin(), uHits->end()),
                               hitRMS(uHits->begin(), uHits->end()),
                               "pe"));
-    CaptVerbose("Total U Hit Charge " 
+    CaptNamedInfo("Cluster","Total U Hit Charge " 
             << unit::AsString(hitTotal(uHits->begin(), uHits->end()),
                               "pe"));
 
@@ -545,6 +552,12 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
         = CreateCluster("clustered", clustered->begin(), clustered->end());
     final->push_back(usedCluster);
     result->AddResultsContainer(final);
+    
+    CaptLog("Total hit charge " 
+            << unit::AsString(usedCluster->GetEDeposit(),"pe")
+            << " " 
+            << unit::AsString(fEnergyPerCharge*usedCluster->GetEDeposit(),
+                              "energy"));
 
     if (unused->size() > 0) result->AddHits(unused.release());
     if (used->size() > 0) result->AddHits(used.release());
