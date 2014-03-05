@@ -13,7 +13,8 @@ namespace {
         mass = std::max(std::abs(mass), unit::electron_mass_c2);
         kinEnergy = std::abs(kinEnergy);
         double totalEnergy = mass + kinEnergy;
-        double logGamma = std::log(totalEnergy/mass);
+        double gamma = totalEnergy/mass;
+        double logGamma = std::log(gamma);
         return logGamma;
     }
 }
@@ -51,7 +52,7 @@ CP::TEnergyLoss::TEnergyLoss(const char* material, double cutoff) {
     else if (fMaterialName == "captain") {
         SetMaterial(1.0, 18, 39.95*unit::gram/unit::mole, 10.2*unit::eV);
         SetDensity(1.396*unit::gram/unit::cm3);
-        SetEnergyResolution(0.1,0.0,0.0);
+        SetEnergyResolution(0.03,0.006,30*unit::keV);
     }
     else if (fMaterialName == "scint") {
         SetMaterial(2, 1, 1.0*unit::gram/unit::mole, 19.2*unit::eV);
@@ -83,16 +84,19 @@ void CP::TEnergyLoss::SetMaterial(double frac, double z, double a,
     fCurrentZA = za/fCurrentWeightSum;
     fCurrentExcitationEnergy = ee/fCurrentWeightSum;
 
+    fMinimumIonizationGamma = -1;
 }
 
 void CP::TEnergyLoss::SetZA(double za) {
     fCurrentWeightSum = 1.0;
     fCurrentZA = za;
+    fMinimumIonizationGamma = -1;
 };
 
 void CP::TEnergyLoss::SetExcitationEnergy(double ee) {
     fCurrentWeightSum = 1.0;
     fCurrentExcitationEnergy = ee;
+    fMinimumIonizationGamma = -1;
 };
 
 double CP::TEnergyLoss::GetPlasmaEnergy() const {
@@ -104,7 +108,7 @@ double CP::TEnergyLoss::GetEnergyResolution(double energyDeposit) const {
     double rConst = fConstantTerm*energyDeposit;
     double rSqrt = fSqrtTerm*sqrt(energyDeposit);
     double rLinear = fLinearTerm;
-    return rConst + rSqrt + rLinear;
+    return std::sqrt(rConst*rConst + rSqrt*rSqrt + rLinear*rLinear);
 }
 
 double CP::TEnergyLoss::GetDensityCorrection(double gamma) const {
@@ -119,25 +123,57 @@ double CP::TEnergyLoss::GetDensityCorrection(double gamma) const {
 }
 
 double CP::TEnergyLoss::GetMostProbable(double kinEnergy, double mass,
-                                        double thickness) const {
+                                        double thickness,
+                                        bool truncated) const {
     double logGamma = LogGamma(kinEnergy,mass);
     return GetMostProbable(logGamma, thickness);
 }
 
-double CP::TEnergyLoss::GetMostProbable(double logGamma, double thickness) 
-    const {
+double CP::TEnergyLoss::GetMostProbable(double logGamma, double thickness,
+                                        bool truncated) const {
     double K = 0.307075*unit::MeV*unit::cm2/unit::mole;;
     double me = unit::electron_mass_c2;
     double jFactor = 0.200;
     double gamma = std::exp(std::abs(logGamma));
+    if (truncated) {
+        FindMIPGamma();
+        gamma = std::min(gamma,fMinimumIonizationGamma);
+    }
     double beta2 = 1.0-1.0/(gamma*gamma);
     double zeta = 0.5*K*GetZA()*thickness*fDensity/beta2;
     double arg = std::log(2.0*me*beta2*gamma*gamma/GetExcitationEnergy());
     arg += std::log(zeta/GetExcitationEnergy());
     arg += jFactor;
     arg -= beta2;
-    arg -= GetDensityCorrection(gamma);
+    // arg -= GetDensityCorrection(gamma);
     return zeta*arg;
+}
+
+double CP::TEnergyLoss::GetMIPGamma() const {
+    FindMIPGamma();
+    return fMinimumIonizationGamma;
+}
+
+void CP::TEnergyLoss::FindMIPGamma() const {
+    if (fMinimumIonizationGamma > 0) return;
+    double mipGamma = 4.0;
+    double delta = 1.0;
+    double mip = GetMostProbable(std::log(mipGamma), 1*unit::mm,false);
+    while (std::abs(delta) > 0.001) {
+        double newMIP = GetMostProbable(std::log(mipGamma+delta),1*unit::mm,
+                                        false);
+        if (newMIP < mip) {
+            mip = newMIP;
+            mipGamma = mipGamma+delta;
+        }
+        else if (delta > 0.0) {
+            delta = -delta;
+        }
+        else {
+            delta = -0.5*delta;
+        }
+    }
+    fMinimumIonizationGamma = mipGamma;
 }
 
 double CP::TEnergyLoss::GetScaleFactor(double kinEnergy, double mass,
@@ -202,27 +238,24 @@ namespace {
     }
 }
 
-double CP::TEnergyLoss::GetDepositPDF(double deposit, double logGamma,
-                                      double thickness) const {
+double CP::TEnergyLoss::GetDepositPDF(double logGamma,
+                                      double thickness,
+                                      double deposit,
+                                      double sigma) const {
     double mpv = GetMostProbable(logGamma,thickness);
     double scale = GetScaleFactor(logGamma,thickness);
     double resolution = GetEnergyResolution(deposit);
-#define CONVOLUTION
-#ifdef CONVOLUTION
+    resolution = resolution*resolution + sigma*sigma;
+    resolution = std::sqrt(resolution);
     return LandauGaussian(deposit, mpv, scale, resolution) + 1E-40;
-#else
-    const double shift  = -0.22278298;       // Landau maximum location
-    double land = TMath::Landau(deposit, mpv+shift*scale, scale, true);
-    double gaus = TMath::Gaus(deposit-mpv, resolution);
-    return 0.999*land + 0.001*gaus + 1E-40;
-#endif
 }
 
-double CP::TEnergyLoss::GetDepositPDF(double deposit, 
-                                      double kinEnergy, double mass,
-                                      double thickness) const {
+double CP::TEnergyLoss::GetDepositPDF(double kinEnergy, double mass,
+                                      double thickness,
+                                      double deposit,
+                                      double sigma) const {
     double logGamma = LogGamma(kinEnergy,mass);
-    return GetDepositPDF(deposit,logGamma,thickness);
+    return GetDepositPDF(logGamma,thickness,deposit,sigma);
 }
     
 double CP::TEnergyLoss::GetBetheBloch(double logGamma) {

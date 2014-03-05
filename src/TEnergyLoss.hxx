@@ -69,11 +69,13 @@ public:
     /// radiators (thickness < ~0.1 gram/cm^2 or about 1 mm in water).  The
     /// most probable value for very thin radiators is slightly overestimated.
     double GetMostProbable(double kinEnergy, double mass, 
-                           double thickness) const;
+                           double thickness,
+                           bool truncated = true) const;
     
     /// Calculate the most probable energy loss when passing through a thick
     /// layer of material. 
-    double GetMostProbable(double logGamma, double thickness) const;
+    double GetMostProbable(double logGamma, double thickness,
+                           bool truncated = true) const;
 
     /// Calculate the scale factor for the energy fluctuations passing through
     /// a material.  This is basically the FWHM/4 of the Landau
@@ -95,16 +97,18 @@ public:
     /// returns the PDF value of observing the deposited energy given a
     /// particle with "kinEnergy" and "mass" passing through a "thickness" of
     /// material.  This takes into account the detector energy resolution.
-    double GetDepositPDF(double deposit, double kinEnergy, double mass, 
-                         double thickness) const;
+    /// The "sigma" is the uncertainty on the measured charge deposit.
+    double GetDepositPDF(double kinEnergy, double mass, double thickness,
+                         double deposit, double sigma) const;
 
     /// Get the PDF value for observing "deposit" energy for a particle.  This
     /// returns the PDF value for observing the deposited energy given a
     /// particle with "logGamma" passing through a "thickness" of material.
     /// This takes into account the detector energy resolution (but the
-    /// resolution convolution is approximate).
-    double GetDepositPDF(double deposit, double logGamma, 
-                         double thickness) const;
+    /// resolution convolution is approximate).  The "sigma" is the
+    /// uncertainty on the measured charge deposit.
+    double GetDepositPDF(double logGamma, double thickness,
+                         double deposit, double sigma) const;
 
     /// Set the cut off energy used in the restricted energy calculation
     void SetCutoffEnergy(double cutoff) {fCutoffEnergy = cutoff;}
@@ -164,7 +168,13 @@ public:
     /// function of the density, and average Z/A.
     double GetPlasmaEnergy() const;
 
+    /// Get the gamma for the minimum ionization.
+    double GetMIPGamma() const;
+
 private:
+    /// Find the gamma corresponding to minimum ionizing.
+    void FindMIPGamma() const;
+
     /// The current material name
     std::string fMaterialName;
 
@@ -189,5 +199,9 @@ private:
     double fConstantTerm;
     double fSqrtTerm;
     double fLinearTerm;
+
+    /// The minimum ionization energy.  This is material dependent.
+    mutable double fMinimumIonizationGamma;
+
 };
 #endif
