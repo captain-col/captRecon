@@ -53,27 +53,20 @@ TVector3 CP::TCluster3D::PositionXY(const CP::THandle<CP::THit>& hit1,
 double CP::TCluster3D::TimeZero(const CP::THitSelection& pmts,
                                 const CP::THitSelection& wires) {
 
-    // The first entry is the weight of the PMT hit.  The second entry is the
-    // time that is used to select the time zero.  The hit with the highest
-    // weight and earliest time is chosen.
-    typedef std::pair<double,double> WeightTime;
-    std::vector<WeightTime> weightTimes;
+    // Order the hit times.
+    std::vector<double> times;
     for (CP::THitSelection::const_iterator p = pmts.begin();
          p != pmts.end(); ++p) {
-        WeightTime tw((*p)->GetCharge(), (*p)->GetTime());
-        for (CP::THitSelection::const_iterator w = wires.begin();
-             w != wires.end(); ++w) {
-            if ((*w)->GetTime() < (*p)->GetTime()) continue;
-            if ((*w)->GetTime() > (*p)->GetTime() + fMaxDrift) continue;
-            tw.first += (*w)->GetCharge();
-        }
-        weightTimes.push_back(tw);
+        times.push_back((*p)->GetTime());
     }
+    std::sort(times.begin(),times.end());
 
-    std::vector<WeightTime>::iterator m 
-        = std::max_element(weightTimes.begin(),weightTimes.end());
-
-    return m->second;
+    // Don't always return the first time so that we can get around possible
+    // noise.
+    if (times.size() > 20) return times[3];
+    if (times.size() > 10) return times[2];
+    if (times.size() > 5) return times[1];
+    return times[0];
 }
 
 CP::TCluster3D::TCluster3D()
@@ -164,8 +157,8 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     }
 
     CP::THandle<CP::THitSelection> pmtHits = pmts.GetHits();
-    if (!pmtHits) {
-        CaptError("No PMT hits provide so time 0 can not be found");
+    if (!pmtHits || pmtHits->size() < 1) {
+        CaptError("No PMT hits provide so time zero cannot be found");
         return CP::THandle<CP::TAlgorithmResult>();
     }
 
