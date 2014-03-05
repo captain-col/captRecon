@@ -121,6 +121,7 @@ CP::TClusterTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     /////////////////////////////////////////////////////////////////////
     double logLikelihood = 0.0;
     double energyDeposit = 0.0;
+    double energyVariance = 0.0;
     for (TReconNodeContainer::iterator n = nodes.begin();
          n != nodes.end(); ++n) {
         // Get the state from the node.  It had better be a trackState!.
@@ -135,7 +136,9 @@ CP::TClusterTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
 
         // Set the track state.
         energyDeposit += cluster->GetEDeposit();
+        energyVariance += cluster->GetEDepositVariance();
         trackState->SetEDeposit(cluster->GetEDeposit());
+        trackState->SetEDepositVariance(cluster->GetEDepositVariance());
         trackState->SetPosition(nodePosition.X(), 
                                 nodePosition.Y(),
                                 nodePosition.Z(),
@@ -167,6 +170,7 @@ CP::TClusterTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
 
     // Set the total energy for the track.
     trackFront->SetEDeposit(energyDeposit);
+    trackFront->SetEDepositVariance(energyVariance);
 
     // Now move the front state upstream to the position of the first hit.
     // Notice that the front state is not at the same location as the first
@@ -202,6 +206,7 @@ CP::TClusterTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     // The back end of the track is assumed to be the stopping point (zero
     // energy).
     trackBack->SetEDeposit(0.0);
+    trackBack->SetEDepositVariance(0.0);
 
     // Now move the back state downstream to the position of the last hit.
     // See the comments for "trackFront".

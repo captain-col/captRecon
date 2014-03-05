@@ -29,6 +29,7 @@ CP::TSegmentTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     // Hold the last cluster seen.
     CP::THandle<CP::TReconCluster> prevCluster;
     double energyDeposit = 0.0;
+    double energyVariance = 0.0;
     for (TReconNodeContainer::iterator n = nodes.begin();
          n != nodes.end(); ++n) {
         // Find the next cluster in the track.
@@ -86,7 +87,9 @@ CP::TSegmentTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
 
         // Set the track state.
         energyDeposit += cluster->GetEDeposit();
+        energyVariance += cluster->GetEDepositVariance();
         trackState->SetEDeposit(cluster->GetEDeposit());
+        trackState->SetEDepositVariance(cluster->GetEDepositVariance());
         trackState->SetPosition(cluster->GetPosition().X(), 
                                 cluster->GetPosition().Y(),
                                 cluster->GetPosition().Z(),
@@ -110,6 +113,7 @@ CP::TSegmentTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     CP::THandle<CP::TTrackState> firstNodeState = nodes.front()->GetState();
     *frontState = *firstNodeState;
     frontState->SetEDeposit(energyDeposit);
+    frontState->SetEDepositVariance(energyVariance);
 
     // Notice that the front state is not at the same location as the first
     // node.  Adjust the position of the front of the track to be at the
@@ -138,6 +142,7 @@ CP::TSegmentTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     CP::THandle<CP::TTrackState> lastNodeState = nodes.back()->GetState();
     *backState = *lastNodeState;
     backState->SetEDeposit(0.0);
+    backState->SetEDepositVariance(0.0);
 
     // Now move the back state downstream to the position of the last hit.
     // See the comments for "frontState".

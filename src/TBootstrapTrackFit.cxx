@@ -264,6 +264,7 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
 
         // Set the values and covariances.
         trackState->SetEDeposit(cluster->GetEDeposit());
+        trackState->SetEDepositVariance(cluster->GetEDepositVariance());
         trackState->SetPosition(ev[BTF::kXPos],ev[BTF::kYPos],ev[BTF::kZPos],
                                 cluster->GetPosition().T());
         trackState->SetDirection(ev[BTF::kXDir],ev[BTF::kYDir],ev[BTF::kZDir]);
@@ -486,10 +487,12 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     }
 
     double energyDeposit = 0.0;
+    double energyVariance = 0.0;
     for (TReconNodeContainer::iterator n = nodes.begin();
          n != nodes.end(); ++n) {
         CP::THandle<CP::TTrackState> state = (*n)->GetState();
         energyDeposit += state->GetEDeposit();
+        energyVariance += state->GetEDepositVariance();
     }
 
     // Set the front state of the track.
@@ -497,6 +500,7 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     CP::THandle<CP::TTrackState> firstNodeState = nodes.front()->GetState();
     *frontState = *firstNodeState;
     frontState->SetEDeposit(energyDeposit);
+    frontState->SetEDepositVariance(energyVariance);
 
     if (!nodes.front()->GetObject()) {
         // Make sure there is an object, and there had *better* be one or
@@ -532,6 +536,7 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     CP::THandle<CP::TTrackState> lastNodeState = nodes.back()->GetState();
     *backState = *lastNodeState;
     backState->SetEDeposit(0.0);
+    backState->SetEDepositVariance(0.0);
 
     if (!nodes.back()->GetObject()) {
         // Make sure there is an object, and there had *better* be one or

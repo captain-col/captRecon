@@ -412,7 +412,7 @@ CP::TLinearRoad::CreateTrackState(CP::THandle<CP::TReconCluster> object,
     
     // Set the EDeposit
     tstate->SetEDeposit(object->GetEDeposit());
-    tstate->SetEDepositVariance(object->GetEDeposit());
+    tstate->SetEDepositVariance(object->GetEDepositVariance());
     
     // Set the value and covariance matrix for the position
     tstate->SetPosition(object->GetPosition());      
