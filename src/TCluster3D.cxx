@@ -2,6 +2,7 @@
 #include "TDriftPosition.hxx"
 #include "CreateCluster.hxx"
 #include "TShareCharge.hxx"
+#include "TRemoveOutliers.hxx"
 
 #include <THandle.hxx>
 #include <TReconHit.hxx>
@@ -460,6 +461,15 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
         }
     }
 
+    CaptNamedLog("Cluster","Number of 3D Hits: " << writableHits.size());
+
+#define REMOVE_OUTLIERS
+#ifdef REMOVE_OUTLIERS
+    CP::TRemoveOutliers outliers;
+
+    outliers.Apply(writableHits);
+#endif
+
 #define SHARE_CLUSTERED_CHARGE
 #ifdef SHARE_CLUSTERED_CHARGE
     // Share the charge among the 3D hits so that the total charge in the
@@ -546,11 +556,12 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     final->push_back(usedCluster);
     result->AddResultsContainer(final);
     
-    CaptLog("Total hit charge " 
+    CaptLog("Total hit charge: " 
             << unit::AsString(usedCluster->GetEDeposit(),"pe")
-            << " " 
+            << " is " 
             << unit::AsString(fEnergyPerCharge*usedCluster->GetEDeposit(),
-                              "energy"));
+                              "energy")
+            << " from " << clustered->size() << " hits");
 
     if (unused->size() > 0) result->AddHits(unused.release());
     if (used->size() > 0) result->AddHits(used.release());
