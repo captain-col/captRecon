@@ -57,6 +57,11 @@ public:
     /// Find the link weights for this measurement.
     void FindLinkWeights();
 
+    /// Eliminate excess links.  This checks for any links that have almost
+    /// zero weight and eliminates them.  When a link is eliminated, the
+    /// measurement group that it links to have the charge set to zero.
+    void EliminateLinks(double weightCut);
+
     /// Dump the measurement
     void Dump(bool dumpLinks = true) const;
 
@@ -302,11 +307,18 @@ public:
     /// been called, the charge in the measurement groups have been updated.
     /// The couple equations are solved using interative relaxation.  The
     /// return value is the change in the last iteration. 
-    double Solve(double tolerance = 1E-5, int iterations = 5000);
+    double Solve(double tolerance = 1E-4, int iterations = 5000);
 
     /// Return the measurement groups.  This is how the result of the charge
     /// sharing is accessed.
     const Groups& GetGroups() const {return fGroups;}
+
+    /// Set the weight cut used to remove links where the weight is
+    /// effectively zero.
+    void SetWeightCut(double w) {fWeightCut = w;}
+
+    /// Get the weight cut.
+    double GetWeightCut() const {return fWeightCut;}
 
 private:
     /// This returns how much the weights have changed during the iteration.
@@ -338,6 +350,10 @@ private:
     /// All of the links between measurements and groups associated with this
     /// object.
     Links fLinks;
+
+    /// The charge fraction below which links are eliminated.  This is used to
+    /// remove links where the weight has effectively gone to zero.
+    double fWeightCut;
 
 };
 

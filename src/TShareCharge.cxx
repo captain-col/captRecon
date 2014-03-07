@@ -79,6 +79,41 @@ double CP::ShareCharge::TMeasurement::UpdateWeights() {
     return change;
 }
 
+void CP::ShareCharge::TMeasurement::EliminateLinks(double weightCut) {
+    // There isn't an overlap.
+    if (GetLinks().size()<2) return;
+
+    // Get the total weight and the minimum weight.
+    double totalWeight = 0;
+    double minWeight = 1000.0;
+    double maxWeight = 0.0;
+    CP::ShareCharge::TLinks::iterator minLink = GetLinks().begin();
+    for (CP::ShareCharge::TLinks::iterator link = GetLinks().begin();
+         link != GetLinks().end(); ++link) {
+        double w = (*link)->GetWeight();
+        if (w<0) w = 0;
+        if (w>0 && w < minWeight) {
+            minLink = link;
+            minWeight = w;
+        }
+        maxWeight = std::max(maxWeight, w);
+        totalWeight += w;
+    }
+
+    double averageWeight = totalWeight/GetLinks().size();
+
+    if (minWeight > weightCut*averageWeight) return;
+
+    // The minimum link needs to be eliminated.  When it's eliminated, the
+    // other links to the TMeasurementGroup have their weights set to zero.
+    for (CP::ShareCharge::TLinks::const_iterator link 
+             = (*minLink)->GetGroup()->GetLinks().begin();
+         link !=  (*minLink)->GetGroup()->GetLinks().end();
+         ++link) {
+        (*link)->SetNewWeight(0.0);
+    }
+}
+
 void CP::ShareCharge::TMeasurement::FindLinkWeights() {
     // This should never happen.
     if (GetLinks().size()<0) return;
@@ -89,20 +124,29 @@ void CP::ShareCharge::TMeasurement::FindLinkWeights() {
         return;
     }
 
-    // Find the total charge in all the clusters, not including this charge
-    // bin.
+    // Find the total charge in all the measurement groups, not including the
+    // charge in this measurement.
     double totalCharge = 0.0;
     for (CP::ShareCharge::TLinks::iterator link = GetLinks().begin();
          link != GetLinks().end(); ++link) {
-        totalCharge += (*link)->GetGroup()->GetUniqueCharge(this);
+        double q = (*link)->GetGroup()->GetUniqueCharge(this);
+        if (q > 0 && (*link)->GetWeight() == 0) {
+            std::cout << "link with zero weight, but in group with charge " 
+                      << std::endl;
+        }
+        totalCharge += q;
     }
-    // Find the new weights for each link in this charge bin.
+    // Find the new weights for each link in this measurement.  The new weight
+    // is the ratio of the unique charge in the measurement group that is
+    // linked to to the total charge.
     for (CP::ShareCharge::TLinks::iterator link = GetLinks().begin();
          link != GetLinks().end(); ++link) {
+        if ((*link)->GetWeight() < 1E-6) {
+            (*link)->SetNewWeight(0.0);
+        }
         if (totalCharge>1E-9) {
             double w = (*link)->GetGroup()->GetUniqueCharge(this);
             (*link)->SetNewWeight(w/totalCharge);
-        
         }
         else {
             (*link)->SetNewWeight(1.0/GetLinks().size());
@@ -180,7 +224,8 @@ void CP::ShareCharge::TLink::Dump() const {
 // TShareCharge
 /////////////////////////////////////////////////////////////////////
     
-CP::TShareCharge::TShareCharge() {}
+CP::TShareCharge::TShareCharge() 
+    : fWeightCut(0.1) {}
 CP::TShareCharge::~TShareCharge() {}
 
 CP::ShareCharge::TMeasurementGroup& 
@@ -241,6 +286,7 @@ void CP::TShareCharge::DumpMeasurements(bool dumpLinks) const {
 }
 
 double CP::TShareCharge::Solve(double tolerance, int iterations) {
+    CaptLog("Share charge with tolerance: " << tolerance);
 
     // Do the relaxation, but limit the total number of iterations.
     double change = 0.0;
@@ -249,10 +295,30 @@ double CP::TShareCharge::Solve(double tolerance, int iterations) {
         if (change < tolerance) break;
     }
 
+    CaptLog("Share charge final change: " << change);
+
     return change;
 }
 
 double CP::TShareCharge::RelaxWeights() {
+    // Make sure the input weights are normalized.
+    for (Measurements::iterator m = fMeasurements.begin();
+         m != fMeasurements.end(); ++m) {
+        m->NormalizeWeights();
+    }
+
+    // Check if any links need to be eliminated.
+    for (Measurements::iterator m = fMeasurements.begin();
+         m != fMeasurements.end(); ++m) {
+        m->EliminateLinks(fWeightCut);
+    }
+    
+    // Update the weights with the changes.
+    for (Measurements::iterator m = fMeasurements.begin();
+         m != fMeasurements.end(); ++m) {
+        m->UpdateWeights();
+    }
+    
     // Make sure the input weights are normalized.
     for (Measurements::iterator m = fMeasurements.begin();
          m != fMeasurements.end(); ++m) {
@@ -272,5 +338,5 @@ double CP::TShareCharge::RelaxWeights() {
         delta += m->UpdateWeights();
     }
     
-    return delta;
+    return delta/fMeasurements.size();
 }
