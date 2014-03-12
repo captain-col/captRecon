@@ -169,7 +169,7 @@ CP::CreateShower(const char* name, iterator begin, iterator end,
     shower->SetName("shower");
     
     CP::THitSelection* showerHits = new CP::THitSelection("showerHits");
-    std::copy(begin, end,std::back_inserter(*showerHits));
+    std::copy(begin, end, std::back_inserter(*showerHits));
     shower->AddHits(showerHits);
     
     CP::THandle<CP::TReconObjectContainer> clusters
