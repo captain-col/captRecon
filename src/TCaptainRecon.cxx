@@ -7,6 +7,7 @@
 #include "TSplitTracks.hxx"
 #include "TMergeTracks.hxx"
 #include "TDisassociateHits.hxx"
+#include "TCombineOverlaps.hxx"
 
 #include "HitUtilities.hxx"
 
@@ -138,6 +139,16 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
             = Run<CP::TDisassociateHits>(*currentResult);
         if (!disassociateHitsResult) break;
         currentResult = disassociateHitsResult;
+        result->AddDatum(currentResult);
+#endif
+
+#define Apply_TCombineOverlaps
+#ifdef Apply_TCombineOverlaps
+        // Cluster the 3D hits by position to find object candidates. 
+        CP::THandle<CP::TAlgorithmResult> combineOverlapsResult
+            = Run<CP::TCombineOverlaps>(*currentResult);
+        if (!combineOverlapsResult) break;
+        currentResult = combineOverlapsResult;
         result->AddDatum(currentResult);
 #endif
 
