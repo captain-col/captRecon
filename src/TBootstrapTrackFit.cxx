@@ -710,6 +710,11 @@ BTF::TMeasurementPDF::ProbabilityGet(const TVector3& expected) const {
         }
     }
     double v = std::exp(-0.5*X2)*fGaussianConstant;
+#define LIMIT_TAILS
+#ifdef LIMIT_TAILS
+    v = std::max(v, 1E-10*fGaussianConstant*std::exp(-std::sqrt(X2)));
+#endif
+
     if (!std::isfinite(v)) {
         CaptError("Invalid probability " << expected 
                   << " " << fPosition
