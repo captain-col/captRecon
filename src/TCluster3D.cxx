@@ -463,10 +463,8 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
 
     CaptNamedLog("Cluster","Number of 3D Hits: " << writableHits.size());
 
-#define REMOVE_OUTLIERS
 #ifdef REMOVE_OUTLIERS
     CP::TRemoveOutliers outliers;
-
     outliers.Apply(writableHits);
 #endif
 
