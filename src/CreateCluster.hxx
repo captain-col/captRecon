@@ -29,20 +29,20 @@ namespace CP {
     template<typename iterator>
     CP::THandle<CP::TReconCluster> 
     CreateCluster(const char* name, iterator begin, iterator end,
-                  bool verify=false) {
+                  bool momentsAsUncertainty = false) {
 
-        if (verify) {
-            for (iterator i = begin; i!=end; ++i) {
-                CP::THandle< CP::THit > h = *i;
-                if (!h) throw CP::EClusterNonHit();
-                iterator j = i;
-                while ((++j) != end) {
-                    if (CP::GetPointer(*i) != CP::GetPointer(*j)) continue;
-                    CaptError("Invalid cluster: multiple copies of object");
-                    throw CP::EClusterRepeatedObject();
-                }
+#ifdef DEBUG_CREATE_CLUSTER
+        for (iterator i = begin; i!=end; ++i) {
+            CP::THandle< CP::THit > h = *i;
+            if (!h) throw CP::EClusterNonHit();
+            iterator j = i;
+            while ((++j) != end) {
+                if (CP::GetPointer(*i) != CP::GetPointer(*j)) continue;
+                CaptError("Invalid cluster: multiple copies of object");
+                throw CP::EClusterRepeatedObject();
             }
         }
+#endif
 
         CaptNamedInfo("CreateCluster", name );
 
@@ -134,21 +134,23 @@ namespace CP {
             << " U: " << unit::AsString(uCharge, 
                                         std::sqrt(uVariance), "charge"));
 
-#ifdef ADJUST_COVARIANCE
-        // Adjust the position covariance...  This is a trial balloon to say
-        // that the position uncertainty is not the weighted average position
-        // of the hits, but the moments of the charge distribution.
-        // Empirically, this seems to not give the right chi-squared values
-        // for track fits.
-        const CP::TReconCluster::MomentMatrix& moments 
-            = cluster->GetMoments();
-        CP::THandle<CP::TClusterState> covState = cluster->GetState();
-        for (int i=0; i<3; ++i) {
-            for (int j=0; j<3; ++j) {
-                covState->SetPositionCovariance(i,j,moments(i,j));
+        if (momentsAsUncertainty) {
+            // Adjust the position covariance to say that the position
+            // uncertainty is not the weighted average position of the hits,
+            // but the moments of the charge distribution.  Empirically, this
+            // seems to not give the right chi-squared values for track fits,
+            // but gives a better estimate in a shower where the clusters are
+            // not done by time sliced.  The default is with
+            // momentsAsUncertainty set to be false.
+            const CP::TReconCluster::MomentMatrix& moments 
+                = cluster->GetMoments();
+            CP::THandle<CP::TClusterState> covState = cluster->GetState();
+            for (int i=0; i<3; ++i) {
+                for (int j=0; j<3; ++j) {
+                    covState->SetPositionCovariance(i,j,moments(i,j));
+                }
             }
         }
-#endif
         
         return cluster;
     }

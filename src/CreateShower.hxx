@@ -80,7 +80,8 @@ CP::CreateShowerClusters(const char* name, iterator begin, iterator end,
     // Sort the hits along the direction of the shower.
     std::sort(hits.begin(), hits.end(), CreateShowerDirCompare(dir));
         
-    // Set the minimum number hits in a cluster.
+    // Set the minimum number hits in a cluster.  A cluster must have at least
+    // this many hits.
     const std::size_t minSize = 5;
     
     // Set the maximum number of hits in a cluster.
@@ -89,7 +90,7 @@ CP::CreateShowerClusters(const char* name, iterator begin, iterator end,
 
     // Set the maximum length of the cluster along the shower direction (after
     // there are minSize hits in the cluster).
-    const double minStep = 20*unit::mm;
+    const double maxStep = 20*unit::mm;
 
     // Create clusters in order of the hits.
     CP::THitSelection::iterator curr = hits.begin();
@@ -109,7 +110,7 @@ CP::CreateShowerClusters(const char* name, iterator begin, iterator end,
             
         // Make sure that the cluster at least the expected cluster step, but
         // limit the number of hits.
-        if (deltaS < minStep && curr-first < maxSize) {
+        if (deltaS < maxStep && curr-first < maxSize) {
             ++curr;
             continue;
         }
@@ -124,7 +125,7 @@ CP::CreateShowerClusters(const char* name, iterator begin, iterator end,
         if (last-curr < minSize) break;
 
         CP::THandle<CP::TReconCluster> cluster
-            = CreateCluster("shower",first,curr);
+            = CreateCluster("shower",first,curr,true);
         output->push_back(cluster);
 
         // Reset first to start looking for a new set of hits.
