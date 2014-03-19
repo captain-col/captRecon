@@ -32,7 +32,7 @@ public:
     /// Calculate the function.
     double DoEval(const double *params) const;
 
-    unsigned int NDim() const {return 2;}
+    unsigned int NDim() const {return 3;}
 
     TMassFitFunction* Clone() const {return new TMassFitFunction(*this);}
 
@@ -46,12 +46,17 @@ public:
     /// than or equal to zero.
     double fStoppingPenalty;
 
-    /// The amount of energy per measured ionization electron.
+    /// The amount of energy per measured ionization electron.  The charge
+    /// conversion is set using the parameter file, but can be overridden once
+    /// the object is created.
     double fEnergyPerCharge;
 
-    /// The amount of deposited energy at this point.  This is set using the
-    /// parameter file, but can be overridden once the object is created.
+    /// The amount of deposited energy at this point.  This is in units of
+    /// ionization electrons.
     std::vector<double> fEnergyDeposit;
+
+    /// The uncertainty on each energy measurement.
+    std::vector<double> fEnergySigma;
 
     /// The length over which the energy is deposited.
     std::vector<double> fLength;
@@ -59,9 +64,9 @@ public:
 };
 
 double CP::MF::TMassFitFunction::DoEval(const double *params) const {
-    double mass = std::exp(params[0]);
+    double mass = params[0];
     double kinOffset = params[1];
-    double energyScale = fEnergyPerCharge; 
+    double energyScale = std::exp(params[2])*fEnergyPerCharge; 
 
     CP::TEnergyLoss energyLoss;
 
@@ -77,9 +82,13 @@ double CP::MF::TMassFitFunction::DoEval(const double *params) const {
 
     double kinEnergy = kinOffset;
     double logLikelihood = 0.0;
+
+    // Add a logarithmic penalty if the particle which should stop has a
+    // offset energy.  If the particle is exiting (or otherwise, doesn't
+    // stop), fStoppingPenalty should be negative.
     if (fStoppingPenalty > 0.0) {
         double v = kinOffset/fStoppingPenalty;
-        logLikelihood += 0.5*v*v;
+        logLikelihood += v;
     }
 
     double sFactor = 0.5;
@@ -93,6 +102,7 @@ double CP::MF::TMassFitFunction::DoEval(const double *params) const {
         for (int i=start; i<stop; ++i) {
             int index = fEnergyDeposit.size() - i - 1;
             double energyDeposit = energyScale*fEnergyDeposit[index];
+            double energySigma = energyScale*fEnergySigma[index];
             double length = fLength[index];
             kinEnergy += sFactor*energyDeposit;
 #ifdef PRINTIT
@@ -102,16 +112,20 @@ double CP::MF::TMassFitFunction::DoEval(const double *params) const {
                                                              length);
             std::cout << "   " << index
                       << " " << kinEnergy
+                      << " " << kinOffset
                       << " " << energyDeposit 
                       << " " << mostProbable 
                       << " " << energyDeposit/length
+                      << " " << mostProbable/length
+                      << " " << energySigma 
                       << std::endl;
 #endif
             double likelihood 
-                = energyLoss.GetDepositPDF(energyDeposit,
-                                           kinEnergy,
+                = energyLoss.GetDepositPDF(kinEnergy,
                                            mass,
-                                           length);
+                                           length,
+                                           energyDeposit,
+                                           energySigma);
             logLikelihood -= std::log(likelihood);
             kinEnergy += (1.0-sFactor)*energyDeposit;
         }
@@ -126,6 +140,7 @@ double CP::MF::TMassFitFunction::DoEval(const double *params) const {
         for (int i=start; i<stop; ++i) {
             int index = i;
             double energyDeposit = energyScale*fEnergyDeposit[index];
+            double energySigma = energyScale*fEnergySigma[index];
             double length = fLength[index];
             kinEnergy += sFactor*energyDeposit;
 #ifdef PRINTIT
@@ -135,26 +150,49 @@ double CP::MF::TMassFitFunction::DoEval(const double *params) const {
                                                              length);
             std::cout << "   " << index
                       << " " << kinEnergy
+                      << " " << kinOffset
                       << " " << energyDeposit 
+                      << " " << energySigma 
                       << " " << mostProbable 
                       << " " << energyDeposit/length
                       << std::endl;
 #endif
             double likelihood 
-                = energyLoss.GetDepositPDF(energyDeposit, 
-                                           kinEnergy,
+                = energyLoss.GetDepositPDF(kinEnergy,
                                            mass,
-                                           length);
+                                           length,
+                                           energyDeposit,
+                                           energySigma);
             logLikelihood -= std::log(likelihood);
             kinEnergy += (1.0-sFactor)*energyDeposit;
         }
     }
 
+    // Add a penalty if the offset gets too large.  This prevents particles
+    // from climbing the Landau plateau.
+    double mGam = energyLoss.GetMIPGamma();
+    double r = kinOffset/mass;
+    if (r > (mGam-1.0)) {
+        double v = (kinOffset-(mGam-1.0)*mass);
+        logLikelihood += 0.5*v*v;
+    }
+
+    // If the offset approaches MIP, the penalize the likelihood if the mass
+    // is bigger that a muon.
+    double penalty = (std::max(mass,105.0)-105.0)*r/(mGam-1);
+    logLikelihood += penalty*penalty;
+
+    penalty = params[2]/0.05;
+    logLikelihood += penalty*penalty;
+
 #ifdef PRINTIT
 #undef PRINTIT
-    std::cout << "kinEnergy: " << kinEnergy/unit::MeV 
-              << "  mass: " << mass
-              << "  logL: " << logLikelihood << std::endl;
+    std::cout << "logL: " << logLikelihood
+              << " kinEnergy: " << kinEnergy/unit::MeV 
+              << " mass: " << mass/unit::MeV
+              << " offset: " << kinOffset/unit::MeV 
+              << " scale: " << std::exp(params[2])
+              << std::endl;
 #endif
 
     return logLikelihood;
@@ -164,13 +202,30 @@ double CP::MF::TMassFitFunction::DoEval(const double *params) const {
 CP::TTrackMassFit::TTrackMassFit() {}
 CP::TTrackMassFit::~TTrackMassFit() {}
 
+namespace {
+    void RunRootMinimizer(ROOT::Math::Minimizer& rootMinimizer,
+                          double startMass, double startOffset,
+                          double startScale) {
+
+        rootMinimizer.SetLimitedVariable(0, "mass", startMass, 0.1,
+                                         0.95*startMass, 1000.0*unit::MeV);
+
+        rootMinimizer.SetLowerLimitedVariable(1, "kinOffset", startOffset, 0.1,
+                                              -5.0*unit::MeV);
+        
+        rootMinimizer.SetVariable(2,"log(EScale)", std::log(startScale), 0.1);
+
+        rootMinimizer.Minimize();
+    }
+}
+
 CP::THandle<CP::TReconTrack> 
 CP::TTrackMassFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     TReconNodeContainer& nodes = input->GetNodes();
     
     if (nodes.size() < 4) {
         CaptError("Not enough nodes to fit.");
-        return input;
+        return CP::THandle<CP::TReconTrack>();
     }
 
     /// Create the minimizer.
@@ -208,6 +263,7 @@ CP::TTrackMassFit::Apply(CP::THandle<CP::TReconTrack>& input) {
             nextPos = nextState->GetPosition().Vect();
         }
         double energy = state->GetEDeposit();
+        double energySigma = std::sqrt(state->GetEDepositVariance());
         double length1 = (nextPos - prevPos).Mag();
         double length2 = 2.0*object->GetLongExtent();
         double length = std::min(length1,length2);
@@ -217,51 +273,64 @@ CP::TTrackMassFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         std::cout << object->GetUniqueID()
                   << " " << 34.1*unit::eV*totalEnergy
                   << " " << 34.1*unit::eV*energy 
+                  << " " << 34.1*unit::eV*energySigma
                   << " " << length
                   << " " << 34.1*unit::eV*unit::cm*energy/length << std::endl;
 #endif
         fitFunction.fEnergyDeposit.push_back(energy);
+        fitFunction.fEnergySigma.push_back(energySigma);
         fitFunction.fLength.push_back(length);
     }
 
+    // Define the starting point of the fit.
+    double startMass = 105.0*unit::MeV;
+    double startOffset = 1.0*unit::MeV;
+    double startScale = 1.0;
+
     fitFunction.fForwardFit = true;
-    rootMinimizer->SetVariable(0,"log(Mass)", std::log(105.0*unit::MeV), 0.1);
-    rootMinimizer->SetVariable(1,"kinOffset", 0.0*unit::MeV, 10*unit::MeV);
-    rootMinimizer->Minimize();
+    fitFunction.fStoppingPenalty = 3.0;
+    RunRootMinimizer(*rootMinimizer, startMass,startOffset,startScale);
+
     double forwardMin = rootMinimizer->MinValue();
-    double forwardMass = std::exp(rootMinimizer->X()[0]);
+    // if (rootMinimizer->Status() != 0) forwardMin = 1E+200;
+    double forwardMass = rootMinimizer->X()[0];
     double forwardMassSigma = rootMinimizer->Errors()[0];
-    double forwardOffset = std::abs(rootMinimizer->X()[1]);
-
+    double forwardOffset = rootMinimizer->X()[1];
+    double forwardScale = std::exp(rootMinimizer->X()[2]);
+  
     CaptNamedInfo("TTrackMassFit", 
-                 "forward UID: " << input->GetUniqueID()
-                 << " size: " << nodes.size()
-                 << " L: " << forwardMin
-                 << " M: " << forwardMass
-                 << " E: " << forwardOffset);
-
-    fitFunction.fForwardFit = false;
-    rootMinimizer->SetVariable(0,"log(Mass)", std::log(105.0*unit::MeV), 0.1);
-    rootMinimizer->SetVariable(1,"kinOffset", 0.0*unit::MeV, 10*unit::MeV);
-    rootMinimizer->Minimize();
-    double backwardMin = rootMinimizer->MinValue();
-    double backwardMass = std::exp(rootMinimizer->X()[0]);
-    double backwardMassSigma = rootMinimizer->Errors()[0];
-    double backwardOffset = std::abs(rootMinimizer->X()[1]);
-
-    CaptNamedInfo("TTrackMassFit", 
-                 "backward UID: " << input->GetUniqueID()
-                 << " size: " << nodes.size()
-                 << " L: " << backwardMin
-                 << " M: " << backwardMass
-                 << " E: " << backwardOffset);
+                  "forward UID: " << input->GetUniqueID()
+                  << " size: " << nodes.size()
+                  << " L: " << forwardMin
+                  << " M: " << forwardMass
+                  << " E: " << forwardOffset
+                  << " S: " << forwardScale);
 
     double bestValue = forwardMin;
     int bestDirection = 1;
     double bestMass = forwardMass;
     double bestMassSigma = forwardMassSigma;
     double bestOffset = forwardOffset;
-    
+    double bestScale = forwardScale;
+
+    fitFunction.fForwardFit = false;
+    fitFunction.fStoppingPenalty = 3.0;
+    RunRootMinimizer(*rootMinimizer, startMass,startOffset,startScale);
+
+    double backwardMin = rootMinimizer->MinValue();
+    // if (rootMinimizer->Status() != 0) backwardMin = 1E+200;
+    double backwardMass = rootMinimizer->X()[0];
+    double backwardMassSigma = rootMinimizer->Errors()[0];
+    double backwardOffset = rootMinimizer->X()[1];
+    double backwardScale = std::exp(rootMinimizer->X()[2]);
+    CaptNamedInfo("TTrackMassFit", 
+                  "backward UID: " << input->GetUniqueID()
+                  << " size: " << nodes.size()
+                  << " L: " << backwardMin
+                  << " M: " << backwardMass
+                  << " E: " << backwardOffset
+                  << " S: " << backwardScale);
+
     // Find the best fit to the mass.
     if (bestValue > backwardMin) {
         bestValue = backwardMin;
@@ -269,6 +338,7 @@ CP::TTrackMassFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         bestMass = backwardMass;
         bestMassSigma = backwardMassSigma;
         bestOffset = backwardOffset;
+        bestScale = backwardScale;
     }
 
     if (!(bestMassSigma > 0.01)) bestMassSigma = 0.01;
@@ -278,9 +348,12 @@ CP::TTrackMassFit::Apply(CP::THandle<CP::TReconTrack>& input) {
                  << " size: " << nodes.size()
                  << " L: " << bestValue
                  << " D: " << bestDirection
-                 << " M: " << bestMass
-                 << " S: " << bestMassSigma
-                 << " E: " << bestOffset);
+                 << " M: " << bestMass << " +/- " << bestMassSigma
+
+                 << " E: " << bestOffset
+                 << " S: " << bestScale);
+
+    if (bestValue > 1E+100) return CP::THandle<CP::TReconTrack>();
 
     // Set the track node values.
     CP::THandle<CP::TTrackState> state = input->GetFront();
