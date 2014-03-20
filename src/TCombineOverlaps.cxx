@@ -1,6 +1,8 @@
 #include "TCombineOverlaps.hxx"
 #include "CreateCluster.hxx"
 #include "CreateShower.hxx"
+#include "CreateTrack.hxx"
+#include "TTrackFit.hxx"
 
 #include <THandle.hxx>
 #include <TReconTrack.hxx>
@@ -29,7 +31,7 @@ typedef struct {
 CP::TCombineOverlaps::TCombineOverlaps()
     : TAlgorithm("TCombineOverlaps", 
                  "Combine overlapping objects") {
-    fOverlapCut = 0.9;
+    fOverlapCut = 0.5;
 }
 
 CP::TCombineOverlaps::~TCombineOverlaps() { }
@@ -99,7 +101,7 @@ CP::TCombineOverlaps::MergeObjects(CP::THandle<CP::TReconBase> object1,
     end = object2->GetHits()->end();
     while (begin != end) objectHits.insert(*(begin++));
 
-    // Create a shower from the combined hits.
+    // Create an object from the combined hits.
     CP::THandle<CP::TReconCluster> cluster 
         = CreateCluster("cluster", objectHits.begin(), objectHits.end());
 
@@ -108,12 +110,12 @@ CP::TCombineOverlaps::MergeObjects(CP::THandle<CP::TReconBase> object1,
         return cluster;
     }
 
-    CP::THandle<CP::TReconShower> merged
-        = CreateShower("shower", objectHits.begin(), objectHits.end(),
-                       cluster->GetLongAxis());
-
+    CP::THandle<CP::TReconTrack> merged
+        = CreateTrack("TCombineOverlaps", objectHits.begin(), objectHits.end(),
+                      cluster->GetLongAxis());
+    
     if (!merged) {
-        CaptError("No shower constructed");
+        CaptError("No combined object constructed");
         return cluster;
     }
 
@@ -147,19 +149,17 @@ CP::TCombineOverlaps::Process(const CP::TAlgorithmResult& input,
     typedef std::list< CP::THandle<CP::TReconBase> > ObjectList;
     ObjectList objectList;
 
-    // Make a copy of all of the tracks in the input objects, and save the
-    // non-tracks to the output.
+    // Make a copy of all the input objects to a list to be manipulated.
     std::copy(inputObjects->begin(), inputObjects->end(),
               std::back_inserter(objectList));
 
-
-    // Pop a track off the stack and see if it should be merged.  If the track
+    // Pop an object off the stack and see if it should be merged.  If the track
     // is merged, the result is pushed back on the stack.  If it doesn't get
     // merge, the track get's pushed into the final object container.
     while (!objectList.empty()) {
         CP::THandle<CP::TReconBase> object1 = objectList.front();
         objectList.pop_front();
-        CaptNamedInfo("Combine",
+        CaptNamedVerbose("Combine",
                       "Stack Size: " << objectList.size()
                       << "    Object size: " << object1->GetNodes().size()
                       << "    UID: " << object1->GetUniqueID());
@@ -168,15 +168,15 @@ CP::TCombineOverlaps::Process(const CP::TAlgorithmResult& input,
              t!=objectList.end(); ++t) {
             CP::THandle<CP::TReconBase> object2 = *t;
             
-            CaptNamedVerbose("Combine", "Check Objects"
-                          << " w/ stack: " << objectList.size() 
-                          << "  objects: " << object1->GetUniqueID()
-                          << ", " << object2->GetUniqueID()
-                          << "  sizes: " 
-                          << object1->GetHits()->size() 
-                          << ", " << object2->GetHits()->size());
-
             double match = CheckOverlap(object1,object2);
+
+            CaptNamedInfo("Combine", "Object overlap " << match 
+                          << " w/ objects: " 
+                          << object1->GetUniqueID()
+                          << " ("  << object1->GetHits()->size() << " hits)"
+                          << ", " << object2->GetUniqueID()
+                          << "  (" << object2->GetHits()->size() << " hits)");
+
             if (match < fOverlapCut) continue;
 
             ///////////////////////////////////////////////////////
@@ -213,10 +213,21 @@ CP::TCombineOverlaps::Process(const CP::TAlgorithmResult& input,
         }
 
         // If we get to the bottom of the loop looking for a pair of objects
-        // to merge with an unmerged object, then push it on to the final
-        // objects.
+        // to merge then there is nothing to merge with this object.  Push it
+        // on to the final objects.
         if (object1) {
-            CaptNamedInfo("Combine", "Save Object");
+            CaptNamedLog("Combine", "Save Object");
+
+            // Check if this is a track and it should be fit.
+            CP::THandle<CP::TReconTrack> track = object1;
+            if (track) {
+                if (!track->CheckStatus(CP::TReconBase::kSuccess)) {
+                    CaptNamedLog("Combined", "Fit track");
+                    TTrackFit fitter;
+                    object1 = fitter(track);
+                }
+            }
+
             final->push_back(object1);
         }
 
