@@ -168,6 +168,7 @@ CP::TSegmentTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     // Finish up the fit information...
     int trackDOF = 3*nodes.size() - 6;
     input->SetStatus(TReconBase::kSuccess);
+    input->SetStatus(TReconBase::kRan);
     input->SetAlgorithmName("TSegmentTrackFit");
     input->SetQuality(0.0);
     input->SetNDOF(trackDOF);

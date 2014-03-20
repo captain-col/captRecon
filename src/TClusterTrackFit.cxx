@@ -235,6 +235,7 @@ CP::TClusterTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
 
     int trackDOF = 3*nodes.size() - 6;
     input->SetStatus(TReconBase::kSuccess);
+    input->SetStatus(TReconBase::kRan);
     input->SetAlgorithmName("TClusterTrackFit");
     input->SetQuality(logLikelihood);
     input->SetNDOF(trackDOF);

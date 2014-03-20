@@ -568,6 +568,8 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
 
     int trackDOF = 3*nodes.size() - 6;
     input->SetStatus(TReconBase::kSuccess);
+    input->SetStatus(TReconBase::kRan);
+    input->SetStatus(TReconBase::kStocasticFit);
     input->SetAlgorithmName("TBootstrapTrackFit");
     input->SetQuality(-logLikelihood);
     input->SetNDOF(trackDOF);
