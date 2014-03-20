@@ -96,7 +96,7 @@ CP::TDisassociateHits::Process(const CP::TAlgorithmResult& input,
     // Find the big clusters.
     ClusterAlgorithm bigClusters(10,20*unit::mm);
     bigClusters.Cluster(hits.begin(), hits.end());
-
+    
     int nClusters = bigClusters.GetClusterCount();
     CaptNamedLog("TDisassociateHits",
                  "With " << nClusters << " big clusters"
@@ -110,34 +110,37 @@ CP::TDisassociateHits::Process(const CP::TAlgorithmResult& input,
     }
     
     // Find the medium clusters.
-    ClusterAlgorithm smallClusters(5,8*unit::mm);
-    smallClusters.Cluster(bigClusters.GetCluster(nClusters).begin(), 
-                        bigClusters.GetCluster(nClusters).end());
-
-    nClusters = smallClusters.GetClusterCount();
+    ClusterAlgorithm mediumClusters(5,8*unit::mm);
+    mediumClusters.Cluster(bigClusters.GetCluster(nClusters).begin(), 
+                           bigClusters.GetCluster(nClusters).end());
+    
+    nClusters = mediumClusters.GetClusterCount();
     CaptNamedLog("TDisassociateHits",
                  "With " << nClusters << " medium clusters"
-                 << " from " << hits.size() << " hits");
+                 << " from " << bigClusters.GetCluster(nClusters).size() 
+                 << " hits");
+    
     for (int i=0; i<nClusters; ++i) {
         const ClusterAlgorithm::Points& points 
-            = smallClusters.GetCluster(i);
+            = mediumClusters.GetCluster(i);
         CP::THandle<CP::TReconCluster> cluster
             = CreateCluster("cluster",points.begin(),points.end());
         small->push_back(cluster);
     }
     
-    // Find the smaller clusters.
-    ClusterAlgorithm smallerClusters(1,8*unit::mm);
-    smallerClusters.Cluster(smallClusters.GetCluster(nClusters).begin(), 
-                        smallClusters.GetCluster(nClusters).end());
-
-    nClusters = smallerClusters.GetClusterCount();
+    // Find the small clusters.
+    ClusterAlgorithm smallClusters(1,8*unit::mm);
+    smallClusters.Cluster(mediumClusters.GetCluster(nClusters).begin(), 
+                            mediumClusters.GetCluster(nClusters).end());
+    
+    nClusters = smallClusters.GetClusterCount();
     CaptNamedLog("TDisassociateHits",
-                 "With " << nClusters << " smaller clusters"
-                 << " from " << hits.size() << " hits");
+                 "With " << nClusters << " small clusters"
+                 << " from " << mediumClusters.GetCluster(nClusters).size() 
+                 << " hits");
     for (int i=0; i<nClusters; ++i) {
         const ClusterAlgorithm::Points& points 
-            = smallerClusters.GetCluster(i);
+            = smallClusters.GetCluster(i);
         CP::THandle<CP::TReconCluster> cluster
             = CreateCluster("cluster",points.begin(),points.end());
         small->push_back(cluster);
