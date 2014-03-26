@@ -55,7 +55,14 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
     hits->reserve(inputHits->size());
     std::copy(inputHits->begin(), inputHits->end(), std::back_inserter(*hits));
     std::sort(hits->begin(), hits->end(), HitZSort());
-    
+
+    for (CP::THitSelection::iterator h = hits->begin();
+         h != hits->end(); ++h) {
+        if (!std::isfinite((*h)->GetPosition().Z())) {
+            throw CP::EReconInvalidHit();
+        }
+    }
+             
     // Distance between first and last point.
     double deltaZ = std::abs(hits->front()->GetPosition().Z() 
                              - hits->back()->GetPosition().Z());
