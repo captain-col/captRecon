@@ -24,7 +24,7 @@ document doxygen doxygen -group=documentation *.cxx *.hxx ../doc/*.dox
 
 # Build information used by packages that use this one.
 macro captRecon_cppflags " -DCAPTRECON_USED "
-macro captRecon_linkopts " -L$(CAPTRECONROOT)/$(captRecon_tag) "
+macro captRecon_linkopts " -L$(CAPTRECONROOT)/$(captRecon_tag) $(Boost_linkopts) "
 macro_append captRecon_linkopts " -lcaptRecon "
 macro captRecon_stamps " $(captReconstamp) $(linkdefstamp) "
 
