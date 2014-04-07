@@ -194,7 +194,10 @@ void CP::TPositionDensityCluster<PositionHandle>::Cluster(
                               (*handle)->GetPosition().Z());
     }
     fColorMap.resize(index);
-    std::fill(fColorMap.begin(), fColorMap.end(), kWhite);
+    for (std::vector<int>::iterator c = fColorMap.begin();
+         c != fColorMap.end(); ++c) {
+        *c = kWhite;
+    }
 
     CaptNamedDebug("cluster", "Input points: " << index);
 
