@@ -5,6 +5,7 @@
 
 #include <set>
 #include <cmath>
+#include <cstdlib>
 
 CP::TRemoveOutliers::TRemoveOutliers(int maxSize, double small, double big) 
     : fMaxOutlierSize(maxSize), 
