@@ -130,9 +130,8 @@ void CP::ShareCharge::TMeasurement::FindLinkWeights() {
     for (CP::ShareCharge::TLinks::iterator link = GetLinks().begin();
          link != GetLinks().end(); ++link) {
         double q = (*link)->GetGroup()->GetUniqueCharge(this);
-        if (q > 0 && (*link)->GetWeight() == 0) {
-            std::cout << "link with zero weight, but in group with charge " 
-                      << std::endl;
+        if (q > 0 && (*link)->GetWeight() <= 0) {
+            CaptSevere("Zero weight link in group with charge ");
         }
         totalCharge += q;
     }
