@@ -167,6 +167,15 @@ template <typename T, typename MetricModel>
 /// // or
 /// scaledCluster.Cluster(positionVector);
 /// \endcode
+///
+/// Copyright (c) 2008-2015 by Le Phuoc Trung and Clark McGrew
+///
+/// Usage of the works is permitted provided that this instrument is retained
+/// with the works, so that any entity that uses the works is notified of this
+/// instrument.
+///
+/// DISCLAIMER: THE WORKS ARE WITHOUT WARRANTY.
+///
 class TTmplDensityCluster {
 public:
     /// A collection of points for use in clustering.  A Points collection is
