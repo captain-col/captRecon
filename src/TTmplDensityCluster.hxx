@@ -21,11 +21,28 @@ namespace CP {
 
 template <typename T, typename MetricModel>
 /// For a detailed description of the density-based clustering, Google keyword:
-/// density-based clustering.
+/// density-based clustering, or DBSCAN.  The first template argument provides
+/// the class type for the elements that will be clustered, and the second
+/// provides is a functor which calculates a distance metric between two
+/// elements.  
 ///
-/// A template class that performs density-based clustering using the DBSCAN
-/// algorithm with a customized metric. Users have to define a class that
-/// calculates the 'distance' between two points. For example, a template
+/// Algorithm Reference
+/// @INPROCEEDINGS{Ester96:dbscan,
+///     author = {Martin Ester and Hans-peter Kriegel and Jörg S
+///               and Xiaowei Xu},
+///     title = {A density-based algorithm for discovering clusters in
+///              large spatial databases with noise},
+///     booktitle = {},
+///     year = {1996},
+///     pages = {226--231},
+///     publisher = {AAAI Press}
+/// }
+///
+/// T2K-ND280 Implementation (this template): Le Phuoc Trung, Clark McGrew 
+///
+/// Example: A template class that performs density-based clustering using the
+/// DBSCAN algorithm with a customized metric. Users have to define a class
+/// that calculates the 'distance' between two points. For example, a template
 /// class for clustering hits using time information:
 /// \code
 /// template<typename T>
@@ -36,8 +53,9 @@ template <typename T, typename MetricModel>
 ///    }
 /// };
 /// \endcode
-/// Template class for clustering hits using position the distance in the X/Y
-/// plane is:  
+/// 
+/// Example: Template class for clustering hits using position the distance in
+/// the P0D X/Y plane is:
 /// \code
 /// template<typename T>
 /// class SpatialDistance {
@@ -77,9 +95,9 @@ template <typename T, typename MetricModel>
 ///    ycluster->Cluster(yHits);
 /// \endcode
 ///
-/// If you know the exact type that will be passed to the MetricModel, your
-/// metric model class doesn't need to be a template.  For instance, if you
-/// want to cluster a vector of times that is defined as
+/// Example: If you know the exact type that will be passed to the
+/// MetricModel, your metric model class doesn't need to be a template.  For
+/// instance, if you want to cluster a vector of times that is defined as
 /// \code
 /// std::vector<double> timeVector
 /// \endcode
@@ -114,10 +132,10 @@ template <typename T, typename MetricModel>
 /// timeCluster.Cluster(timeVector.begin(), timeVector.end());
 /// \endcode
 ///
-/// Sometimes you will have a metric model that takes arguments in the
-/// constructor.  An example of this might be a clustering where the X, Y and
-/// Z dimensions are included in the metric using different scale factors such
-/// as 
+/// Example: Sometimes you will have a metric model that takes arguments in
+/// the constructor.  An example of this might be a clustering where the X, Y
+/// and Z dimensions are included in the metric using different scale factors
+/// such as 
 /// \code
 /// class ScaledMetric {
 /// private:
@@ -138,7 +156,6 @@ template <typename T, typename MetricModel>
 /// \endcode
 ///
 /// In this case, the clustering class can be used as follows:
-///
 /// \code
 /// std::vector<TVector3> positionVector;
 ///
@@ -309,7 +326,6 @@ void TTmplDensityCluster<T, MetricModel>::Cluster(InputIterator begin,
     // seed isn't found.
     while (!fRemainingPoints.empty()) {
         FindSeeds(fRemainingPoints,seeds);
-        CaptNamedLog("cluster", "Seeds found " << seeds.size());
         if (seeds.size() < fMinPoints) break;
 
         // Remove the seeds from the remaining points.
@@ -330,12 +346,9 @@ void TTmplDensityCluster<T, MetricModel>::Cluster(InputIterator begin,
             if (i < fMinPoints) continue;
             std::copy(tmp.begin(),tmp.end(),std::back_inserter(seeds));
             std::copy(tmp.begin(),tmp.end(),std::back_inserter(cluster));
-            CaptNamedLog("cluster","Seed: " << seeds.size()
-                             << " cluster: " << cluster.size());
             RemoveSeeds(fRemainingPoints,tmp);
         }
 
-        CaptNamedLog("cluster","Cluster Found: " << cluster.size());
         fClusters.push_back(cluster);
     }
 
@@ -438,4 +451,3 @@ TTmplDensityCluster<T, MetricModel>::GetPoints(unsigned int index) const {
 
 };
 #endif
-
