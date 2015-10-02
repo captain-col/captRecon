@@ -47,7 +47,7 @@ namespace CP {
 template<typename hitIterator>
 CP::THandle<CP::TReconCluster> 
 CP::CreateCluster(const char* name, hitIterator begin, hitIterator end,
-                  bool recalculateUncertainty = false) {
+                  bool recalculateUncertainty) {
     
 #ifdef DEBUG_CREATE_CLUSTER
     for (hitIterator i = begin; i!=end; ++i) {
@@ -172,5 +172,4 @@ CP::CreateCluster(const char* name, hitIterator begin, hitIterator end,
         
     return cluster;
 }
-
 #endif

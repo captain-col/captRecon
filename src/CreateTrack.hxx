@@ -50,7 +50,7 @@ namespace CP {
 template<typename clusterIterator>
 CP::THandle<CP::TReconTrack> 
 CP::CreateTrack(const char* name, clusterIterator begin, clusterIterator end,
-                bool verify=true) {
+                bool verify) {
 
     if (verify) {
         for (clusterIterator i = begin; i!=end; ++i) {
