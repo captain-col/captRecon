@@ -5,8 +5,6 @@
 // #define private public
 // #define protected public
 #include <TIterativeNeighbors.hxx>
-#undef private
-#undef protected
 
 #include <TCaptLog.hxx>
 
@@ -74,18 +72,20 @@ namespace tut {
     template<> template<> void testNeighbors::test<3> () {
         typedef CP::TIterativeNeighbors<TVector3> Neighbors;
         Neighbors neighbors;
-
+        
         int numberOfValues = 5;
-
+        std::vector<TVector3> points;
+        
         double sign = -1;
         for (int i=0; i<numberOfValues; ++i) {
             sign = -1.0*sign;
-            TVector3 vec(0.5*i,sign,0.0);
+            TVector3 vec(0.5*i,sign,sign*2*i);
             neighbors.AddPoint(vec,vec.X(), vec.Y(), vec.Z());
+            points.push_back(vec);
         }
 
-        Neighbors::value_iterator value = neighbors.begin_values();
-        Neighbors::value_iterator end_value = neighbors.end_values();
+        std::vector<TVector3>::iterator value = points.begin();
+        std::vector<TVector3>::iterator end_value = points.end();
         while (value != end_value) {
             Neighbors::iterator neighbor = neighbors.begin(value->X(), 
                                                            value->Y(),
@@ -107,6 +107,7 @@ namespace tut {
             ensure_equals("Same number of neighbors as values",
                           count, numberOfValues);
             ++value;
+            break;
         }
     }
 
