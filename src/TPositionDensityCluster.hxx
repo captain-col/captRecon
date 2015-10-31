@@ -23,9 +23,9 @@ namespace CP {
 ///    const double maxDist = 20*unit::cm;
 ///    const unsigned int minPoints = 4;
 ///    
-///    std::auto_ptr<TPositionDensityCluster<CP::THandle<CP::THit> >
+///    std::unique_ptr<TPositionDensityCluster<CP::THandle<CP::THit> >
 ///        xcluster(new TPositionDensityCluster(minPoints, maxDist));
-///    xcluster->Cluster(xHits);
+///    xcluster->Cluster(xHits.begin(), xHits.end());
 /// \endcode
 ///
 /// For a detailed description of the density-based clustering, Google
@@ -46,20 +46,6 @@ public:
     /// A collection of points for use in clustering.  A Points collection is
     /// returned by GetCluster().
     typedef std::list<PositionHandle> Points;
-
-    /// A type to be used with the neighbor position clustering.  The first
-    /// element is a "color" for the entry, and the second is the handle that
-    /// gets returned to the caller.
-    struct NeighborEntry {
-        NeighborEntry(): fColorIndex(-1) {}
-        NeighborEntry(int c,const PositionHandle& h) 
-            : fColorIndex(c), fHandle(h) {}
-        int fColorIndex;
-        PositionHandle fHandle;
-    };
-
-    /// The k-d tree neighbors.
-    typedef typename CP::TIterativeNeighbors<NeighborEntry> Neighbors;
 
     /// Create a density clustering class that requires at least minPts within
     /// a distance of maxDist.  The distance is the cartesion distance between
@@ -86,6 +72,23 @@ public:
     }
     
 protected:
+
+    /// A type to be used with the neighbor position clustering.  The first
+    /// element is a "color" for the entry, and the second is the handle that
+    /// gets returned to the caller.
+    struct NeighborEntry {
+        NeighborEntry(): fColorIndex(-1) {}
+        NeighborEntry(int c,const PositionHandle& h) 
+            : fColorIndex(c), fHandle(h) {
+            CaptNamedDebug("cluster", "add neighborEntry: " << c
+                           << " " << h);
+        }
+        int fColorIndex;
+        PositionHandle fHandle;
+    };
+
+    /// The k-d tree neighbors.
+    typedef typename CP::TIterativeNeighbors<NeighborEntry> Neighbors;
 
     /// Find the set of points with highest density in input.  If the density
     /// is greater that fMinPoints, then return the set of points in output.
@@ -130,6 +133,12 @@ private:
     /// The clusters that have been found.
     std::vector<Points> fClusters;
 
+    /// The entries that are in the tree.  The neighbor tree has a way to
+    /// iterate over the values, but the iterators are invalidated by the call
+    /// to the begin(x,y,z) method.  This vector provides a "safe" way to
+    /// iterate.
+    std::vector<NeighborEntry> fEntries;
+
     /// The objects that didn't make it into a cluster.
     Points fRemaining;
 
@@ -157,8 +166,8 @@ private:
 
 template <class PositionHandle>
 CP::TPositionDensityCluster<PositionHandle>::TPositionDensityCluster(
-    std::size_t MinPts, double maxDist) 
-    : fMinPoints(MinPts), fMaxDist(maxDist) { }
+    std::size_t MinPts, double maxDist)  
+   : fMinPoints(MinPts), fMaxDist(maxDist) { }
 
 template <class PositionHandle>
 void CP::TPositionDensityCluster<PositionHandle>::MakeGreyBlack() {
@@ -180,7 +189,7 @@ template <class PositionHandle>
 template <class InputIterator>
 void CP::TPositionDensityCluster<PositionHandle>::Cluster(
     InputIterator begin, InputIterator end) {
-    
+
     // Clear out the  internal data structures.
     fClusters.clear();
 
@@ -188,10 +197,11 @@ void CP::TPositionDensityCluster<PositionHandle>::Cluster(
     Neighbors neighborTree;
     int index = 0;
     for (InputIterator handle = begin; handle != end; ++handle) {
-        neighborTree.AddPoint(NeighborEntry(index++,*handle),
-                              (*handle)->GetPosition().X(),
-                              (*handle)->GetPosition().Y(),
-                              (*handle)->GetPosition().Z());
+        fEntries.push_back(NeighborEntry(index++,*handle));
+        neighborTree.AddPoint(fEntries.back(),
+                              fEntries.back().fHandle->GetPosition().X(),
+                              fEntries.back().fHandle->GetPosition().Y(),
+                              fEntries.back().fHandle->GetPosition().Z());
     }
     fColorMap.resize(index);
     for (std::vector<int>::iterator c = fColorMap.begin();
@@ -199,7 +209,8 @@ void CP::TPositionDensityCluster<PositionHandle>::Cluster(
         *c = kWhite;
     }
 
-    CaptNamedDebug("cluster", "Input points: " << index);
+    CaptNamedDebug("cluster", "Input points: " << index
+                   << " fColorMap " << fColorMap.size());
 
     // Now continue removing points until there aren't any more points, or a
     // seed isn't found.
@@ -244,8 +255,8 @@ void CP::TPositionDensityCluster<PositionHandle>::Cluster(
               ClusterOrdering<Points>());
 
     fRemaining.clear();
-    for (typename Neighbors::value_iterator p = neighborTree.begin_values(); 
-         p != neighborTree.end_values(); ++p) {
+    for (typename std::vector<NeighborEntry>::iterator p = fEntries.begin(); 
+         p != fEntries.end(); ++p) {
         if (fColorMap[p->fColorIndex]) continue;
         fRemaining.push_back(p->fHandle);
     }
@@ -258,18 +269,28 @@ bool CP::TPositionDensityCluster<PositionHandle>::FindSeeds(
     out.clear();
     double dist2 = fMaxDist*fMaxDist;
     int seedCount = 0;
-    for (typename Neighbors::value_iterator p = in.begin_values(); 
-         p != in.end_values(); ++p) {
+    CaptNamedDebug("cluster", "start " << seedCount);
+    for (typename std::vector<NeighborEntry>::iterator p = fEntries.begin(); 
+         p != fEntries.end(); ++p) {
+        CaptNamedDebug("cluster", "point: " << seedCount
+                       << " " << p->fColorIndex
+                       << " " << p->fHandle);
         if (fColorMap[p->fColorIndex] == kBlack) {
             continue;
         }
+        CaptNamedDebug("cluster", "   not black: " << seedCount);
         std::size_t count = 0;
         PositionHandle h = p->fHandle;
+        CaptNamedDebug("cluster", "    Start neighbors ");
         typename Neighbors::iterator neighbor = in.begin(h->GetPosition().X(),
                                                 h->GetPosition().Y(),
                                                 h->GetPosition().Z());
         typename Neighbors::iterator neighbor_end = in.end();
         for (;neighbor != neighbor_end; ++neighbor) {
+            CaptNamedDebug("cluster", "      check: "
+                           << " " << neighbor->second
+                           << " " << neighbor->first.fColorIndex
+                           << " " << neighbor->first.fHandle);
             // Stop looking at distant handles.
             if (neighbor->second > dist2) {
                 break;
