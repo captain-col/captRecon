@@ -53,8 +53,12 @@ TVector3 CP::TCluster3D::PositionXY(const CP::THandle<CP::THit>& hit1,
 
 double CP::TCluster3D::TimeZero(const CP::THitSelection& pmts,
                                 const CP::THitSelection& wires) {
+    ///////////////////////////////////////////////////////////////////////
+    // Find the event time zero.
+    ///////////////////////////////////////////////////////////////////////
 
-    // Order the hit times.
+    if (pmts.empty()) return 0.0;
+    
     std::vector<double> times;
     for (CP::THitSelection::const_iterator p = pmts.begin();
          p != pmts.end(); ++p) {
@@ -62,12 +66,22 @@ double CP::TCluster3D::TimeZero(const CP::THitSelection& pmts,
     }
     std::sort(times.begin(),times.end());
 
-    // Don't always return the first time so that we can get around possible
-    // noise.
-    if (times.size() > 20) return times[3];
-    if (times.size() > 10) return times[2];
-    if (times.size() > 5) return times[1];
-    return times[0];
+    double t0 = 0.0;
+    int maxHits = 0;
+    for (std::vector<double>::iterator t = times.begin();
+         t != times.end(); ++t) {
+        std::vector<double>::iterator h = t;
+        while (++h != times.end()) {
+            if (*h - *t > 2*unit::microsecond) break;
+        }
+        int dh = h - t;
+        if (dh > maxHits) {
+            maxHits = dh;
+            t0 = *t;
+        }
+    }
+
+    return t0;
 }
 
 CP::TCluster3D::TCluster3D()
@@ -199,7 +213,7 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     }
     // Set the maximum time difference between 2D clusters that might become a
     // 3D hit.  This is set to be large (i.e. clusters that are spacially
-    // separated by more than 10 mm.
+    // separated by more than 25 mm.
     double maxDeltaT = 16*unit::microsecond;
 
 #ifdef LIMIT_SEARCH
