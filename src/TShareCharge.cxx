@@ -293,7 +293,7 @@ void CP::TShareCharge::DumpMeasurements(bool dumpLinks) const {
 }
 
 double CP::TShareCharge::Solve(double tolerance, int iterations) {
-    CaptLog("Share charge with tolerance: " << tolerance);
+    CaptInfo("Share charge with tolerance: " << tolerance);
 
     // Do the relaxation, but limit the total number of iterations.
     double change = 0.0;
@@ -302,7 +302,7 @@ double CP::TShareCharge::Solve(double tolerance, int iterations) {
         if (change < tolerance) break;
     }
 
-    CaptLog("Share charge final change: " << change);
+    CaptInfo("Share charge final change: " << change);
 
     return change;
 }
