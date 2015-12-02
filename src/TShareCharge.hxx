@@ -42,7 +42,7 @@ public:
     /// Get the amount of charge for this measurement. 
     double GetCharge() const {return fCharge;}
     
-    /// @{ Get the list of TMeasurementGroup objects that contain this
+    /// @{ Get the list of Link objects that contain this
     /// TMeasurement object.
     TLinks& GetLinks() {return fLinks;}
     const TLinks& GetLinks() const {return fLinks;}
@@ -117,7 +117,7 @@ public:
     /// Get the total charge in the group.  This returns the charge for the
     /// group adjusted by the current link weights (both physical and the
     /// weights being fitted by TShareCharge).
-    double GetTotalCharge() const;
+    double GetGroupCharge() const;
 
     /// Get the charge in the group not contributed by a particular
     /// measurement.
@@ -356,7 +356,4 @@ private:
     double fWeightCut;
 
 };
-
-
-
 #endif

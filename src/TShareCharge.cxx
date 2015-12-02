@@ -165,7 +165,7 @@ CP::ShareCharge::TMeasurementGroup::TMeasurementGroup(
 void CP::ShareCharge::TMeasurementGroup::Dump(bool dumpLinks) const {
     CaptLog("TMeasurementGroup(" << std::hex << this << ")"
              << std::dec << " w/ " << fLinks.size() << " links"
-            << "  total charge: " << GetTotalCharge());
+            << "  charge: " << GetGroupCharge());
     if (dumpLinks) {
         CP::TCaptLog::IncreaseIndentation();
         for (CP::ShareCharge::TLinks::const_iterator link = fLinks.begin(); 
@@ -176,25 +176,31 @@ void CP::ShareCharge::TMeasurementGroup::Dump(bool dumpLinks) const {
     }
 }
 
-double CP::ShareCharge::TMeasurementGroup::GetTotalCharge() const {
-    double charge = 0;
+double CP::ShareCharge::TMeasurementGroup::GetGroupCharge() const {
+    double charge = 0.0;
+    double count = 0.0;
     for (CP::ShareCharge::TLinks::const_iterator link 
              = GetLinks().begin();
          link != GetLinks().end(); ++link) {
         charge += (*link)->GetCharge();
+        count += 1.0;
     }
+    if (count < 1.0) return 0.0;
     return charge;
 }
 
 double CP::ShareCharge::TMeasurementGroup::GetUniqueCharge(
     const CP::ShareCharge::TMeasurement* cb) const {
-    double charge = 0;
+    double charge = 0.0;
+    double count = 0.0;
     for (CP::ShareCharge::TLinks::const_iterator link 
              = GetLinks().begin();
          link != GetLinks().end(); ++link) {
         if ((*link)->GetMeasurement() == cb) continue;
         charge += (*link)->GetCharge();
+        count += 1.0;
     }
+    if (count < 1.0) return 0.0;
     return charge;
 }
 
@@ -211,6 +217,8 @@ CP::ShareCharge::TMeasurementGroup::AddMeasurement(
 void CP::ShareCharge::TLink::Dump() const {
     CaptLog("TLink(" << std::hex << this << ")"
             << std::dec <<std::setprecision(3) << " C " << GetCharge()
+            << std::dec <<std::setprecision(3) << " U "
+            << GetGroup()->GetUniqueCharge(GetMeasurement())
             << std::dec <<std::setprecision(3) << " q " << GetRawCharge()
             << std::dec <<std::setprecision(3) << " w " << fWeight
             << std::dec <<std::setprecision(3) << " p " << fPhysicsWeight
