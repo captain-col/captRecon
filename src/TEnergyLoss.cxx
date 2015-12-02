@@ -113,26 +113,46 @@ double CP::TEnergyLoss::GetEnergyResolution(double energyDeposit) const {
 
 double CP::TEnergyLoss::GetDensityCorrection(double gamma) const {
     if (gamma < 1.001) gamma = 1.001;
-    double betaGamma = gamma*std::sqrt(1.0-1.0/(gamma*gamma));
-    double hPlasma = GetPlasmaEnergy();
-    double halfDelta = std::log(hPlasma/GetExcitationEnergy())
-        + std::log(betaGamma)
-        - 0.5;
-    if (halfDelta < 0.0) halfDelta = 0.0;
-    return 2.0*halfDelta;
+    if (gamma > 1000) {
+        double betaGamma = gamma*std::sqrt(1.0-1.0/(gamma*gamma));
+        double hPlasma = GetPlasmaEnergy();
+        double halfDelta = std::log(hPlasma/GetExcitationEnergy())
+            + std::log(betaGamma)
+            - 0.5;
+        if (halfDelta < 0.0) halfDelta = 0.0;
+        return 2.0*halfDelta;
+    }
+    // Delta parameterization from PRB.26.6067 Sternheimer, Seltzer and
+    // Berger, "Density effect for the ionization of charged particles in
+    // various substances".  This is for Argon.
+    double beta = std::sqrt(1.0 - 1/(gamma*gamma));
+    double X = std::log10(beta*gamma);
+    double a = 0.1902;
+    double m = 2.982;
+    double X0 = 1.1716;
+    double X1 = 4.5;
+    double C = 11.948;
+    if (X <= X0) {
+        return 0.0;
+    }
+    else if (X < X1) {
+        return 4.6052*X + a*std::pow(X1-X,m) - C;
+    }
+    return 4.6052*X - C;
 }
 
 double CP::TEnergyLoss::GetMostProbable(double kinEnergy, double mass,
                                         double thickness,
                                         bool truncated) const {
     double logGamma = LogGamma(kinEnergy,mass);
-    return GetMostProbable(logGamma, thickness);
+    return GetMostProbable(logGamma, thickness, truncated);
 }
 
+// The most probable energy is implemented from PDG 2011 eqn 27.11
 double CP::TEnergyLoss::GetMostProbable(double logGamma, double thickness,
                                         bool truncated) const {
-    double K = 0.307075*unit::MeV*unit::cm2/unit::mole;;
-    double me = unit::electron_mass_c2;
+    double K = 0.307075;
+    double me = unit::electron_mass_c2/unit::MeV;
     double jFactor = 0.200;
     double gamma = std::exp(std::abs(logGamma));
     if (truncated) {
@@ -140,12 +160,15 @@ double CP::TEnergyLoss::GetMostProbable(double logGamma, double thickness,
         gamma = std::min(gamma,fMinimumIonizationGamma);
     }
     double beta2 = 1.0-1.0/(gamma*gamma);
-    double zeta = 0.5*K*GetZA()*thickness*fDensity/beta2;
-    double arg = std::log(2.0*me*beta2*gamma*gamma/GetExcitationEnergy());
-    arg += std::log(zeta/GetExcitationEnergy());
+    double excitationEnergy = GetExcitationEnergy();
+    double density = (thickness*fDensity)/(unit::gram/unit::cm2);
+    double za = GetZA()/(unit::mole/unit::gram);
+    double zeta = 0.5*K*za*density/beta2;
+    double arg = std::log(2.0*me*beta2*gamma*gamma/excitationEnergy);
+    arg += std::log(zeta/excitationEnergy);
     arg += jFactor;
-    arg -= beta2;
-    // arg -= GetDensityCorrection(gamma);
+    arg += - beta2;
+    arg += - GetDensityCorrection(gamma);
     return zeta*arg;
 }
 
@@ -156,7 +179,7 @@ double CP::TEnergyLoss::GetMIPGamma() const {
 
 void CP::TEnergyLoss::FindMIPGamma() const {
     if (fMinimumIonizationGamma > 0) return;
-    double mipGamma = 4.0;
+    double mipGamma = 3.0;
     double delta = 1.0;
     double mip = GetMostProbable(std::log(mipGamma), 1*unit::mm,false);
     while (std::abs(delta) > 0.001) {

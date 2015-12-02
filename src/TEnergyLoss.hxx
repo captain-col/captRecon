@@ -54,7 +54,7 @@ public:
     /// energy that means that 2*gamma*m_e < M where M is the mass of the
     /// particle.  For a muon, that's OK up to about 10 GeV.  It's a 6% error
     /// at 100 GeV (not very large compared to the other approximations in this
-    /// class).
+    /// class).  This comes from the PDG (circa 2010).
     double GetBetheBloch(double logGamma);
 
     /// Calculate the average ionization loss for an electron.  The returned
@@ -70,12 +70,12 @@ public:
     /// most probable value for very thin radiators is slightly overestimated.
     double GetMostProbable(double kinEnergy, double mass, 
                            double thickness,
-                           bool truncated = true) const;
+                           bool truncated = false) const;
     
     /// Calculate the most probable energy loss when passing through a thick
     /// layer of material. 
     double GetMostProbable(double logGamma, double thickness,
-                           bool truncated = true) const;
+                           bool truncated = false) const;
 
     /// Calculate the scale factor for the energy fluctuations passing through
     /// a material.  This is basically the FWHM/4 of the Landau

@@ -51,11 +51,19 @@ namespace tut {
     // Check the most probable energy loss.
     template<> template<> void testEnergyLoss::test<2> () {
         CP::TEnergyLoss eloss;
-        ensure_tolerance("Most probable energy loss",
-                         eloss.GetMostProbable(std::log(3.0),1.0*unit::cm),
-                         2.117*unit::MeV, 0.001);
+        ensure_tolerance("Gamma for a MIP.",
+                         eloss.GetMIPGamma(),
+                         4.0, 0.25);
     }
 
+    // Check the most probable energy loss.
+    template<> template<> void testEnergyLoss::test<3> () {
+        CP::TEnergyLoss eloss;
+        ensure_tolerance("Most probable energy loss",
+                         eloss.GetMostProbable(std::log(3.5),1.0*unit::mm),
+                         0.2117*unit::MeV, 0.01);
+    }
+    
 };
 
 // Local Variables:
