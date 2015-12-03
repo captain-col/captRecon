@@ -51,17 +51,17 @@ namespace tut {
     // Check the most probable energy loss.
     template<> template<> void testEnergyLoss::test<2> () {
         CP::TEnergyLoss eloss;
-        ensure_tolerance("Gamma for a MIP.",
-                         eloss.GetMIPGamma(),
-                         4.0, 0.25);
+        double mpv = eloss.GetMostProbable(std::log(3.5), 1.0*unit::mm);
+        ensure_tolerance("Most probable energy loss for MIP",
+                         mpv, 2.117*unit::MeV/unit::cm, 0.01);
     }
-
+    
     // Check the most probable energy loss.
     template<> template<> void testEnergyLoss::test<3> () {
         CP::TEnergyLoss eloss;
-        ensure_tolerance("Most probable energy loss",
-                         eloss.GetMostProbable(std::log(3.5),1.0*unit::mm),
-                         0.2117*unit::MeV, 0.01);
+        double avg = eloss.GetBetheBloch(std::log(3.5));
+        ensure_tolerance("Average energy loss for MIP",
+                         avg, 2.735*unit::MeV/unit::cm, 0.01);
     }
     
 };

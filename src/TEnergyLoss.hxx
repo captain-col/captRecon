@@ -45,7 +45,9 @@ public:
 
     /// Calculate the average restricted energy loss given the kinetic energy
     /// and mass.  The returned energy loss has units of [energy]/[length]
-    /// (i.e. MeV/mm).
+    /// (i.e. MeV/mm).  It handles the difference between a "light particle"
+    /// like an electron and a "heavy particle" like a muon by interpolating
+    /// between a muon and an electron.
     double GetAverage(double kinEnergy, double mass);
 
     /// Calculate the Bethe-Blohc restricted energy loss.  The returned energy
@@ -64,16 +66,23 @@ public:
     double GetElectronLoss(double logGamma);
 
     /// Calculate the most probable energy loss when passing through thick
-    /// layer of material.  The thickness is given in [length] (i.e. mm).
-    /// Keep in mind the caveats that this starts to break down for very thin
-    /// radiators (thickness < ~0.1 gram/cm^2 or about 1 mm in water).  The
-    /// most probable value for very thin radiators is slightly overestimated.
+    /// layer of material.  This takes the particle energy and mass to
+    /// calculate the relativistic factor, then uses GetMostProbable(logGamma).
     double GetMostProbable(double kinEnergy, double mass, 
                            double thickness,
                            bool truncated = false) const;
     
     /// Calculate the most probable energy loss when passing through a thick
-    /// layer of material. 
+    /// layer of material for a heavy particle with a relativistic factor
+    /// [gamma].  The material density is known by TEnergyLoss, so the
+    /// thickness is given in [length].  This has to option of truncating the
+    /// logrithmic rise at energys above minimum inonizing, which can be
+    /// useful when fitting to a particle ionization since that makes the
+    /// function monoatonic.  Keep in mind the caveat that this starts to
+    /// break down for very thin materials (e.g. well below a mm of argon).
+    /// The MPV is going to be (mostly) right, but is slightly overestimated.
+    /// The estimated width is also a bit two narrow.  This comes from the
+    /// PDG, circa 2014.
     double GetMostProbable(double logGamma, double thickness,
                            bool truncated = false) const;
 
@@ -115,7 +124,10 @@ public:
 
     /// Get the current cutoff energy used in the restricted energy loss
     /// calculation.  
-    double GetCutoffEnergy() const {return fCutoffEnergy;}
+    double GetCutoffEnergy() const {
+        if (fCutoffEnergy < 1) return 1E+20;
+        return fCutoffEnergy;
+    }
 
     /// Set material properties.  The fraction is the number fraction of the
     /// atoms in the material.  The Z and A are the usual definitions.  The

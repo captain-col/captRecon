@@ -151,8 +151,8 @@ double CP::TEnergyLoss::GetMostProbable(double kinEnergy, double mass,
 // The most probable energy is implemented from PDG 2011 eqn 27.11
 double CP::TEnergyLoss::GetMostProbable(double logGamma, double thickness,
                                         bool truncated) const {
-    double K = 0.307075;
-    double me = unit::electron_mass_c2/unit::MeV;
+    double K = 0.307075*unit::MeV*unit::cm2/unit::mole;
+    double me = unit::electron_mass_c2;
     double jFactor = 0.200;
     double gamma = std::exp(std::abs(logGamma));
     if (truncated) {
@@ -160,12 +160,9 @@ double CP::TEnergyLoss::GetMostProbable(double logGamma, double thickness,
         gamma = std::min(gamma,fMinimumIonizationGamma);
     }
     double beta2 = 1.0-1.0/(gamma*gamma);
-    double excitationEnergy = GetExcitationEnergy();
-    double density = (thickness*fDensity)/(unit::gram/unit::cm2);
-    double za = GetZA()/(unit::mole/unit::gram);
-    double zeta = 0.5*K*za*density/beta2;
-    double arg = std::log(2.0*me*beta2*gamma*gamma/excitationEnergy);
-    arg += std::log(zeta/excitationEnergy);
+    double zeta = 0.5*K*GetZA()*thickness*fDensity/beta2;
+    double arg = std::log(2.0*me*beta2*gamma*gamma/GetExcitationEnergy());
+    arg += std::log(zeta/GetExcitationEnergy());
     arg += jFactor;
     arg += - beta2;
     arg += - GetDensityCorrection(gamma);
@@ -215,17 +212,17 @@ double CP::TEnergyLoss::GetScaleFactor(double logGamma, double thickness)
 }
 
 namespace {
+    // Copied from:
+    //
+    //   http://root.cern.ch/root/html/tutorials/fit/langaus.C.html
+    //
+    // In the Landau distribution (represented by the CERNLIB
+    // approximation), the maximum is located at x=-0.22278298 with the
+    // location parameter=0.  This shift is corrected within this
+    // function, so that the actual maximum is identical to the MPV
+    // parameter.
     double LandauGaussian(double deposit, 
                           double mpv, double scale, double sigma) {
-        // Copied from:
-        //
-        //   http://root.cern.ch/root/html/tutorials/fit/langaus.C.html
-        //
-        // In the Landau distribution (represented by the CERNLIB
-        // approximation), the maximum is located at x=-0.22278298 with the
-        // location parameter=0.  This shift is corrected within this
-        // function, so that the actual maximum is identical to the MP
-        // parameter.
         
         // Numeric constants
         const double invsq2pi = 0.3989422804014;   // (2 pi)^(-1/2)
@@ -283,16 +280,16 @@ double CP::TEnergyLoss::GetDepositPDF(double kinEnergy, double mass,
     
 double CP::TEnergyLoss::GetBetheBloch(double logGamma) {
     double K = 0.307075*unit::MeV*unit::cm2/unit::mole;;
+    double me = unit::electron_mass_c2;
     double gamma = std::exp(std::abs(logGamma));
     double beta2 = 1.0-1.0/(gamma*gamma);
-    double zeta = 0.5*K*GetZA()*fDensity/beta2;
-    double me = unit::electron_mass_c2;
+    double zeta = K*GetZA()*fDensity/beta2;
     double wMax = 2.0*me*gamma*gamma*beta2;
     double wCut = std::min(GetCutoffEnergy(), wMax);
-    double arg = std::log(2.0*me*beta2*gamma*gamma*wCut);
-    arg -= 2.0*std::log(GetExcitationEnergy());
-    arg -= beta2*(1.0 + wCut/wMax);
-    arg -= GetDensityCorrection(gamma);
+    double arg = 0.5*std::log(2.0*me*beta2*gamma*gamma*wCut);
+    arg -= std::log(GetExcitationEnergy());
+    arg -= 0.5*beta2*(1.0 + wCut/wMax);
+    arg -= 0.5*GetDensityCorrection(gamma);
     return zeta*arg;
 }
 
@@ -332,6 +329,8 @@ double CP::TEnergyLoss::GetAverage(double kinEnergy, double mass) {
     if (w < 0.0) w = 0.0;
     if (w > 1.0) w = 1.0;
 
-    return w*bb + (1.0-w)*el;
+    // Use a sinusoidal interpolation so that the first derivative at both
+    // ends of the interpolation is continuous.
+    return std::sin(0.5*w*unit::pi)*bb + std::cos(0.5*w*unit::pi)*el;
 }
 
