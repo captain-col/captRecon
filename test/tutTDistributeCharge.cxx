@@ -153,12 +153,21 @@ namespace tut {
             CP::THandle<CP::TWritableReconHit> groupHit = g->GetObject();
             double gc =  g->GetGroupCharge();
             finalCharge += gc;
+#ifdef DEBUG_OUTPUT_ENABLED
+#undef DEBUG_OUTPUT_ENABLED
+            std::cout << "gc " << gc;
             for(CP::DistributeCharge::TLinks::const_iterator c
                     = g->GetLinks().begin();
                 c != g->GetLinks().end(); ++c) {
                 CP::THandle<CP::THit> hit = (*c)->GetMeasurement()->GetObject();
                 CP::TGeometryId geomId = hit->GetGeomId();
+                std::cout << " (" << CP::GeomId::Captain::GetWireNumber(geomId)
+                          << "," << hit->GetCharge()
+                          << "," << (*c)->GetPhysicsWeight()
+                          << "," << (*c)->GetCharge() << ")";
             }
+            std::cout << std::endl;
+#endif
         }
 
         ensure_tolerance("Charge distribution perserves normalization.", 
@@ -289,12 +298,21 @@ namespace tut {
             CP::THandle<CP::TWritableReconHit> groupHit = g->GetObject();
             double gc =  g->GetGroupCharge();
             finalCharge += gc;
+#ifdef DEBUG_OUTPUT_ENABLED
+#undef DEBUG_OUTPUT_ENABLED
+            std::cout << "gc " << gc;
             for(CP::DistributeCharge::TLinks::const_iterator c
                     = g->GetLinks().begin();
                 c != g->GetLinks().end(); ++c) {
                 CP::THandle<CP::THit> hit = (*c)->GetMeasurement()->GetObject();
                 CP::TGeometryId geomId = hit->GetGeomId();
+                std::cout << " (" << CP::GeomId::Captain::GetWireNumber(geomId)
+                          << "," << hit->GetCharge()
+                          << "," << (*c)->GetPhysicsWeight()
+                          << "," << (*c)->GetCharge() << ")";
             }
+            std::cout << std::endl;
+#endif
         }
 
         ensure_tolerance("Charge distribution perserves normalization.", 
@@ -440,12 +458,21 @@ namespace tut {
             CP::THandle<CP::TWritableReconHit> groupHit = g->GetObject();
             double gc =  g->GetGroupCharge();
             finalCharge += gc;
+#ifdef DEBUG_OUTPUT_ENABLED
+#undef DEBUG_OUTPUT_ENABLED
+            std::cout << "gc " << gc;
             for(CP::DistributeCharge::TLinks::const_iterator c
                     = g->GetLinks().begin();
                 c != g->GetLinks().end(); ++c) {
                 CP::THandle<CP::THit> hit = (*c)->GetMeasurement()->GetObject();
                 CP::TGeometryId geomId = hit->GetGeomId();
+                std::cout << " (" << CP::GeomId::Captain::GetWireNumber(geomId)
+                          << "," << hit->GetCharge()
+                          << "," << (*c)->GetPhysicsWeight()
+                          << "," << (*c)->GetCharge() << ")";
             }
+            std::cout << std::endl;
+#endif
         }
 
         ensure_tolerance("Charge distribution perserves normalization.", 

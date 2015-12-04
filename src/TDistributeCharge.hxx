@@ -47,10 +47,13 @@ public:
     const TLinks& GetLinks() const {return fLinks;}
     /// @}
 
-    /// Normalize the weights in the link list.
+    /// Normalize the weights in the link list.  The weights are normalized so
+    /// that the sum of weight*physicsWeight is 1.0, and none of the weights
+    /// are greater than 1.0.
     void NormalizeWeights();
 
-    /// Normalize the weights in the link list.
+    /// Normalize the weights in the link list for this measurement.  The
+    /// weights are normalize so that the maximum weight is 1.0.
     void NormalizePhysicsWeights();
 
     /// Update the weights with the new weights in the link list.
@@ -176,10 +179,11 @@ public:
     /// TDistributeCharge algorithm.
     void SetNewWeight(double w) {fNewWeight = w;}
 
-    /// Set the physics weight for this link.  The physics weight includes the
-    /// effect of attenuation and other things that might need to be corrected
-    /// when estimating how much a TMeasurement object contributes to a
-    /// TMeasurementGroup.  This is not necessary in the context of CAPTAIN.
+    /// Set the physics weight for this link.  This sents the maximum
+    /// contribution of a measurement to a measurement group.  Notice that
+    /// this is slightly different than the meaning of the physics weight in
+    /// TShareCharge where it is used to account for the effect of physics
+    /// processes like attenuation.
     void SetPhysicsWeight(double w) {fPhysicsWeight = w;}
 
     /// Get the physics weight for this link.
@@ -219,11 +223,14 @@ private:
     double fNewWeight;
 
     /// The physics based weighting between the measurement and the cluster
-    /// bin.  This accounts for affects like attenuation and is a constant of
-    /// the cluster to charge link.  The weight applied to the measurement
-    /// should be actually fWeight*fPhysicsWeight.  The default value for the
-    /// physics weight is 1.0.  Note that the physics weight can be greater
-    /// than one.
+    /// bin.  The weight applied to the measurement should be actually
+    /// fWeight*fPhysicsWeight.  The maximum value for the physics weight is
+    /// 1.0, and default value for the physics weight is 1.0.  Note that the
+    /// physics weight can not be greater than one.  All of the physics
+    /// weights for a measurement (i.e. the physics weights in the links
+    /// connected to a measurement) will be normalized so that the maximum
+    /// value is 1.0 (i.e. physicsWeight/maxhysicsWeight).  That is done in
+    /// NormalizePhysicsWeight.
     double fPhysicsWeight;
 
     /// The TMeasurement end of the link.
@@ -305,8 +312,8 @@ private:
         CP::DistributeCharge::TMeasurement::Object& object, double charge);
 
 
-    /// Create a new link between a measurement and a measurement group.  THis
-    /// is used by the TMeasurementGroup object.
+    /// Create a new link between a measurement and a measurement group.  This
+    /// is used by the TMeasurementGroup object. 
     CP::DistributeCharge::TLink* CreateLink(
         CP::DistributeCharge::TMeasurementGroup* group,
         CP::DistributeCharge::TMeasurement* measurement,

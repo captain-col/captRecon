@@ -30,30 +30,48 @@ void CP::DistributeCharge::TMeasurement::Dump(bool dumpLinks) const  {
 
 void CP::DistributeCharge::TMeasurement::NormalizeWeights() {
     double totalWeight = 0;
-    for (CP::DistributeCharge::TLinks::iterator link = GetLinks().begin();
-         link != GetLinks().end(); ++link) {
-        double w = (*link)->GetWeight()*(*link)->GetPhysicsWeight();
-        if (w<0) w = 0;
-        totalWeight += w;
-    }
+    double weightOffset = 0.0;
+    int throttle = 5;
+    do {
+        totalWeight = 0;
+        for (CP::DistributeCharge::TLinks::iterator link = GetLinks().begin();
+             link != GetLinks().end(); ++link) {
+            double w = (*link)->GetWeight()*(*link)->GetPhysicsWeight();
+            if (w<0) w = 0;
+            totalWeight += w;
+        }
+        
+        // Make sure that at least some of the weights are positive.  If not,
+        // then set some default values.
+        if (totalWeight < 1E-6) {
+            totalWeight = 0.0;
+            for (CP::DistributeCharge::TLinks::iterator link
+                     = GetLinks().begin();
+                 link != GetLinks().end(); ++link) {
+                (*link)->SetWeight(1.0/GetLinks().size());
+                double w = (*link)->GetWeight()*(*link)->GetPhysicsWeight();
+                if (w<0) w = 0;
+                totalWeight += w;
+            }
+        }
 
-    if (totalWeight < 1E-6) {
-        totalWeight = GetLinks().size();
-        for (CP::DistributeCharge::TLinks::iterator link
+        double scaleFactor = (totalWeight-weightOffset)/(1.0-weightOffset);
+
+        weightOffset = 0.0;
+        totalWeight = 0.0;
+        for (CP::DistributeCharge::TLinks::iterator link 
                  = GetLinks().begin();
              link != GetLinks().end(); ++link) {
-            (*link)->SetWeight(1.0/totalWeight);
+            double w = (*link)->GetWeight()/scaleFactor;
+            if (w<0) w = 0;
+            if (w>0.9999) {
+                w = 1.0;
+                weightOffset += w*(*link)->GetPhysicsWeight();
+            }
+            totalWeight += w*(*link)->GetPhysicsWeight();
+            (*link)->SetWeight(w);
         }
-        totalWeight = 1.0;
-    }
-    
-    for (CP::DistributeCharge::TLinks::iterator link 
-             = GetLinks().begin();
-         link != GetLinks().end(); ++link) {
-        double w = (*link)->GetWeight();
-        if (w<0) w = 0;
-        (*link)->SetWeight(w/totalWeight);
-    }
+    } while (std::abs(totalWeight-1.0) > 0.001 && 0 <= --throttle);
 }
 
 void CP::DistributeCharge::TMeasurement::NormalizePhysicsWeights() {
@@ -179,6 +197,9 @@ void CP::DistributeCharge::TMeasurement::FindLinkWeights() {
     // linked to to the total charge.
     for (CP::DistributeCharge::TLinks::iterator link = GetLinks().begin();
          link != GetLinks().end(); ++link) {
+#ifdef DUMP_DEBUG_INFO
+        std::cout << "     ";
+#endif
         if ((*link)->GetWeight() < 1E-6) {
             (*link)->SetNewWeight(0.0);
         }
@@ -197,6 +218,7 @@ void CP::DistributeCharge::TMeasurement::FindLinkWeights() {
             if (q > 1E-6) w *= gq/q;
             else w = 0.0;
             w *= GetCharge()/totalCharge;
+            if (w > 1.0) w = 1.0;
 #ifdef DUMP_DEBUG_INFO
             std::cout << " q " << q
                       << " g " << gq
