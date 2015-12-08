@@ -198,6 +198,28 @@ CP::TCluster3D::MakeHit(const TVector3& hitPosition,
                         const CP::THandle<CP::THit>& hit1,
                         const CP::THandle<CP::THit>& hit2,
                         const CP::THandle<CP::THit>& hit3) const {
+
+    if (hit1 && hit2) {
+        if (CP::GeomId::Captain::GetWirePlane(hit1->GetGeomId())
+            == CP::GeomId::Captain::GetWirePlane(hit2->GetGeomId())) {
+            return CP::THandle<CP::THit>();
+        }
+    }
+
+    if (hit1 && hit3) {
+        if (CP::GeomId::Captain::GetWirePlane(hit1->GetGeomId())
+            == CP::GeomId::Captain::GetWirePlane(hit3->GetGeomId())) {
+            return CP::THandle<CP::THit>();
+        }
+    }
+
+    if (hit2 && hit3) {
+        if (CP::GeomId::Captain::GetWirePlane(hit2->GetGeomId())
+            == CP::GeomId::Captain::GetWirePlane(hit3->GetGeomId())) {
+            return CP::THandle<CP::THit>();
+        }
+    }
+
     // Create a new writable hit that can be filled later.
     CP::THandle<CP::TWritableReconHit> hit(
         new CP::TWritableReconHit(hit1,hit2,hit3));
@@ -461,8 +483,20 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 TVector3 hitPosition;
                 if (!OverlapXY(*xh,*vh,*uh,hitPosition)) continue;
 
-                // These three wire hits make a 3D point.  Get them into
-                // the correct hit selections.
+                // Create a new writable hit that can be filled later.
+                CP::THandle<CP::TWritableReconHit> hit
+                    = MakeHit(hitPosition,t0,*xh,*vh,*uh);
+
+                if (!hit) continue;
+
+                // Add this hit to be handled later.
+                writableHits.push_back(hit);
+
+                // These three wire hits make a 3D point.  Get them into the
+                // correct hit selections.  To protect against bogus events
+                // that have a to much "garbage", this only gets done if there
+                // aren't to many input hits (i.e. wireHits).  That prevents
+                // this class from getting into a "to much memory" situation.
                 if (wireHits->size() < hitLimit) {
                     used->AddHit(*xh);
                     unused->RemoveHit(*xh);
@@ -474,118 +508,6 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                     unused->RemoveHit(*uh);
                 }
 
-                // Create a new writable hit that can be filled later.
-                CP::TWritableReconHit hit(*xh,*vh,*uh);
-                hit.SetPosition(hitPosition);
-                
-                // Average the times.
-                double tXHit = drift.GetTime(**xh);
-                double tXUnc = (*xh)->GetTimeUncertainty();
-                tXUnc = tXUnc*tXUnc;
-                double tVHit = drift.GetTime(**vh);
-                double tVUnc = (*vh)->GetTimeUncertainty();
-                tVUnc = tVUnc*tVUnc;
-                double tUHit = drift.GetTime(**uh);
-                double tUUnc = (*uh)->GetTimeUncertainty();
-                tUUnc = tUUnc*tUUnc;
-                double tHit = tXHit/tXUnc + tVHit/tVUnc + tUHit/tUUnc;
-                double tUnc = 1.0/tXUnc + 1.0/tVUnc + 1.0/tUUnc;
-                tHit /= tUnc;
-                hit.SetTime(tHit); // This will be overridden to be time zero.
-                tUnc = std::sqrt(3.0/tUnc); // sqrt(3) for correlations.
-                hit.SetTimeUncertainty(tUnc);
-
-                // The time RMS is determined by the RMS of the narrowest hit
-                // in time.  This will slightly overestimate the time RMS for
-                // the hit, but is a fairly good approximation.  The RMS could
-                // be calculated by combining the PDFs to directly calculate a
-                // combined RMS, but since the three 2D hits are measureing
-                // the same charge distribution, that ignores the correlations
-                // between the 2D hits.  The "min" method assumes the hits are
-                // all correlated.
-                double tRMS = std::min((*xh)->GetTimeRMS(),
-                                       std::min((*vh)->GetTimeRMS(),
-                                                (*uh)->GetTimeRMS()));
-                hit.SetTimeRMS(tRMS);
-
-                // For now set the charge to X wire charge.  This doesn't work
-                // for overlapping hits but gives a reasonable estimate of the
-                // energy deposition otherwise.  The U and V wires don't
-                // measure the total charge very well.  The charge for
-                // "overlapping" hits will need to be calculated once all of
-                // the TReconHits are constructed.
-                CaptNamedVerbose("Hit",
-                              "X: "
-                              << unit::AsString((*xh)->GetCharge(), 
-                                                (*xh)->GetChargeUncertainty(), 
-                                                "pe")
-                              << "   V: " 
-                              << unit::AsString((*vh)->GetCharge(), 
-                                                (*vh)->GetChargeUncertainty(), 
-                                                "pe")
-                              << "   U: " 
-                              << unit::AsString((*uh)->GetCharge(), 
-                                                (*uh)->GetChargeUncertainty(), 
-                                                "pe"));
-                
-                double w = (*xh)->GetChargeUncertainty();
-                double charge = (*xh)->GetCharge()/(w*w);
-                double chargeUnc = 1.0/(w*w);
-
-#define USE_V_CHARGE
-#ifdef USE_V_CHARGE
-                w = (*vh)->GetChargeUncertainty();
-                charge += (*vh)->GetCharge()/(w*w);
-                chargeUnc += 1.0/(w*w);
-#endif
-
-#define USE_U_CHARGE
-#ifdef USE_U_CHARGE
-                w = (*uh)->GetChargeUncertainty();
-                charge += (*uh)->GetCharge()/(w*w);
-                chargeUnc += 1.0/(w*w);
-#endif
-
-                charge /= chargeUnc;
-                chargeUnc = std::sqrt(1.0/chargeUnc);
-
-                hit.SetCharge(charge);
-                hit.SetChargeUncertainty(chargeUnc);
-
-                // Find the xyRMS and xyUncertainty.  This is not being done
-                // correctly, but this should be an acceptable approximation
-                // for now.  The approximation is based on the idea that the X
-                // rms of the three 2D hits is perpendicular to the wire, and
-                // takes that as an estimate of the hit size.  The Z RMS is
-                // calculated based on the time RMS of the three hits.  The XY
-                // rms then has the overlap spacing added in to account for
-                // lack of perfect overlaps (this is the constant 2mm squared.
-                double xyRMS = 0.0;
-                xyRMS += (*xh)->GetRMS().X()*(*xh)->GetRMS().X();
-                xyRMS += (*vh)->GetRMS().X()*(*vh)->GetRMS().X();
-                xyRMS += (*uh)->GetRMS().X()*(*uh)->GetRMS().X();
-                xyRMS /= 3.0;
-                xyRMS += xyRMS + 4*unit::mm*unit::mm;
-                xyRMS = std::sqrt(xyRMS);
-
-                hit.SetRMS(
-                    TVector3(xyRMS,xyRMS,
-                             drift.GetAverageDriftVelocity()*tRMS));
-                
-                // For the XY uncertainty, assume a uniform position
-                // distribution.  For the Z uncertainty, just use the time
-                // uncertainty.
-                hit.SetUncertainty(
-                    TVector3(2.0*xyRMS/std::sqrt(12.),2.0*xyRMS/std::sqrt(12.),
-                             drift.GetAverageDriftVelocity()*tUnc));
-
-                // Correct for the time zero.
-                TLorentzVector driftedPosition = drift.GetPosition(hit,t0);
-                hit.SetTime(t0);
-                hit.SetPosition(driftedPosition.Vect());
-
-                writableHits.push_back(CP::THandle<CP::TWritableReconHit>(
-                                           new CP::TWritableReconHit(hit)));
             }
         }
     }
