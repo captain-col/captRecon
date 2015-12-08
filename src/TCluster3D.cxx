@@ -2,6 +2,7 @@
 #include "TDriftPosition.hxx"
 #include "CreateCluster.hxx"
 #include "TShareCharge.hxx"
+#include "TDistributeCharge.hxx"
 #include "TRemoveOutliers.hxx"
 
 #include <THandle.hxx>
@@ -49,6 +50,37 @@ TVector3 CP::TCluster3D::PositionXY(const CP::THandle<CP::THit>& hit1,
     // double s2 = -(dx1*(y1-y2)+dy1*x2-dy1*x1)/(dx2*dy1-dx1*dy2); 
     
     return TVector3( (x1+s1*dx1), (y1+s1*dy1), 0.0);
+}
+
+bool CP::TCluster3D::OverlapXY(const CP::THandle<CP::THit>& hit1,
+                               const CP::THandle<CP::THit>& hit2,
+                               const CP::THandle<CP::THit>& hit3,
+                               TVector3& position) {
+    if ((CP::GeomId::Captain::GetWirePlane(hit1->GetGeomId())
+         == CP::GeomId::Captain::GetWirePlane(hit2->GetGeomId()))
+        || (CP::GeomId::Captain::GetWirePlane(hit1->GetGeomId())
+            == CP::GeomId::Captain::GetWirePlane(hit3->GetGeomId()))
+        || (CP::GeomId::Captain::GetWirePlane(hit2->GetGeomId())
+            != CP::GeomId::Captain::GetWirePlane(hit3->GetGeomId()))) {
+        return false;
+    }
+
+    TVector3 p1(PositionXY(hit1,hit2));
+    TVector3 p2(PositionXY(hit1,hit3));
+    double dist = (p2-p1).Mag();
+    if (dist > 2*unit::mm) return false;
+    TVector3 p3(PositionXY(hit2,hit3));
+
+    // Find the position for the 3D hit.  Take the average
+    // position of the crossing points as the hit position.  It's
+    // at Z=0 with a time offset relative to that position.  This
+    // should probably be charge weighted, but this is a
+    // conservative "average" point.  It's possible that it should
+    // be charged weighted, but I suspect not.  That needs to be
+    // answered based on fit residuals and pulls.
+    position = p1 + p2 + p3;
+    position *= 1.0/3.0;
+    return true;
 }
 
 double CP::TCluster3D::TimeZero(const CP::THitSelection& pmts,
@@ -160,6 +192,129 @@ namespace {
     }
 };
 
+CP::THandle<CP::THit>
+CP::TCluster3D::MakeHit(const TVector3& hitPosition,
+                        double t0,
+                        const CP::THandle<CP::THit>& hit1,
+                        const CP::THandle<CP::THit>& hit2,
+                        const CP::THandle<CP::THit>& hit3) const {
+    // Create a new writable hit that can be filled later.
+    CP::THandle<CP::TWritableReconHit> hit(
+        new CP::TWritableReconHit(hit1,hit2,hit3));
+    hit->SetPosition(hitPosition);
+    
+    CP::TDriftPosition drift;
+
+    // Average the times.
+    double tXHit = drift.GetTime(*hit1);
+    double tXUnc = hit1->GetTimeUncertainty();
+    tXUnc = tXUnc*tXUnc;
+    double tVHit = drift.GetTime(*hit2);
+    double tVUnc = hit2->GetTimeUncertainty();
+    tVUnc = tVUnc*tVUnc;
+    double tUHit = drift.GetTime(*hit3);
+    double tUUnc = hit3->GetTimeUncertainty();
+    tUUnc = tUUnc*tUUnc;
+    double tHit = tXHit/tXUnc + tVHit/tVUnc + tUHit/tUUnc;
+    double tUnc = 1.0/tXUnc + 1.0/tVUnc + 1.0/tUUnc;
+    tHit /= tUnc;
+    hit->SetTime(tHit); // This will be overridden to be time zero.
+    tUnc = std::sqrt(3.0/tUnc); // sqrt(3) for correlations.
+    hit->SetTimeUncertainty(tUnc);
+    
+    // The time RMS is determined by the RMS of the narrowest hit
+    // in time.  This will slightly overestimate the time RMS for
+    // the hit, but is a fairly good approximation.  The RMS could
+    // be calculated by combining the PDFs to directly calculate a
+    // combined RMS, but since the three 2D hits are measureing
+    // the same charge distribution, that ignores the correlations
+    // between the 2D hits.  The "min" method assumes the hits are
+    // all correlated.
+    double tRMS = std::min(hit1->GetTimeRMS(),
+                           std::min(hit2->GetTimeRMS(),
+                                    hit3->GetTimeRMS()));
+    hit->SetTimeRMS(tRMS);
+    
+    // For now set the charge to X wire charge.  This doesn't work
+    // for overlapping hits but gives a reasonable estimate of the
+    // energy deposition otherwise.  The U and V wires don't
+    // measure the total charge very well.  The charge for
+    // "overlapping" hits will need to be calculated once all of
+    // the TReconHits are constructed.
+    CaptNamedVerbose("Hit",
+                     "X: "
+                     << unit::AsString(hit1->GetCharge(), 
+                                       hit1->GetChargeUncertainty(), 
+                                       "pe")
+                     << "   V: " 
+                     << unit::AsString(hit2->GetCharge(), 
+                                       hit2->GetChargeUncertainty(), 
+                                       "pe")
+                     << "   U: " 
+                     << unit::AsString(hit3->GetCharge(), 
+                                       hit3->GetChargeUncertainty(), 
+                                       "pe"));
+    
+    double w = hit1->GetChargeUncertainty();
+    double charge = hit1->GetCharge()/(w*w);
+    double chargeUnc = 1.0/(w*w);
+    
+#define USE_V_CHARGE
+#ifdef USE_V_CHARGE
+    w = hit2->GetChargeUncertainty();
+    charge += hit2->GetCharge()/(w*w);
+    chargeUnc += 1.0/(w*w);
+#endif
+    
+#define USE_U_CHARGE
+#ifdef USE_U_CHARGE
+    w = hit3->GetChargeUncertainty();
+    charge += hit3->GetCharge()/(w*w);
+    chargeUnc += 1.0/(w*w);
+#endif
+    
+    charge /= chargeUnc;
+    chargeUnc = std::sqrt(1.0/chargeUnc);
+    
+    hit->SetCharge(charge);
+    hit->SetChargeUncertainty(chargeUnc);
+    
+    // Find the xyRMS and xyUncertainty.  This is not being done
+    // correctly, but this should be an acceptable approximation
+    // for now.  The approximation is based on the idea that the X
+    // rms of the three 2D hits is perpendicular to the wire, and
+    // takes that as an estimate of the hit size.  The Z RMS is
+    // calculated based on the time RMS of the three hits.  The XY
+    // rms then has the overlap spacing added in to account for
+    // lack of perfect overlaps (this is the constant 2mm squared.
+    double xyRMS = 0.0;
+    xyRMS += hit1->GetRMS().X()*hit1->GetRMS().X();
+    xyRMS += hit2->GetRMS().X()*hit2->GetRMS().X();
+    xyRMS += hit3->GetRMS().X()*hit3->GetRMS().X();
+    xyRMS /= 3.0;
+    xyRMS += xyRMS + 4*unit::mm*unit::mm;
+    xyRMS = std::sqrt(xyRMS);
+    
+    hit->SetRMS(
+        TVector3(xyRMS,xyRMS,
+                 drift.GetAverageDriftVelocity()*tRMS));
+    
+    // For the XY uncertainty, assume a uniform position
+    // distribution.  For the Z uncertainty, just use the time
+    // uncertainty.
+    hit->SetUncertainty(
+        TVector3(2.0*xyRMS/std::sqrt(12.),2.0*xyRMS/std::sqrt(12.),
+                 drift.GetAverageDriftVelocity()*tUnc));
+    
+    // Correct for the time zero.
+    TLorentzVector driftedPosition = drift.GetPosition(*hit,t0);
+    hit->SetTime(t0);
+    hit->SetPosition(driftedPosition.Vect());
+    
+    return hit;
+}
+
+
 CP::THandle<CP::TAlgorithmResult>
 CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                         const CP::TAlgorithmResult& pmts,
@@ -216,16 +371,15 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     // separated by more than 25 mm.
     double maxDeltaT = 16*unit::microsecond;
 
-#ifdef LIMIT_SEARCH
     // The time range of the search needs to be limited when there are a lot
     // of hits.  The form below works well for large numbers of hits, but
     // needs to be tuned for smaller numbers.  It's removed from the
     // calculation for now (2014/2/16) since I'm working on small events.  The
     // problem is that the full, unoptimized, calculation is approximately
     // O(nHits^3), so for large events this is a very slow.
-    double deltaRMS = 2.0;
-    maxDeltaT = deltaRMS*allRMS[allRMS.size()-1];
-#endif
+    double deltaRMS = 3.0;
+    std::sort(allRMS.begin(), allRMS.end());
+    maxDeltaT = std::min(maxDeltaT, deltaRMS*allRMS.back());
 
     std::sort(xHits->begin(), xHits->end(), compareHitTime());
     std::sort(vHits->begin(), vHits->end(), compareHitTime());
@@ -304,17 +458,12 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 // "magic number chosen based on the geometry for a 3mm
                 // separation between the wires.  It needs to change if the
                 // wire spacing changes.
-                TVector3 p1(PositionXY(*xh,*vh));
-                TVector3 p2(PositionXY(*xh,*uh));
-                double dist = (p2-p1).Mag();
-                if (dist > 2*unit::mm) continue;
+                TVector3 hitPosition;
+                if (!OverlapXY(*xh,*vh,*uh,hitPosition)) continue;
 
-                CP::TWritableReconHit hit(*xh,*vh,*uh);
-                TVector3 p3(PositionXY(*vh,*uh));
-
+                // These three wire hits make a 3D point.  Get them into
+                // the correct hit selections.
                 if (wireHits->size() < hitLimit) {
-                    // These three wire hits make a 3D point.  Get them into
-                    // the correct hit selections.
                     used->AddHit(*xh);
                     unused->RemoveHit(*xh);
                     
@@ -325,33 +474,10 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                     unused->RemoveHit(*uh);
                 }
 
-#ifdef USE_BEST_TIME
-                // Set the time.  It's the wire hit time after drifting to Z
-                // equal to zero.  Some of the wires might have overlapping
-                // tracks in this time bin, or the track might be at a bad
-                // angle for one of the wires, so use the time of the hit with
-                // the lowest uncertainty.  This isn't exactly right, but it's
-                // a pretty good estimate.  This also takes the time
-                // uncertainty from the best measured wire.  The same charge
-                // distribution is being measured three times, so there are a
-                // lot of correlations and combining the three hits doesn't
-                // reduce the uncertainty by sqrt(3) (i.e. the measured time
-                // widths are correlated).  In a nutshell, this assumes that
-                // the lowest uncertainty comes from the hit with the best
-                // measurement, and the least overlap with other tracks.
-                double tHit = drift.GetTime(**xh);
-                double tUnc = (*xh)->GetTimeUncertainty();
-                if ((*vh)->GetTimeUncertainty() < tUnc) {
-                    tHit = drift.GetTime(**vh);
-                    tUnc = (*vh)->GetTimeUncertainty();
-                }
-                if ((*uh)->GetTimeUncertainty() < tUnc) {
-                    tHit = drift.GetTime(**uh);
-                    tUnc = (*uh)->GetTimeUncertainty();
-                }
-                hit.SetTime(tHit); // This will be overridden to be time zero.
-                hit.SetTimeUncertainty(tUnc);
-#else
+                // Create a new writable hit that can be filled later.
+                CP::TWritableReconHit hit(*xh,*vh,*uh);
+                hit.SetPosition(hitPosition);
+                
                 // Average the times.
                 double tXHit = drift.GetTime(**xh);
                 double tXUnc = (*xh)->GetTimeUncertainty();
@@ -368,7 +494,6 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 hit.SetTime(tHit); // This will be overridden to be time zero.
                 tUnc = std::sqrt(3.0/tUnc); // sqrt(3) for correlations.
                 hit.SetTimeUncertainty(tUnc);
-#endif
 
                 // The time RMS is determined by the RMS of the narrowest hit
                 // in time.  This will slightly overestimate the time RMS for
@@ -426,31 +551,21 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
 
                 hit.SetCharge(charge);
                 hit.SetChargeUncertainty(chargeUnc);
-                
-                // Find the position for the 3D hit.  Take the average
-                // position of the crossing points as the hit position.  It's
-                // at Z=0 with a time offset relative to that position.  This
-                // should probably be charge weighted, but this is a
-                // conservative "average" point.  It's possible that it should
-                // be charged weighted, but I suspect not.  That needs to be
-                // answered based on fit residuals and pulls.
-                TVector3 pos = p1 + p2 + p3;
-                pos *= 1.0/3.0;
-                pos.SetZ(0.0);
-                hit.SetPosition(pos);
 
                 // Find the xyRMS and xyUncertainty.  This is not being done
                 // correctly, but this should be an acceptable approximation
                 // for now.  The approximation is based on the idea that the X
                 // rms of the three 2D hits is perpendicular to the wire, and
                 // takes that as an estimate of the hit size.  The Z RMS is
-                // calculated based on the time RMS of the three hits.
+                // calculated based on the time RMS of the three hits.  The XY
+                // rms then has the overlap spacing added in to account for
+                // lack of perfect overlaps (this is the constant 2mm squared.
                 double xyRMS = 0.0;
                 xyRMS += (*xh)->GetRMS().X()*(*xh)->GetRMS().X();
                 xyRMS += (*vh)->GetRMS().X()*(*vh)->GetRMS().X();
                 xyRMS += (*uh)->GetRMS().X()*(*uh)->GetRMS().X();
                 xyRMS /= 3.0;
-                xyRMS += xyRMS + dist*dist;
+                xyRMS += xyRMS + 4*unit::mm*unit::mm;
                 xyRMS = std::sqrt(xyRMS);
 
                 hit.SetRMS(
@@ -470,7 +585,7 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 hit.SetPosition(driftedPosition.Vect());
 
                 writableHits.push_back(CP::THandle<CP::TWritableReconHit>(
-                                         new CP::TWritableReconHit(hit)));
+                                           new CP::TWritableReconHit(hit)));
             }
         }
     }
@@ -486,12 +601,12 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
 #ifdef SHARE_CLUSTERED_CHARGE
     // Share the charge among the 3D hits so that the total charge in the
     // event is not overcounted.
-    CP::TShareCharge share;
+    CP::TDistributeCharge share;
 
     // Fill the charge sharing object.
     for (CP::THitSelection::iterator h = writableHits.begin();
          h != writableHits.end(); ++h) {
-        CP::ShareCharge::TMeasurementGroup& group = share.AddGroup(*h);
+        CP::DistributeCharge::TMeasurementGroup& group = share.AddGroup(*h);
         CP::THandle<CP::TWritableReconHit> groupHit = *h;
         for (int i=0; i<groupHit->GetConstituentCount(); ++i) {
             CP::THandle<CP::THit> hit = groupHit->GetConstituent(i); 
@@ -505,12 +620,14 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     // hits.  Since the 3D hit handles reference the hits in the writableHits
     // THitSelection, this also updates the hits that will be copied into the
     // output.
-    for (CP::TShareCharge::Groups::const_iterator g = share.GetGroups().begin();
+    for (CP::TDistributeCharge::Groups::const_iterator g
+             = share.GetGroups().begin();
          g != share.GetGroups().end(); ++g) {
         CP::THandle<CP::TWritableReconHit> groupHit = g->GetObject();
-        double totalCharge = 0.0;
+        double totalCharge = g->GetGroupCharge();
         double totalSigma = 0.0;
-        for(CP::ShareCharge::TLinks::const_iterator c = g->GetLinks().begin();
+        for(CP::DistributeCharge::TLinks::const_iterator c
+                = g->GetLinks().begin();
             c != g->GetLinks().end(); ++c) {
             CP::THandle<CP::THit> hit = (*c)->GetMeasurement()->GetObject();
             double charge = (*c)->GetCharge();
@@ -518,10 +635,8 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
             // attempt to capture some of the extra charge error introduced by
             // the charge sharing, but it's not formally correct.
             double sigma = hit->GetChargeUncertainty();
-            totalCharge += charge/(sigma*sigma);
             totalSigma += 1.0/(sigma*sigma);
         }
-        totalCharge /= totalSigma;
         totalSigma = std::sqrt(1.0/totalSigma);
         groupHit->SetCharge(totalCharge);
         groupHit->SetChargeUncertainty(totalSigma);

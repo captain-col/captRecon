@@ -44,6 +44,14 @@ public:
     TVector3 PositionXY(const CP::THandle<CP::THit>& hit1,
                         const CP::THandle<CP::THit>& hit2);
 
+    /// Determine if three hits overlap at a single point.  If the wires
+    /// overlap, the position is returned by reference.  The z-position of the
+    /// result is always set to zero.
+    bool OverlapXY(const CP::THandle<CP::THit>& hit1,
+                   const CP::THandle<CP::THit>& hit2,
+                   const CP::THandle<CP::THit>& hit3,
+                   TVector3& position);
+
     /// Determine the time zero for the event based on the pmt and wire hits.
     /// The time zero is essentially just time time of the first PMT time
     /// cluster.
@@ -81,6 +89,16 @@ private:
     /// time bin size), and return an overlap time.  If hits are within the
     /// overlap time of each other, then they are considered to overlap.
     double OverlapTime(double rms1, double rms2, double step) const;
+
+    /// The (up to) three wire hits and make a 3D TWritableReconHit handle.
+    /// The hits need to be from different plans (i.e. the wires cannot be
+    /// parallel).  This will return an empty handle if there is a problem
+    /// constructing the hit.
+    CP::THandle<CP::THit> MakeHit(const TVector3& hitPosition,
+                                  double t0,
+                                  const CP::THandle<CP::THit>& hit1,
+                                  const CP::THandle<CP::THit>& hit2,
+                                  const CP::THandle<CP::THit>& hit3) const;
 
 };
 #endif
