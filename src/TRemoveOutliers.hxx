@@ -17,7 +17,7 @@ namespace CP {
 /// along the wire.  Additionally, it's fairly unlikely that there will be two
 /// clumps of charge deposition along the wire in the same time slice (ie
 /// charge from two particles that are well separated in space don't usually
-/// qarrive at the wire at the same time).  Obviously, this isn't true in all
+/// arrive at the wire at the same time).  Obviously, this isn't true in all
 /// cases, but does cover most "reasonable" event geometries.  In one time
 /// slice and for one wire, this uses the other wire planes to estimate where
 /// the charge is located along that wire.  
