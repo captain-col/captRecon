@@ -25,7 +25,8 @@ public:
 
     /// Return the drift velocity.
     double GetAverageDriftVelocity() const {return fDriftVelocity;}
-
+    double GetAverageVelocity() const {return fDriftVelocity;}
+    
 private:
         
     /// The drift velocity.  This is set by captRecon.driftVelocity in the
