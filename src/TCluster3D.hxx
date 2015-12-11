@@ -8,11 +8,12 @@ namespace CP {
 };
 
 /// Take a hit selection (in the form of a CP::TAlgorithmResult), and group
-/// the 2D wire hits into 3D hits.  The hits are then formed into a
-/// TReconCluster.  If there is a PMT hit selection present, the hits will be
-/// placed at a Z associated with the T0 from the PMTs.  If there is no PMT,
-/// the clustered hits are all placed at Z=0, with the time set to when the
-/// charge passed that plane.
+/// the 2D wire hits into 3D hits that are returned as a THitSelection (in the
+/// output TAlgorithm Result.  The 3D hits form a hit cloud representing the
+/// best knowledge of the spacial distribution of drifting electrons.  If
+/// there is an input PMT hit selection present, the hits will be placed at a
+/// Z associated with the T0 from the PMTs.  If there is no PMT, T0 will be
+/// taken to be zero.
 class CP::TCluster3D
     : public CP::TAlgorithm {
 public:
@@ -24,9 +25,11 @@ public:
     /// TAlgorithmResult this can also be called with a THandle to a
     /// THitSelection.  The output TAlgorithmResult will contain:
     ///
-    ///   * used  -- All of the wire hits that were combined into 3D hits.
+    ///   * used -- A THitSelection of all of the wire hits that were combined
+    ///             into 3D hits.
     /// 
-    ///   * unused -- Any wire hits that were not used in 3D hits.
+    ///   * unused -- A THitSelection of any wire hits that were not used in
+    ///               3D hits.
     ///
     ///   * clustered -- The hit selection containing the 3D TReconHit from
     ///                  this algorithm.  This is the last THitSelection
@@ -76,15 +79,36 @@ private:
     /// considered to overlap.  This is in units of the time RMS.
     double fUSeparation;
 
+    /// A 3D hit is formed from 3 wire hits which are observing the same
+    /// charge distribution.  Since each of the three wire hits may have
+    /// contributions from multiple "electron clouds", the most charge that a
+    /// single 3D hit can have is the minimum charge on any single wire (it
+    /// might have less when the charge is properly shared between 3D hits).
+    /// This means that the charge on the smallest wire hit is a fairly good
+    /// estimator for the expected charge in the 3D hit.  A better estimate of
+    /// the 3D hit charge is look at the charge in the samples which overlap
+    /// in time.  Hits where the overlapping charge is less than
+    /// fMinimumOverlap times the expected charge are rejected.  This rejects
+    /// wires that are measureing drift clouds at different times.
+    double fMinimumOverlap;
+
     /// Hits that are closer than this in time are considered to overlap.
     /// This protects against unreasonably small RMSs for the hit times.
     double fMinSeparation;
+
+    /// Set the maximum time spread for a reconstructed 3D hits.  This keeps a
+    /// 3D hit from being long and skinny along the time axis (i.e. Z).
+    double fMaximumSpread;
 
     /// The amount of energy per measured ionization electron.  This is mostly
     /// used for pretty output and diagnostics.  The hits have their charges
     /// in electrons
     double fEnergyPerCharge;
 
+    /// The amount of time per digitizer sample.  This is the same for all
+    /// hits (and is nominally 500*ns).
+    double fDigitStep;
+    
     /// Take the "size" of each hit, and the minimum separation (basically the
     /// time bin size), and return an overlap time.  If hits are within the
     /// overlap time of each other, then they are considered to overlap.
@@ -94,11 +118,16 @@ private:
     /// The hits need to be from different plans (i.e. the wires cannot be
     /// parallel).  This will return an empty handle if there is a problem
     /// constructing the hit.
-    CP::THandle<CP::THit> MakeHit(const TVector3& hitPosition,
-                                  double t0,
-                                  const CP::THandle<CP::THit>& hit1,
-                                  const CP::THandle<CP::THit>& hit2,
-                                  const CP::THandle<CP::THit>& hit3) const;
+    bool MakeHit(CP::THitSelection& writableHits,
+                 const TVector3& hitPosition,
+                 double t0,
+                 const CP::THandle<CP::THit>& hit1,
+                 const CP::THandle<CP::THit>& hit2,
+                 const CP::THandle<CP::THit>& hit3) const;
+
+    /// Find the fractional overlap of the hit with the constituent.
+    double FindOverlap(const CP::THandle<CP::THit>& hit,
+                       const CP::THandle<CP::THit>& constituent) const;
 
 };
 #endif

@@ -13,11 +13,21 @@ zero.
 The maximum time between 2d clusters and still combine them into 3d
 clusters.  This is in units of the RMS.  A value of 1.73 would mean that
 clusters with a uniform charge distribution are combined if they overlap by
-"half" 
+"half".  This can be set ridiculously large, but it makes the code slow.
 
-< captRecon.cluster3d.xSeparation = 1.73 >
-< captRecon.cluster3d.vSeparation = 1.73 >
-< captRecon.cluster3d.uSeparation = 1.73 >
+< captRecon.cluster3d.xSeparation = 3.0 >
+< captRecon.cluster3d.vSeparation = 3.0 >
+< captRecon.cluster3d.uSeparation = 3.0 >
+
+The fraction of the charge distribution that overlaps between wire hits
+
+< captRecon.cluster3d.minimumOverlap = 0.5 >
+
+The maximum time that a reconstructed 3D hit can cover.  This prevents them
+from being long and skinny along the time axis (i.e. Z).  The horizontal (X
+& Y) spread for the hit is limited by the wire spacing.
+
+< captRecon.cluster3d.maximumSpread = 4 us >
 
 The parameters for density clustering.  The minimum points is the number of
 neighbors in the region, and maxDistance is the radius of the region.

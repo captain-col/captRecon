@@ -56,18 +56,29 @@ bool CP::TCluster3D::OverlapXY(const CP::THandle<CP::THit>& hit1,
                                const CP::THandle<CP::THit>& hit2,
                                const CP::THandle<CP::THit>& hit3,
                                TVector3& position) {
-    if ((CP::GeomId::Captain::GetWirePlane(hit1->GetGeomId())
-         == CP::GeomId::Captain::GetWirePlane(hit2->GetGeomId()))
-        || (CP::GeomId::Captain::GetWirePlane(hit1->GetGeomId())
-            == CP::GeomId::Captain::GetWirePlane(hit3->GetGeomId()))
-        || (CP::GeomId::Captain::GetWirePlane(hit2->GetGeomId())
-            != CP::GeomId::Captain::GetWirePlane(hit3->GetGeomId()))) {
+    
+    if (CP::GeomId::Captain::GetWirePlane(hit1->GetGeomId())
+        == CP::GeomId::Captain::GetWirePlane(hit2->GetGeomId())) {
+        CaptError("Hit1 and Hit2 illegal");
+        return false;
+    }
+
+    if (CP::GeomId::Captain::GetWirePlane(hit1->GetGeomId())
+        == CP::GeomId::Captain::GetWirePlane(hit3->GetGeomId())) {
+        CaptError("Hit1 and Hit3 illegal");
+        return false;
+    }
+    
+    if (CP::GeomId::Captain::GetWirePlane(hit2->GetGeomId())
+        == CP::GeomId::Captain::GetWirePlane(hit3->GetGeomId())) {
+        CaptError("Hit2 and Hit3 illegal");
         return false;
     }
 
     TVector3 p1(PositionXY(hit1,hit2));
     TVector3 p2(PositionXY(hit1,hit3));
     double dist = (p2-p1).Mag();
+
     if (dist > 2*unit::mm) return false;
     TVector3 p3(PositionXY(hit2,hit3));
 
@@ -122,19 +133,25 @@ CP::TCluster3D::TCluster3D()
         = CP::TRuntimeParameters::Get().GetParameterD(
             "captRecon.cluster3d.maxDrift");
 
-    // These need to be turned into parameters.
     fXSeparation = CP::TRuntimeParameters::Get().GetParameterD(
             "captRecon.cluster3d.xSeparation");
     fVSeparation = CP::TRuntimeParameters::Get().GetParameterD(
             "captRecon.cluster3d.vSeparation");
     fUSeparation = CP::TRuntimeParameters::Get().GetParameterD(
             "captRecon.cluster3d.uSeparation");
-
-    // This is the determined by the minimum tick of the digitizer.  
-    fMinSeparation = 500*unit::ns;
-
+    fMinimumOverlap = CP::TRuntimeParameters::Get().GetParameterD(
+            "captRecon.cluster3d.minimumOverlap");
+    fMaximumSpread = CP::TRuntimeParameters::Get().GetParameterD(
+            "captRecon.cluster3d.maximumSpread");
+    
     fEnergyPerCharge = CP::TRuntimeParameters::Get().GetParameterD(
         "captRecon.energyPerCharge");
+
+    // The time step per digitizer sample.
+    fDigitStep = 500*unit::ns;
+    
+    // This is the determined by the minimum tick of the digitizer.  
+    fMinSeparation = fDigitStep;
 
 }
 
@@ -192,151 +209,323 @@ namespace {
     }
 };
 
-CP::THandle<CP::THit>
-CP::TCluster3D::MakeHit(const TVector3& hitPosition,
-                        double t0,
-                        const CP::THandle<CP::THit>& hit1,
-                        const CP::THandle<CP::THit>& hit2,
-                        const CP::THandle<CP::THit>& hit3) const {
+bool CP::TCluster3D::MakeHit(CP::THitSelection& writableHits,
+                             const TVector3& hitPosition,
+                             double t0,
+                             const CP::THandle<CP::THit>& hit1,
+                             const CP::THandle<CP::THit>& hit2,
+                             const CP::THandle<CP::THit>& hit3) const {
 
+    double startTime = 9E+30;
+    double stopTime = -9E+30;
+    double expectedCharge = 9E+30;
+    
     if (hit1 && hit2) {
         if (CP::GeomId::Captain::GetWirePlane(hit1->GetGeomId())
             == CP::GeomId::Captain::GetWirePlane(hit2->GetGeomId())) {
-            return CP::THandle<CP::THit>();
+            return false;
+        }
+        if (hit1->GetTimeStart() > hit2->GetTimeStop()) {
+            return false;
+        }
+        if (hit1->GetTimeStop() < hit2->GetTimeStart()) {
+            return false;
         }
     }
 
     if (hit1 && hit3) {
         if (CP::GeomId::Captain::GetWirePlane(hit1->GetGeomId())
             == CP::GeomId::Captain::GetWirePlane(hit3->GetGeomId())) {
-            return CP::THandle<CP::THit>();
+            return false;
+        }
+        if (hit1->GetTimeStart() > hit3->GetTimeStop()) {
+            return false;
+        }
+        if (hit1->GetTimeStop() < hit3->GetTimeStart()) {
+            return false;
         }
     }
 
     if (hit2 && hit3) {
         if (CP::GeomId::Captain::GetWirePlane(hit2->GetGeomId())
             == CP::GeomId::Captain::GetWirePlane(hit3->GetGeomId())) {
-            return CP::THandle<CP::THit>();
+            return false;
+        }
+        if (hit2->GetTimeStart() > hit3->GetTimeStop()) {
+            return false;
+        }
+        if (hit2->GetTimeStop() < hit3->GetTimeStart()) {
+            return false;
         }
     }
 
-    // Create a new writable hit that can be filled later.
-    CP::THandle<CP::TWritableReconHit> hit(
-        new CP::TWritableReconHit(hit1,hit2,hit3));
-    hit->SetPosition(hitPosition);
+    // Find the full range of time covered by this hit.
+    if (hit1) {
+        startTime = std::min(startTime, hit1->GetTimeStart());
+        stopTime = std::max(stopTime, hit1->GetTimeStop());
+        expectedCharge = std::min(expectedCharge, hit1->GetCharge());
+    }
+
+    if (hit2) {
+        startTime = std::min(startTime, hit2->GetTimeStart());
+        stopTime = std::max(stopTime, hit2->GetTimeStop());
+        expectedCharge = std::min(expectedCharge, hit2->GetCharge());
+    }
+
+    if (hit3) {
+        startTime = std::min(startTime, hit3->GetTimeStart());
+        stopTime = std::max(stopTime, hit3->GetTimeStop());
+        expectedCharge = std::min(expectedCharge, hit3->GetCharge());
+    }
+
+    // Extend the time range to cover for the drift between the wires.
+    startTime -= 15*unit::microsecond;
+    stopTime += 15*unit::microsecond;
     
     CP::TDriftPosition drift;
 
-    // Average the times.
-    double tXHit = drift.GetTime(*hit1);
-    double tXUnc = hit1->GetTimeUncertainty();
-    tXUnc = tXUnc*tXUnc;
-    double tVHit = drift.GetTime(*hit2);
-    double tVUnc = hit2->GetTimeUncertainty();
-    tVUnc = tVUnc*tVUnc;
-    double tUHit = drift.GetTime(*hit3);
-    double tUUnc = hit3->GetTimeUncertainty();
-    tUUnc = tUUnc*tUUnc;
-    double tHit = tXHit/tXUnc + tVHit/tVUnc + tUHit/tUUnc;
-    double tUnc = 1.0/tXUnc + 1.0/tVUnc + 1.0/tUUnc;
-    tHit /= tUnc;
-    hit->SetTime(tHit); // This will be overridden to be time zero.
-    tUnc = std::sqrt(3.0/tUnc); // sqrt(3) for correlations.
-    hit->SetTimeUncertainty(tUnc);
+    // Build an "overlap charge distribution"
+    int bins = (stopTime-startTime)/fDigitStep + 1;
+    std::vector<double> overlap(bins);
+
+    if (hit1) {
+        double hitStart = drift.GetTime(*hit1);
+        hitStart += hit1->GetTimeStart()-hit1->GetTime();
+        if (hit1->GetTimeSamples() > 1) {
+            int ibin = (hitStart - startTime)/fDigitStep;
+            for (int i = 0; i<hit1->GetTimeSamples(); ++i) {
+                // The first hit must exist so just assign it.
+                overlap[i+ibin] = std::max(0.0,hit1->GetTimeSample(i));
+            }
+        }
+    }
+
+    if (hit2) {
+        double hitStart = drift.GetTime(*hit2);
+        hitStart += hit2->GetTimeStart()-hit2->GetTime();
+        if (hit2->GetTimeSamples() > 1) {
+            int ibin = (hitStart - startTime)/fDigitStep;
+            for (int i=0; i<ibin; ++i) overlap[i] = 0.0;
+            for (int i = 0; i<hit2->GetTimeSamples(); ++i) {
+                overlap[i+ibin] = std::max(0.0,
+                                           std::min(overlap[i+ibin],
+                                                    hit2->GetTimeSample(i)));
+            }
+            for (int i=ibin+hit2->GetTimeSamples(); i<overlap.size(); ++i) {
+                overlap[i] = 0.0;
+            }
+        }
+    }
+
+    if (hit3) {
+        double hitStart = drift.GetTime(*hit3);
+        hitStart += hit3->GetTimeStart()-hit3->GetTime();
+        if (hit3->GetTimeSamples() > 1) {
+            int ibin = (hitStart - startTime)/fDigitStep;
+            for (int i=0; i<ibin; ++i) overlap[i] = 0.0;
+            for (int i = 0; i<hit3->GetTimeSamples(); ++i) {
+                overlap[i+ibin] = std::max(0.0,
+                                           std::min(overlap[i+ibin],
+                                                    hit3->GetTimeSample(i)));
+            }
+            for (int i=ibin+hit3->GetTimeSamples(); i<overlap.size(); ++i) {
+                overlap[i] = 0.0;
+            }
+        }
+    }
+
+    // Find the time of the hit based on the overlaps between the wire hits.
+    double hitTime = 0.0;
+    double hitTimeRMS = 0.0;
+    double hitCharge = 0.0;
+    double hitStart = overlap.size();
+    double hitStop = 0;
+    for (int i = 0; i<overlap.size(); ++i) {
+        double t = startTime + fDigitStep*i;
+        hitTime += t*overlap[i];
+        hitTimeRMS += t*t*overlap[i];
+        hitCharge += overlap[i];
+        if (i < hitStart && overlap[i] > 1) hitStart = i;
+        if (i > hitStop && overlap[i] > 1) hitStop = i;
+    }
     
-    // The time RMS is determined by the RMS of the narrowest hit
-    // in time.  This will slightly overestimate the time RMS for
-    // the hit, but is a fairly good approximation.  The RMS could
-    // be calculated by combining the PDFs to directly calculate a
-    // combined RMS, but since the three 2D hits are measureing
-    // the same charge distribution, that ignores the correlations
-    // between the 2D hits.  The "min" method assumes the hits are
-    // all correlated.
-    double tRMS = std::min(hit1->GetTimeRMS(),
-                           std::min(hit2->GetTimeRMS(),
-                                    hit3->GetTimeRMS()));
-    hit->SetTimeRMS(tRMS);
-    
-    // For now set the charge to X wire charge.  This doesn't work
-    // for overlapping hits but gives a reasonable estimate of the
-    // energy deposition otherwise.  The U and V wires don't
-    // measure the total charge very well.  The charge for
-    // "overlapping" hits will need to be calculated once all of
-    // the TReconHits are constructed.
-    CaptNamedVerbose("Hit",
-                     "X: "
-                     << unit::AsString(hit1->GetCharge(), 
-                                       hit1->GetChargeUncertainty(), 
-                                       "pe")
-                     << "   V: " 
-                     << unit::AsString(hit2->GetCharge(), 
-                                       hit2->GetChargeUncertainty(), 
-                                       "pe")
-                     << "   U: " 
-                     << unit::AsString(hit3->GetCharge(), 
-                                       hit3->GetChargeUncertainty(), 
-                                       "pe"));
-    
-    double w = hit1->GetChargeUncertainty();
-    double charge = hit1->GetCharge()/(w*w);
-    double chargeUnc = 1.0/(w*w);
-    
-#define USE_V_CHARGE
-#ifdef USE_V_CHARGE
-    w = hit2->GetChargeUncertainty();
-    charge += hit2->GetCharge()/(w*w);
-    chargeUnc += 1.0/(w*w);
-#endif
-    
-#define USE_U_CHARGE
-#ifdef USE_U_CHARGE
-    w = hit3->GetChargeUncertainty();
-    charge += hit3->GetCharge()/(w*w);
-    chargeUnc += 1.0/(w*w);
-#endif
-    
-    charge /= chargeUnc;
-    chargeUnc = std::sqrt(1.0/chargeUnc);
-    
-    hit->SetCharge(charge);
-    hit->SetChargeUncertainty(chargeUnc);
-    
-    // Find the xyRMS and xyUncertainty.  This is not being done
-    // correctly, but this should be an acceptable approximation
-    // for now.  The approximation is based on the idea that the X
-    // rms of the three 2D hits is perpendicular to the wire, and
-    // takes that as an estimate of the hit size.  The Z RMS is
-    // calculated based on the time RMS of the three hits.  The XY
-    // rms then has the overlap spacing added in to account for
-    // lack of perfect overlaps (this is the constant 2mm squared.
-    double xyRMS = 0.0;
-    xyRMS += hit1->GetRMS().X()*hit1->GetRMS().X();
-    xyRMS += hit2->GetRMS().X()*hit2->GetRMS().X();
-    xyRMS += hit3->GetRMS().X()*hit3->GetRMS().X();
-    xyRMS /= 3.0;
-    xyRMS += xyRMS + 4*unit::mm*unit::mm;
-    xyRMS = std::sqrt(xyRMS);
-    
-    hit->SetRMS(
-        TVector3(xyRMS,xyRMS,
-                 drift.GetAverageDriftVelocity()*tRMS));
-    
-    // For the XY uncertainty, assume a uniform position
-    // distribution.  For the Z uncertainty, just use the time
-    // uncertainty.
-    hit->SetUncertainty(
-        TVector3(2.0*xyRMS/std::sqrt(12.),2.0*xyRMS/std::sqrt(12.),
-                 drift.GetAverageDriftVelocity()*tUnc));
-    
-    // Correct for the time zero.
-    TLorentzVector driftedPosition = drift.GetPosition(*hit,t0);
-    hit->SetTime(t0);
-    hit->SetPosition(driftedPosition.Vect());
-    
-    return hit;
+    // Make sure the hits overlapped by a reasonable amount.
+    if (hitCharge < fMinimumOverlap*expectedCharge) {
+        CaptNamedInfo("Cluster","Insufficient overlap: "
+                     << hitCharge << "/" << expectedCharge
+                     << " from "
+                     << unit::AsString(startTime+hitStart*fDigitStep, "time")
+                     << " to " 
+                     << unit::AsString(startTime+hitStop*fDigitStep, "time"));
+        CP::TCaptLog::IncreaseIndentation();
+        if (hit1) {
+            CaptNamedVerbose(
+                "Cluster",
+                "Hit1: ("
+                << CP::GeomId::Captain::GetWirePlane(hit1->GetGeomId())
+                << "-" << CP::GeomId::Captain::GetWireNumber(hit1->GetGeomId())
+                << ")"
+                << " " << unit::AsString(hit1->GetCharge(), "pe")
+                << " from " 
+                << unit::AsString(hit1->GetTimeStart(), "time")
+                << " to " 
+                << unit::AsString(hit1->GetTimeStop(), "time"));
+        }
+        if (hit2) {
+            CaptNamedVerbose(
+                "Cluster",
+                "Hit2: ("
+                << CP::GeomId::Captain::GetWirePlane(hit2->GetGeomId())
+                << "-" << CP::GeomId::Captain::GetWireNumber(hit2->GetGeomId())
+                << ")"
+                << " " << unit::AsString(hit2->GetCharge(), "pe")
+                << " from " 
+                << unit::AsString(hit2->GetTimeStart(), "time")
+                << " to " 
+                << unit::AsString(hit2->GetTimeStop(), "time"));
+        }
+        if (hit3) {
+            CaptNamedVerbose(
+                "Cluster",
+                "Hit3: ("
+                << CP::GeomId::Captain::GetWirePlane(hit3->GetGeomId())
+                << "-" << CP::GeomId::Captain::GetWireNumber(hit3->GetGeomId())
+                << ")"
+                << " " << unit::AsString(hit3->GetCharge(), "pe")
+                << " from " 
+                << unit::AsString(hit3->GetTimeStart(), "time")
+                << " to " 
+                << unit::AsString(hit3->GetTimeStop(), "time"));
+        }
+        CP::TCaptLog::DecreaseIndentation();
+        return false;
+    }
+
+    // Figure out where the charge overlap should be split.  The initial guess
+    // is the beginning and the end (i.e. no spliting at all).
+    std::vector<int> splits;
+    splits.push_back(hitStart);
+    splits.push_back(hitStop+1);
+
+    // Update the original guess at where to divide the current overlapping
+    // charge distribution by finding the internal partition points.
+    double hitSpread = fDigitStep*(hitStop-hitStart);
+    int nSplits = (int) hitSpread/fMaximumSpread + 1;
+    if (nSplits > 1) {
+        // Determine the number of samples to put into each "split".  This is
+        // a double so that the binning effect is spread over all of the
+        // splits (an not just in the last one).
+        double split = hitSpread/nSplits/fDigitStep;
+        for (double s = hitStart + split; s<hitStop-0.5*split; s += split) {
+            splits.push_back((int) (s+0.5) );
+        }
+    }
+
+    // Make sure that the split points are in order.
+    std::sort(splits.begin(), splits.end());
+
+    std::vector<int>::iterator begin = splits.begin();
+    std::vector<int>::iterator end = begin+1;
+    while (end != splits.end()) {
+        // Find the time of the hit based on the overlaps between the wire
+        // hits.
+        double splitTime = 0.0;
+        double splitTimeRMS = 0.0;
+        double splitCharge = 0.0;
+        for (int i = *begin; i< *end; ++i) {
+            double t = startTime + fDigitStep*i;
+            splitTime += t*overlap[i];
+            splitTimeRMS += t*t*overlap[i];
+            splitCharge += overlap[i];
+        }
+        splitTime /= splitCharge;
+        splitTimeRMS /= splitCharge;
+        splitTimeRMS = splitTimeRMS - splitTime*splitTime;
+        if (splitTimeRMS > 0) splitTimeRMS = std::sqrt(splitTimeRMS);
+        
+        CP::THandle<CP::TWritableReconHit> hit(
+            new CP::TWritableReconHit(hit1,hit2,hit3));
+        hit->SetPosition(hitPosition);
+        hit->SetTime(splitTime);
+        // Correct for the time zero.
+        hit->SetPosition(drift.GetPosition(*hit,t0).Vect());
+        hit->SetTime(t0);
+        hit->SetTimeUncertainty(splitTimeRMS/sqrt(3.0));
+        hit->SetTimeRMS(splitTimeRMS);
+        hit->SetCharge(splitCharge);
+        
+        // Estimate the charge uncertainty.
+        double splitChargeUnc = 0.0;
+        if (hit1) {
+            double w = hit1->GetChargeUncertainty();
+            splitChargeUnc += 1.0/(w*w);
+        }
+        
+        if (hit2) {
+            double w = hit2->GetChargeUncertainty();
+            splitChargeUnc += 1.0/(w*w);
+        }
+        
+        if (hit3) {
+            double w = hit3->GetChargeUncertainty();
+            splitChargeUnc += 1.0/(w*w);
+        }
+        
+        if (splitChargeUnc > 0.0) {
+            hit->SetChargeUncertainty(std::sqrt(1.0/splitChargeUnc));
+        }
+        
+        // Find the xyRMS and xyUncertainty.  This is not being done
+        // correctly, but this should be an acceptable approximation.  The
+        // approximation is that the X rms of the three 2D hits is
+        // perpendicular to the wire is an estimate of the hit size.  The Z
+        // RMS is calculated based on the time RMS of the wire hits.  The XY
+        // rms then has the overlap spacing added in to account for lack of
+        // perfect overlaps (this is the constant 2mm squared).
+        double xyRMS = 0.0;
+        if (hit1) xyRMS += hit1->GetRMS().X()*hit1->GetRMS().X();
+        if (hit2) xyRMS += hit2->GetRMS().X()*hit2->GetRMS().X();
+        if (hit3) xyRMS += hit3->GetRMS().X()*hit3->GetRMS().X();
+        xyRMS /= 3.0;
+        xyRMS += xyRMS + 4*unit::mm*unit::mm;
+        xyRMS = std::sqrt(xyRMS);
+        hit->SetRMS(
+            TVector3(xyRMS,xyRMS,drift.GetAverageVelocity()*hit->GetTimeRMS()));
+        
+        // For the XY uncertainty, assume a uniform position distribution.
+        // For the Z uncertainty, just use the time uncertainty.
+        hit->SetUncertainty(
+            TVector3(2.0*xyRMS/std::sqrt(12.),2.0*xyRMS/std::sqrt(12.),
+                     drift.GetAverageVelocity()*hit->GetTimeUncertainty()));
+        
+        writableHits.push_back(hit);
+        begin = end; ++end;
+    }
+
+    return true;
 }
 
+double
+CP::TCluster3D::FindOverlap(const CP::THandle<CP::THit>& hit,
+                            const CP::THandle<CP::THit>& constituent) const {
+    double total = 0.0;
+    double frac = 0.0;
+    CP::TDriftPosition drift;
+    double hitTime = drift.GetTime(*hit);
+    double startTime = drift.GetTime(*constituent);
+    startTime += constituent->GetTimeStart() - constituent->GetTime();
+    for (int i = 0; i<constituent->GetTimeSamples(); ++i) {
+        total += constituent->GetTimeSample(i);
+        double t = startTime + fDigitStep*i - hitTime;
+        t /= hit->GetTimeRMS();
+        if (t > 2.0) continue;
+        frac += std::exp(-0.5*t*t)*constituent->GetTimeSample(i);
+    }
 
+    if (total>0.0) return frac/total;
+    return 1E-5;
+}
+                            
 CP::THandle<CP::TAlgorithmResult>
 CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                         const CP::TAlgorithmResult& pmts,
@@ -388,6 +577,7 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
         }
         if (wireHits->size() < hitLimit) unused->push_back(*h2);
     }
+
     // Set the maximum time difference between 2D clusters that might become a
     // 3D hit.  This is set to be large (i.e. clusters that are spacially
     // separated by more than 25 mm.
@@ -474,7 +664,7 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 if (deltaT > OverlapTime(fUSeparation*uRMS,
                                          fVSeparation*vRMS,
                                          fMinSeparation)) continue;
-
+                
                 // Find the points at which the wires cross and check that the
                 // wires all cross and one "point".  Two millimeters is a
                 // "magic number chosen based on the geometry for a 3mm
@@ -483,14 +673,10 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 TVector3 hitPosition;
                 if (!OverlapXY(*xh,*vh,*uh,hitPosition)) continue;
 
-                // Create a new writable hit that can be filled later.
-                CP::THandle<CP::TWritableReconHit> hit
-                    = MakeHit(hitPosition,t0,*xh,*vh,*uh);
-
-                if (!hit) continue;
-
-                // Add this hit to be handled later.
-                writableHits.push_back(hit);
+                // Create new writables hits from the overlapping hits.  If
+                // the 2D wire hits overlap for a long time (several
+                // microseconds), this create several new 3D hits.
+                if (!MakeHit(writableHits,hitPosition,t0,*xh,*vh,*uh)) continue;
 
                 // These three wire hits make a 3D point.  Get them into the
                 // correct hit selections.  To protect against bogus events
@@ -507,7 +693,6 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                     used->AddHit(*uh);
                     unused->RemoveHit(*uh);
                 }
-
             }
         }
     }
@@ -532,7 +717,8 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
         CP::THandle<CP::TWritableReconHit> groupHit = *h;
         for (int i=0; i<groupHit->GetConstituentCount(); ++i) {
             CP::THandle<CP::THit> hit = groupHit->GetConstituent(i); 
-            group.AddMeasurement(hit, hit->GetCharge());
+            double physicsWeight = FindOverlap(groupHit,hit);
+            group.AddMeasurement(hit, hit->GetCharge(), physicsWeight);
         }
     }
 
@@ -552,7 +738,6 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 = g->GetLinks().begin();
             c != g->GetLinks().end(); ++c) {
             CP::THandle<CP::THit> hit = (*c)->GetMeasurement()->GetObject();
-            double charge = (*c)->GetCharge();
             // Notice that the sigma is not reduced by the weight.  This is an
             // attempt to capture some of the extra charge error introduced by
             // the charge sharing, but it's not formally correct.
@@ -610,8 +795,10 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
             << " is " 
             << unit::AsString(fEnergyPerCharge*usedCluster->GetEDeposit(),
                               "energy")
-            << " from " << clustered->size() << " hits");
-
+            << " from " << clustered->size() << " hits.");
+    CaptLog("  Used hits: " << used->size()
+            << "  Unused hits: " << unused->size());
+    
     if (unused->size() > 0) result->AddHits(unused.release());
     if (used->size() > 0) result->AddHits(used.release());
     result->AddHits(clustered.release());
