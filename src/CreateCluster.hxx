@@ -32,8 +32,9 @@ namespace CP {
     /// \endcode
     ///
     /// If the optional recalculateUncertainty argument is true, then the
-    /// uncertainty is recalculated.  The recalculation assumes that the
-    /// TReconHits used to construct the cluster contain overlapping 2D hits.
+    /// uncertainty is based on the size of the cluster.  This is the
+    /// appropriate measure of position uncertainty when the hit represents a
+    /// measured charge distribution.
     template<typename hitIterator>
     CP::THandle<CP::TReconCluster> 
     CreateCluster(const char* name, hitIterator begin, hitIterator end,
@@ -49,16 +50,25 @@ CP::THandle<CP::TReconCluster>
 CP::CreateCluster(const char* name, hitIterator begin, hitIterator end,
                   bool recalculateUncertainty) {
     
+#define DEBUG_CREATE_CLUSTER
 #ifdef DEBUG_CREATE_CLUSTER
+    int count1 = 0;
     for (hitIterator i = begin; i!=end; ++i) {
         CP::THandle< CP::THit > h = *i;
-        if (!h) throw CP::EClusterNonHit();
+        if (!h) {
+            CaptError("Non-hit at position " << count1);
+            throw CP::EClusterNonHit();
+        }
         hitIterator j = i;
+        int count2 = 0;
         while ((++j) != end) {
+            ++count2;
             if (CP::GetPointer(*i) != CP::GetPointer(*j)) continue;
-            CaptError("Invalid cluster: multiple copies of object");
+            CaptError("Invalid cluster: multiple copies of object ("
+                      << count1 << " matchs " << count1 + count2 << ")");
             throw CP::EClusterRepeatedObject();
         }
+        ++count1;
     }
 #endif
 

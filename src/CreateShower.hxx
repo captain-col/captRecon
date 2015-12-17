@@ -57,8 +57,8 @@ CP::CreateShower(const char* name, hitIterator begin, hitIterator end,
     shower->AddHits(showerHits);
     
     CP::THandle<CP::TReconObjectContainer> clusters
-        = CreateClusters(name, showerHits->begin(), showerHits->end(), 
-                         approxDir);
+        = CreateShowerClusters(name, showerHits->begin(), showerHits->end(), 
+                               approxDir);
     
     // Find the cluster width and order it so the narrow part is at the front
     // of the container.

@@ -436,9 +436,9 @@ CP::THandle<CP::TReconTrack> CP::TLinearRoad::GetTrack()  {
     CheckUnique(fTrackClusters.begin(), fTrackClusters.end());
 
     CP::THandle<CP::TReconTrack> track 
-        = CP::CreateTrack("TLinearRoad",
-                          fTrackClusters.begin(), 
-                          fTrackClusters.end());
-                                                         
+        = CP::CreateTrackFromClusters("TLinearRoad",
+                                      fTrackClusters.begin(), 
+                                      fTrackClusters.end());
+
     return track;     
 }

@@ -2,6 +2,8 @@
 #define CreateTrack_hxx_seen
 
 #include "TSegmentTrackFit.hxx"
+#include "CreateCluster.hxx"
+#include "CreateClusters.hxx"
 #include "HitUtilities.hxx"
 #include "ECaptRecon.hxx"
 
@@ -27,8 +29,9 @@ namespace CP {
     /// track can be refit by TTrackFit.
     template<typename clusterIterator>
     CP::THandle<CP::TReconTrack> 
-    CreateTrack(const char* name, clusterIterator begin, clusterIterator end,
-                bool verify=true);
+    CreateTrackFromClusters(const char* name,
+                            clusterIterator begin, clusterIterator end,
+                            bool verify=true);
 
     /// Take iterators from a container holding THandle<THit> objects (in no
     /// particular order), and create a track.  The first argument becomes the
@@ -38,8 +41,19 @@ namespace CP {
     /// refit by TTrackFit.
     template<typename hitIterator>
     CP::THandle<CP::TReconTrack> 
-    CreateTrack(const char* name, hitIterator begin, hitIterator end,
-                const TVector3& approxDir);
+    CreateTrackFromHits(const char* name, hitIterator begin, hitIterator end);
+    
+    /// Take iterators from a container holding THandle<THit> objects (in no
+    /// particular order), and create a track.  The first argument becomes the
+    /// name of the algorithm that created the track.  The hits are clustered
+    /// along the approxDir to form the nodes of the track.  The track will be
+    /// "fitted" using the TSegmentTrackFit which actually just connects the
+    /// clusters with straight line segments.  The resulting track can be
+    /// refit by TTrackFit.
+    template<typename hitIterator>
+    CP::THandle<CP::TReconTrack> 
+    CreateTrackFromHits(const char* name, hitIterator begin, hitIterator end,
+                        const TVector3& approxDir);
 
 };
 
@@ -49,8 +63,9 @@ namespace CP {
 
 template<typename clusterIterator>
 CP::THandle<CP::TReconTrack> 
-CP::CreateTrack(const char* name, clusterIterator begin, clusterIterator end,
-                bool verify) {
+CP::CreateTrackFromClusters(const char* name,
+                            clusterIterator begin, clusterIterator end,
+                            bool verify) {
 
     if (verify) {
         for (clusterIterator i = begin; i!=end; ++i) {
@@ -108,13 +123,20 @@ CP::CreateTrack(const char* name, clusterIterator begin, clusterIterator end,
 
 template<typename hitIterator>
 CP::THandle<CP::TReconTrack> 
-CP::CreateTrack(const char* name, hitIterator begin, hitIterator end,
-                const TVector3& approxDir) {
+CP::CreateTrackFromHits(const char* name, hitIterator begin, hitIterator end) {
+    // Create an object from the combined hits.
+    CP::THandle<CP::TReconCluster> c= CreateCluster("cluster", begin, end);
+    if (!c) return CP::THandle<CP::TReconTrack>();
+    return CreateTrackFromHits(name,c->GetHits()->begin(),c->GetHits()->end(),
+                               c->GetLongAxis());
+}
 
-    CP::THandle<CP::TReconObjectContainer> clusters
-        = CreateClusters(name, begin, end, 
-                         approxDir);
-
-    return CreateTrack(name,clusters->begin(), clusters->end(), false);
+template<typename hitIterator>
+CP::THandle<CP::TReconTrack> 
+CP::CreateTrackFromHits(const char* name, hitIterator begin, hitIterator end,
+                        const TVector3& approxDir) {
+    CP::THandle<CP::TReconObjectContainer> c
+        = CreateTrackClusters(name, begin, end, approxDir);
+    return CreateTrackFromClusters(name,c->begin(), c->end(), false);
 }
 #endif

@@ -208,7 +208,8 @@ CP::TMergeTracks::MergeTracks(CP::THandle<CP::TReconTrack> first,
 
     // Create the new track.
     CP::THandle<CP::TReconTrack> track
-        = CP::CreateTrack("TMergeTracks",clusters.begin(), clusters.end());
+        = CP::CreateTrackFromClusters("TMergeTracks",
+                                      clusters.begin(), clusters.end());
 
     TTrackFit fitter;
     track = fitter(track);

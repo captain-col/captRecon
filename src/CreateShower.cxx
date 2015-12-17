@@ -4,7 +4,7 @@
 #include <TReconCluster.hxx>
 #include <TReconShower.hxx>
 #include <THandle.hxx>
-#include <ostreamTVector3.hxx>
+// #include <ostreamTVector3.hxx>
 
 /// Create an empty unfit shower using a cluster.
 CP::THandle<CP::TReconShower> 

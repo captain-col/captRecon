@@ -101,22 +101,12 @@ CP::TCombineOverlaps::MergeObjects(CP::THandle<CP::TReconBase> object1,
     end = object2->GetHits()->end();
     while (begin != end) objectHits.insert(*(begin++));
 
-    // Create an object from the combined hits.
-    CP::THandle<CP::TReconCluster> cluster 
-        = CreateCluster("cluster", objectHits.begin(), objectHits.end());
-
-    if (!cluster) {
-        CaptError("No cluster constructed: " << objectHits.size());
-        return cluster;
-    }
-
     CP::THandle<CP::TReconTrack> merged
-        = CreateTrack("TCombineOverlaps", objectHits.begin(), objectHits.end(),
-                      cluster->GetLongAxis());
+        = CreateTrackFromHits("TCombineOverlaps",
+                              objectHits.begin(), objectHits.end());
     
     if (!merged) {
         CaptError("No combined object constructed");
-        return cluster;
     }
 
     return merged;

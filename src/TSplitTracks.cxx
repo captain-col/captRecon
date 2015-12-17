@@ -59,7 +59,7 @@ void CP::TSplitTracks::SaveTrack(
     }
 
     CP::THandle<CP::TReconTrack> track
-        = CP::CreateTrack("TSplitTracks",begin, end);
+        = CP::CreateTrackFromClusters("TSplitTracks",begin, end);
 
     if (!track) {
         CaptNamedInfo("Split", "Track not created");
@@ -451,11 +451,11 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
         // be split.  The two pieces are put back on the stack and we start
         // over again.
         if (worstChi2 > fThreeInLineCut) {
-            track = CreateTrack("TSplitTracks",begin,sharpestKink+1);
+            track = CreateTrackFromClusters("TSplitTracks",begin,sharpestKink+1);
             CaptNamedInfo("Split", "Stack track "
                           << " (UID " << track->GetUniqueID() << ")");
             trackStack.push_back(track);
-            track = CreateTrack("TSplitTracks",sharpestKink,end);
+            track = CreateTrackFromClusters("TSplitTracks",sharpestKink,end);
             CaptNamedInfo("Split", "Stack track "
                           << " (UID " << track->GetUniqueID() << ")");
             trackStack.push_back(track);
@@ -484,11 +484,11 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
         // If the biggest gap is too big the track should be split.  The two
         // pieces are put back on the stack and we start over again.
         if (maxDist > fSplitDistanceCut) {
-            track = CreateTrack("TSplitTracks",begin,biggestGap);
+            track = CreateTrackFromClusters("TSplitTracks",begin,biggestGap);
             CaptNamedInfo("Split", "Stack track with "
                           << " (UID " << track->GetUniqueID() << ")");
             trackStack.push_back(track);
-            track = CreateTrack("TSplitTracks",biggestGap,end);
+            track = CreateTrackFromClusters("TSplitTracks",biggestGap,end);
             CaptNamedInfo("Split", "Stack track with "
                           << " (UID " << track->GetUniqueID() << ")");
             trackStack.push_back(track);
@@ -516,11 +516,11 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
         // be split.  The two pieces are put back on the stack and we start
         // over again.
         if (biggestAngle > fKinkAngleCut) {
-            track = CreateTrack("TSplitTracks",begin,sharpestKink+1);
+            track = CreateTrackFromClusters("TSplitTracks",begin,sharpestKink+1);
             CaptNamedInfo("Split", "Stack track "
                           << " (UID " << track->GetUniqueID() << ")");
             trackStack.push_back(track);
-            track = CreateTrack("TSplitTracks",sharpestKink,end);
+            track = CreateTrackFromClusters("TSplitTracks",sharpestKink,end);
             CaptNamedInfo("Split", "Stack track "
                           << " (UID " << track->GetUniqueID() << ")");
             trackStack.push_back(track);

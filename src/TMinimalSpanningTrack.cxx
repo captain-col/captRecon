@@ -260,7 +260,7 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
             // There are enough nodes in the new track to save.
             if (nodes.size() > 1) {
                 CP::THandle<CP::TReconTrack> track 
-                    = CreateTrack("TMinimalSpanningTrack",
+                    = CreateTrackFromClusters("TMinimalSpanningTrack",
                                   nodes.begin(), nodes.end());
                 final->push_back(track);
             }
