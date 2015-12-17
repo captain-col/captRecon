@@ -157,7 +157,9 @@ CP::TCluster3D::TCluster3D()
 
 CP::TCluster3D::~TCluster3D() { }
 
+static int overlapTimeCount = 0;
 double CP::TCluster3D::OverlapTime(double r1, double r2, double step) const {
+    ++overlapTimeCount;
 #ifdef QUADRATURE_OVERLAP
     return std::sqrt(r1*r1 + r2*r2 + step*step);
 #else
@@ -530,6 +532,7 @@ CP::THandle<CP::TAlgorithmResult>
 CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                         const CP::TAlgorithmResult& pmts,
                         const CP::TAlgorithmResult&) {
+    overlapTimeCount = 0;
     CaptLog("TCluster3D Process " << GetEvent().GetContext());
     CP::THandle<CP::THitSelection> wireHits = wires.GetHits();
     if (!wireHits) {
@@ -803,5 +806,7 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     if (used->size() > 0) result->AddHits(used.release());
     result->AddHits(clustered.release());
 
+    CaptError("OverlapTimeCount: " << overlapTimeCount );
+    overlapTimeCount = 0;
     return result;
 }
