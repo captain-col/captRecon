@@ -114,6 +114,10 @@ private:
     /// overlap time of each other, then they are considered to overlap.
     double OverlapTime(double rms1, double rms2, double step) const;
 
+    /// Return true if two hits overlap.
+    bool OverlappingHits(CP::THandle<CP::THit> h1,
+                         CP::THandle<CP::THit> h2) const;
+        
     /// The (up to) three wire hits and make a 3D TWritableReconHit handle.
     /// The hits need to be from different plans (i.e. the wires cannot be
     /// parallel).  This will return an empty handle if there is a problem

@@ -159,11 +159,32 @@ CP::TCluster3D::~TCluster3D() { }
 
 static int overlapTimeCount = 0;
 double CP::TCluster3D::OverlapTime(double r1, double r2, double step) const {
-    ++overlapTimeCount;
 #ifdef QUADRATURE_OVERLAP
     return std::sqrt(r1*r1 + r2*r2 + step*step);
 #else
     return std::max(r1,std::max(r2,step));
+#endif
+}
+
+bool CP::TCluster3D::OverlappingHits(CP::THandle<CP::THit> h1,
+                                     CP::THandle<CP::THit> h2) const {
+    ++overlapTimeCount;
+#ifdef START_STOP_OVERLAP
+    CP::TDriftPosition drift;
+    double b1 = drift.GetTime(*h1) + h1->GetTimeStart() - h1->GetTime();
+    double b2 = drift.GetTime(*h2) + h2->GetTimeStart() - h2->GetTime();
+    double e1 = drift.GetTime(*h1) + h1->GetTimeStop() - h1->GetTime();
+    double e2 = drift.GetTime(*h2) + h2->GetTimeStop() - h2->GetTime();
+    if (e1 < b2) return false;
+    if (e2 < b1) return false;
+    return true;
+#else
+    CP::TDriftPosition drift;
+    double t1 = drift.GetTime(*h1);
+    double t2 = drift.GetTime(*h2);
+    double r1 = fXSeparation*h1->GetTimeRMS();
+    double r2 = fUSeparation*h2->GetTimeRMS();
+    return (std::abs(t1-t2) < OverlapTime(r1,r2,fMinSeparation));
 #endif
 }
 
@@ -652,21 +673,13 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 double uRMS = (*uh)->GetTimeRMS();
 
                 // Check that the X and U wires overlap in time.
-                if (deltaT > OverlapTime(fXSeparation*xRMS,
-                                         fUSeparation*uRMS,
-                                         fMinSeparation)) continue;
-                
+                if (!OverlappingHits(*xh, *uh)) continue;
+                  
                 // Check that the X and V wires overlap in time.
-                deltaT = std::abs(vTime - xTime);                
-                if (deltaT > OverlapTime(fXSeparation*xRMS,
-                                         fVSeparation*vRMS,
-                                         fMinSeparation)) continue;
+                if (!OverlappingHits(*xh, *vh)) continue;
 
                 // Check that the U and V wires overlap in time.
-                deltaT = std::abs(vTime - uTime);                
-                if (deltaT > OverlapTime(fUSeparation*uRMS,
-                                         fVSeparation*vRMS,
-                                         fMinSeparation)) continue;
+                if (!OverlappingHits(*uh, *vh)) continue;
                 
                 // Find the points at which the wires cross and check that the
                 // wires all cross and one "point".  Two millimeters is a
