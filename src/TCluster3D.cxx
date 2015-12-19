@@ -157,7 +157,6 @@ CP::TCluster3D::TCluster3D()
 
 CP::TCluster3D::~TCluster3D() { }
 
-static int overlapTimeCount = 0;
 double CP::TCluster3D::OverlapTime(double r1, double r2, double step) const {
 #ifdef QUADRATURE_OVERLAP
     return std::sqrt(r1*r1 + r2*r2 + step*step);
@@ -168,7 +167,7 @@ double CP::TCluster3D::OverlapTime(double r1, double r2, double step) const {
 
 bool CP::TCluster3D::OverlappingHits(CP::THandle<CP::THit> h1,
                                      CP::THandle<CP::THit> h2) const {
-    ++overlapTimeCount;
+#define START_STOP_OVERLAP
 #ifdef START_STOP_OVERLAP
     CP::TDriftPosition drift;
     double b1 = drift.GetTime(*h1) + h1->GetTimeStart() - h1->GetTime();
@@ -334,7 +333,7 @@ bool CP::TCluster3D::MakeHit(CP::THitSelection& writableHits,
                                            std::min(overlap[i+ibin],
                                                     hit2->GetTimeSample(i)));
             }
-            for (int i=ibin+hit2->GetTimeSamples(); i<overlap.size(); ++i) {
+            for (std::size_t i=ibin+hit2->GetTimeSamples(); i<overlap.size(); ++i) {
                 overlap[i] = 0.0;
             }
         }
@@ -351,7 +350,7 @@ bool CP::TCluster3D::MakeHit(CP::THitSelection& writableHits,
                                            std::min(overlap[i+ibin],
                                                     hit3->GetTimeSample(i)));
             }
-            for (int i=ibin+hit3->GetTimeSamples(); i<overlap.size(); ++i) {
+            for (std::size_t i=ibin+hit3->GetTimeSamples(); i<overlap.size(); ++i) {
                 overlap[i] = 0.0;
             }
         }
@@ -363,7 +362,7 @@ bool CP::TCluster3D::MakeHit(CP::THitSelection& writableHits,
     double hitCharge = 0.0;
     double hitStart = overlap.size();
     double hitStop = 0;
-    for (int i = 0; i<overlap.size(); ++i) {
+    for (std::size_t i = 0; i<overlap.size(); ++i) {
         double t = startTime + fDigitStep*i;
         hitTime += t*overlap[i];
         hitTimeRMS += t*t*overlap[i];
@@ -553,7 +552,6 @@ CP::THandle<CP::TAlgorithmResult>
 CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                         const CP::TAlgorithmResult& pmts,
                         const CP::TAlgorithmResult&) {
-    overlapTimeCount = 0;
     CaptLog("TCluster3D Process " << GetEvent().GetContext());
     CP::THandle<CP::THitSelection> wireHits = wires.GetHits();
     if (!wireHits) {
@@ -580,21 +578,21 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     const std::size_t hitLimit = 3000;
 
     std::vector<float> allRMS;
-    std::auto_ptr<CP::THitSelection> xHits(new CP::THitSelection);
-    std::auto_ptr<CP::THitSelection> vHits(new CP::THitSelection);
-    std::auto_ptr<CP::THitSelection> uHits(new CP::THitSelection);
+    CP::THitSelection xHits;
+    CP::THitSelection vHits;
+    CP::THitSelection uHits;
     for (CP::THitSelection::iterator h2 = wireHits->begin(); 
          h2 != wireHits->end(); ++h2) {
         int plane = CP::GeomId::Captain::GetWirePlane((*h2)->GetGeomId());
         allRMS.push_back((*h2)->GetTimeRMS());
         if (plane == CP::GeomId::Captain::kXPlane) {
-            xHits->push_back(*h2);
+            xHits.push_back(*h2);
         }
         else if (plane == CP::GeomId::Captain::kVPlane) {
-            vHits->push_back(*h2);
+            vHits.push_back(*h2);
         }
         else if (plane == CP::GeomId::Captain::kUPlane) {
-            uHits->push_back(*h2);
+            uHits.push_back(*h2);
         }
         else {
             CaptError("Invalid wire plane");
@@ -617,70 +615,41 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     std::sort(allRMS.begin(), allRMS.end());
     maxDeltaT = std::min(maxDeltaT, deltaRMS*allRMS.back());
 
-    std::sort(xHits->begin(), xHits->end(), compareHitTime());
-    std::sort(vHits->begin(), vHits->end(), compareHitTime());
-    std::sort(uHits->begin(), uHits->end(), compareHitTime());
+    std::sort(xHits.begin(), xHits.end(), compareHitTime());
+    std::sort(vHits.begin(), vHits.end(), compareHitTime());
+    std::sort(uHits.begin(), uHits.end(), compareHitTime());
 
     CP::TCaptLog::IncreaseIndentation();
-    CaptLog("X Hits: " << xHits->size()
-            << " V Hits: " << vHits->size()
-            << " U Hits: " << uHits->size()
+    CaptLog("X Hits: " << xHits.size()
+            << " V Hits: " << vHits.size()
+            << " U Hits: " << uHits.size()
             << "  max(RMS): " << unit::AsString(maxDeltaT,"time"));
     CP::TCaptLog::DecreaseIndentation();
 
     CP::TDriftPosition drift;
-
-    // The time must be drift corrected!
-    double deltaT;
-
-    int trials = 0;
-    CP::THitSelection::iterator vBegin = vHits->begin();
-    CP::THitSelection::iterator uBegin = uHits->begin();
+    CP::THitSelection xvMatch;
+    
     CP::THitSelection writableHits;
-    for (CP::THitSelection::iterator xh=xHits->begin();
-         xh!=xHits->end(); ++xh) {
-        ++trials;
-        double xTime = drift.GetTime(**xh);
-        double xRMS = (*xh)->GetTimeRMS();
-        while (vBegin != vHits->end() 
-               && drift.GetTime(**vBegin) - xTime < - maxDeltaT) {
-            ++vBegin;
+    for (CP::THitSelection::iterator xh=xHits.begin();
+         xh!=xHits.end(); ++xh) {
+        xvMatch.clear();
+        for (CP::THitSelection::iterator vh=vHits.begin();
+             vh!=vHits.end(); ++vh) {
+            // Check that the X and V wires overlap in time.
+            if (!OverlappingHits(*xh, *vh)) continue;
+            xvMatch.push_back(*vh);
         }
-        while (uBegin != uHits->end()
-               && drift.GetTime(**uBegin) - xTime < - maxDeltaT) {
-            ++uBegin;
-        }
+        
+        for (CP::THitSelection::iterator uh=uHits.begin();
+             uh!=uHits.end(); ++uh) {
+            // Check that the X and U wires overlap in time.
+            if (!OverlappingHits(*xh, *uh)) continue;
 
-        for (CP::THitSelection::iterator vh=vBegin;
-             vh!=vHits->end(); ++vh) {
-            ++trials;
-            double vTime = drift.GetTime(**vh);
-            deltaT = vTime - xTime;
-            if (deltaT > maxDeltaT) break;
-            deltaT = std::abs(deltaT);
-
-            double vRMS = (*vh)->GetTimeRMS();
-
-            for (CP::THitSelection::iterator uh=uBegin;
-                 uh!=uHits->end(); ++uh) {
-                ++trials;
-                double uTime = drift.GetTime(**uh);
-                
-                deltaT = uTime - xTime;
-                if (deltaT > maxDeltaT) break;
-                deltaT = std::abs(deltaT);
-                
-                double uRMS = (*uh)->GetTimeRMS();
-
-                // Check that the X and U wires overlap in time.
-                if (!OverlappingHits(*xh, *uh)) continue;
-                  
-                // Check that the X and V wires overlap in time.
-                if (!OverlappingHits(*xh, *vh)) continue;
-
+            for (CP::THitSelection::iterator vh=xvMatch.begin();
+                 vh != xvMatch.end(); ++vh) {
                 // Check that the U and V wires overlap in time.
                 if (!OverlappingHits(*uh, *vh)) continue;
-                
+            
                 // Find the points at which the wires cross and check that the
                 // wires all cross and one "point".  Two millimeters is a
                 // "magic number chosen based on the geometry for a 3mm
@@ -688,12 +657,12 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 // wire spacing changes.
                 TVector3 hitPosition;
                 if (!OverlapXY(*xh,*vh,*uh,hitPosition)) continue;
-
+            
                 // Create new writables hits from the overlapping hits.  If
                 // the 2D wire hits overlap for a long time (several
                 // microseconds), this create several new 3D hits.
                 if (!MakeHit(writableHits,hitPosition,t0,*xh,*vh,*uh)) continue;
-
+                
                 // These three wire hits make a 3D point.  Get them into the
                 // correct hit selections.  To protect against bogus events
                 // that have a to much "garbage", this only gets done if there
@@ -779,25 +748,25 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     }
 
     CaptNamedInfo("Cluster","Mean X Hit Charge " 
-            << unit::AsString(hitMean(xHits->begin(), xHits->end()),
-                              hitRMS(xHits->begin(), xHits->end()),
+            << unit::AsString(hitMean(xHits.begin(), xHits.end()),
+                              hitRMS(xHits.begin(), xHits.end()),
                               "pe"));
     CaptNamedInfo("Cluster","Total X Hit Charge " 
-            << unit::AsString(hitTotal(xHits->begin(), xHits->end()),
+            << unit::AsString(hitTotal(xHits.begin(), xHits.end()),
                               "pe"));
     CaptNamedInfo("Cluster","Mean V Hit Charge " 
-            << unit::AsString(hitMean(vHits->begin(), vHits->end()),
-                              hitRMS(vHits->begin(), vHits->end()),
+            << unit::AsString(hitMean(vHits.begin(), vHits.end()),
+                              hitRMS(vHits.begin(), vHits.end()),
                               "pe"));
     CaptNamedInfo("Cluster","Total V Hit Charge " 
-            << unit::AsString(hitTotal(vHits->begin(), vHits->end()),
+            << unit::AsString(hitTotal(vHits.begin(), vHits.end()),
                               "pe"));
     CaptNamedInfo("Cluster","Mean U Hit Charge "
-            << unit::AsString(hitMean(uHits->begin(), uHits->end()),
-                              hitRMS(uHits->begin(), uHits->end()),
+            << unit::AsString(hitMean(uHits.begin(), uHits.end()),
+                              hitRMS(uHits.begin(), uHits.end()),
                               "pe"));
     CaptNamedInfo("Cluster","Total U Hit Charge " 
-            << unit::AsString(hitTotal(uHits->begin(), uHits->end()),
+            << unit::AsString(hitTotal(uHits.begin(), uHits.end()),
                               "pe"));
 
     CP::TReconObjectContainer* final = new CP::TReconObjectContainer("final");
@@ -819,7 +788,5 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     if (used->size() > 0) result->AddHits(used.release());
     result->AddHits(clustered.release());
 
-    CaptError("OverlapTimeCount: " << overlapTimeCount );
-    overlapTimeCount = 0;
     return result;
 }
