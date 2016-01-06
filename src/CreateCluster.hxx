@@ -38,7 +38,7 @@ namespace CP {
     template<typename hitIterator>
     CP::THandle<CP::TReconCluster> 
     CreateCluster(const char* name, hitIterator begin, hitIterator end,
-                  bool recalculateUncertainty = false);
+                  bool recalculateUncertainty = true);
 };
 
 //////////////////////////////////////////////////////////////////
@@ -77,6 +77,7 @@ CP::CreateCluster(const char* name, hitIterator begin, hitIterator end,
     CP::THandle<CP::TReconCluster> cluster(new CP::TReconCluster);
     cluster->FillFromHits(name,begin,end);
 
+#ifdef CREATE_CLUSTER_SUMMARY_INFORMATION
     // Collect the unique X, V and U hits.
     double summedCharge = 0.0;
     double summedVar = 0.0;
@@ -126,50 +127,29 @@ CP::CreateCluster(const char* name, hitIterator begin, hitIterator end,
         uVariance += v*v;
     }
 
-    // Construct the cluster charge from the average of X, V, and U.
-    double wireCharge = xCharge/xVariance 
-        + vCharge/vVariance
-        + uCharge/uVariance;
-    double wireVar = 1.0/xVariance + 1.0/vVariance + 1.0/uVariance;
-    wireCharge /= wireVar;
-    wireVar = 1.0/wireVar; 
-
     CP::THandle<CP::TClusterState> state = cluster->GetState();
-#ifdef RESET_CLUSTER_CHARGE_WITH_WIRE_AVERAGE
-    // Update the cluster state with the new charge and it's variance.
-    state->SetEDeposit(wireCharge);
-    state->SetEDepositVariance(wireVar);
-#endif
-
-#define RESET_CLUSTER_CHARGE_WITH_WIRE_SUM
-#ifdef RESET_CLUSTER_CHARGE_WITH_WIRE_SUM
-    // Update the cluster state with the new charge and it's variance.
-    state->SetEDeposit(summedCharge);
-    state->SetEDepositVariance(summedVar);
-#endif
 
     CaptNamedInfo(
         "CreateCluster", name << " Q: "
         << unit::AsString(state->GetEDeposit(), 
                           std::sqrt(state->GetEDepositVariance()), 
                           "charge")
-        << " on wires: " << unit::AsString(wireCharge, 
-                                           std::sqrt(wireVar), "charge")
         << " X: " << unit::AsString(xCharge, 
                                     std::sqrt(xVariance), "charge")
         << " V: " << unit::AsString(vCharge, 
                                     std::sqrt(vVariance), "charge")
         << " U: " << unit::AsString(uCharge, 
                                     std::sqrt(uVariance), "charge"));
-
+#endif
+    
     if (recalculateUncertainty) {
-        // Adjust the position covariance to say that the position
-        // uncertainty is not the weighted average position of the hits,
-        // but the moments of the charge distribution.  Empirically, this
-        // seems to not give the right chi-squared values for track fits,
-        // but gives a better estimate in a shower where the clusters are
-        // not done by time sliced.  The default is with
-        // recalculateUncertainty set to be false.
+        // Adjust the position covariance to say that the position uncertainty
+        // is not the weighted average position of the hits, but the moments
+        // of the charge distribution.  Empirically, this seems to not give
+        // the right chi-squared values for track fits, but gives a better
+        // estimate in a shower where the clusters are not done by time
+        // sliced.  The default value is set above in the declaration of the
+        // CreateCluster template.
         const CP::TReconCluster::MomentMatrix& moments 
             = cluster->GetMoments();
         CP::THandle<CP::TClusterState> covState = cluster->GetState();
