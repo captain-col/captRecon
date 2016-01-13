@@ -60,7 +60,10 @@ namespace BTF {
     /// This takes a covariance matrix that might have extreme correlations
     /// and "conditions" it by reducing the correlations until it is positive
     /// definite.  The corr parameter controls how much correlation is
-    /// required.  This modifies the input matrix.
+    /// required [it's approximately 1/max(CorrCoeff)], so a smaller value
+    /// means that more correlation is allowed between the coordinates.  This
+    /// modifies the input matrix by increasing the uncertainty for each
+    /// coordinate until the matrix is positive definite.
     void ConditionMatrix(TMatrixD& covar1, double corr = 0.01);
 };
 
@@ -75,8 +78,10 @@ public:
     virtual ~TSystemPDF() {}
     
     /// Set whether this is a forward or backward update.  Comment: The
-    /// SampleFrom method is written so that it is independent of whether
-    /// the class is used for forward or backward filtering.
+    /// SampleFrom method is written so that it is independent of whether the
+    /// class is used for forward or backward filtering.  This would be used
+    /// if the track energy were being updated to say whether to the energy
+    /// increases or decreases.
     void SetBackwardUpdate(bool back=true) {fBackwardUpdate = back;}
     
     /// Set the measurement object (i.e. the cluster) associated with the
@@ -85,14 +90,14 @@ public:
         fMeasurement = next;
     }
     
-    /// The function to generate one updated state.  The previous state of
-    /// the system is accessed through the ConditionalArgumentGet(0)
-    /// method.  The updated state is set as the value of oneSample.  Note
-    /// that the updated state is propagated to the expected state for the
-    /// next measurement, and includes the effect of multiple scattering
-    /// (and any other random proceses.  The final two arguments (method
-    /// and args) are not used by the BFL, and always have the value of
-    /// DEFAULT and NULL.
+    /// The function to generate one updated state.  The previous state of the
+    /// system is accessed through the ConditionalArgumentGet(0) method.  The
+    /// updated state is set as the value of oneSample.  This updates
+    /// oneSample to the expected state for the next measurement (set using
+    /// SetMeasurement), and includes the effect of multiple scattering plus
+    /// and any other random proceses that will affect the track propagation.
+    /// The final two arguments (method and args) are not used by the BFL, and
+    /// always have the value of DEFAULT and NULL.
     virtual bool SampleFrom(BFL::Sample<ColumnVector>& oneSample,
                             int method = DEFAULT, 
                             void* args = NULL) const;
@@ -195,7 +200,7 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     CaptLog("Bootstrap " << input->GetUniqueID() 
             << " w/ " << nodes.size() << " nodes"
             << "    range: " << range/unit::mm << " mm"
-            << "    rough momentum: " << momentum << " MeV/c");
+            << "    rough momentum: " << momentum/unit::MeV << " MeV/c");
 
     // Define the number of states to use in the particle filter.
     const int numSamples = fTrials;
@@ -203,8 +208,18 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     // Define the size of the state.
     const int stateSize = BTF::kStateSize;
 
+    // Define the system model.  The system model contains the current PDF for
+    // the track fit parameters that will be updated with new measurement
+    // information.  The system model is initialized using forwardPrior (which
+    // is filled using GeneratePrior) and then is iteratively updated with new
+    // measurement information.
     BTF::TSystemPDF systemPDF(momentum);
     BFL::SystemModel<BTF::ColumnVector> systemModel(&systemPDF);
+
+    // Define the measurement model.  The main purpose of the measurement
+    // model is to calculte the probability of a state (updated as a
+    // prediction for the next measurement) relative to the actual
+    // measurement.
     BTF::TMeasurementPDF measurementPDF;
     BFL::MeasurementModel<BTF::ColumnVector, BTF::ColumnVector> 
         measurementModel(&measurementPDF);
@@ -217,8 +232,11 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
 
     /////////////////////////////////////////////////////////////////////
     // Generate the prior samples that are used to start the filter.  The
-    // prior samples are based on the first two nodes and are
-    // positioned just "upstream" of the first node.
+    // prior samples are based on two nodes and are positioned so that the
+    // firstNode is "upstream" of the otherNode.  Rather than use the first
+    // two nodes in the track, this tries to find a node that is well
+    // separated from the first node so that it gets a better estimate of the
+    // track direction.
     /////////////////////////////////////////////////////////////////////
     CP::THandle<CP::TReconNode> firstNode = nodes[0];
     CP::THandle<CP::TReconNode> otherNode = nodes[1];
@@ -658,7 +676,7 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
     }
 
     // Find the distance to the closest approach to the next measurement using
-    // the updated direction.
+    // the updated position and direction.
     TVector3 diff2 = fMeasurement->GetPosition().Vect() - pos;
     double dist2 = diff2*dir;
     pos = pos + dist2*dir;
@@ -736,18 +754,19 @@ void BTF::TMeasurementPDF::SetMeasurement(CP::THandle<CP::TReconCluster> next) {
     for (int i=0; i<3; ++i) {
         for (int j=0; j<3; ++j) {
             double v = state->GetPositionCovariance(i,j);
-            // Fix spurious accuracy for the Z axis.  The extra accuracy
-            // is introduced by just taking the average of all of the
-            // contributing hit positions.  However, the Z positions of
-            // all of the hits are the same when the clusters are
-            // constructed.  The intrinsic Z accuracy is about 0.5 mm.
+            // Check for spurious accuracy along any axis.  The extra accuracy
+            // can be introduced with the position uncertainty is found by
+            // averageing the contributing hit positions.  The intrinsic
+            // accuracy is about 0.5 mm, so that is set as the minimum error.
+            // This won't have any effect if the cluster uncertainty is being
+            // based on the moments of the charge distribution.
             if (i == j) v = std::max(0.25*unit::mm*unit::mm, v);
             fErrorMat(i,j) = v;
         }
     }
     BTF::ConditionMatrix(fErrorMat);
 
-    // The matrix has been filled with the covariance, not turn it into the
+    // The matrix has been filled with the covariance, now turn it into the
     // error matrix.
     double det;
     fErrorMat.InvertFast(&det);
