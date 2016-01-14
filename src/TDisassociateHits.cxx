@@ -62,6 +62,10 @@ CP::TDisassociateHits::Process(const CP::TAlgorithmResult& input,
     }    
     if (trackCount < 15) bigTrackThreshold = 0;
 
+    CaptNamedLog("TDisassociateHits",
+                 "Big track threshold " << bigTrackThreshold
+                 << " for " << trackCount << " tracks");
+    
     // Objects to break up.
     std::auto_ptr<CP::TReconObjectContainer> 
         disassociate(new CP::TReconObjectContainer("disassociate"));
@@ -73,6 +77,21 @@ CP::TDisassociateHits::Process(const CP::TAlgorithmResult& input,
         CP::THandle<CP::TReconCluster> cluster = *t;
         if (track) {
             if (track->GetNodes().size() > bigTrackThreshold) {
+                // Save all the "big" tracks to final.
+                final->push_back(*t);
+                tracks->push_back(*t);
+                continue;
+            }
+            double length = 0.0;
+            for (CP::THitSelection::iterator h = track->GetHits()->begin();
+                 h != track->GetHits()->end(); ++h) {
+                for (CP::THitSelection::iterator i = h;
+                     i != track->GetHits()->end(); ++i) {
+                    double v = ((*h)->GetPosition()-(*i)->GetPosition()).Mag();
+                    if (v > length) length = v;
+                }
+            }
+            if (length > 100*unit::mm) {
                 // Save all the "big" tracks to final.
                 final->push_back(*t);
                 tracks->push_back(*t);
