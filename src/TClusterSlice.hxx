@@ -51,5 +51,13 @@ private:
 
     /// The splitting distance in Z.
     double fClusterStep;
+
+    /// The splitting distance in X/Y.  This is used to define the DBScan
+    /// metric.
+    double fClusterExtent;
+
+    /// The scaling factor for the cluster growth.
+    double fClusterGrowth;
+    
 };
 #endif

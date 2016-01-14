@@ -38,6 +38,12 @@ CP::TClusterSlice::TClusterSlice()
         "captRecon.clusterSlice.minStep");
     fClusterStep = CP::TRuntimeParameters::Get().GetParameterD(
         "captRecon.clusterSlice.clusterStep");
+
+    fClusterExtent = CP::TRuntimeParameters::Get().GetParameterD(
+        "captRecon.clusterSlice.clusterExtent");
+    fClusterGrowth = CP::TRuntimeParameters::Get().GetParameterD(
+        "captRecon.clusterSlice.clusterGrowth");
+    
 }
 
 CP::TClusterSlice::~TClusterSlice() { }
@@ -80,8 +86,14 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
     typedef CP::TPositionDensityCluster<CP::THandle<CP::THit> > 
         ClusterAlgorithm;
 
+    double eventScale = std::log(1.0*hits->size()+1.0)/std::log(fClusterGrowth);
+    int minSize = eventScale;
+    minSize = std::max(1,minSize);
+    std::cout << "MINIMUM CLUSTER SIZE " << minSize << " " << eventScale
+              << std::endl;
+    
     std::auto_ptr<ClusterAlgorithm> 
-        clusterAlgorithm(new ClusterAlgorithm(1, 6*unit::mm));
+        clusterAlgorithm(new ClusterAlgorithm((int) minSize, fClusterExtent));
 
     double totalCharge = 0.0;
     double totalVariance = 0.0;
