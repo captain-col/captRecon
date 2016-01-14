@@ -156,7 +156,7 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
         // total number of edges.  The hit distance cut is the actual closest
         // approach between the hits in the clusters.  These should be made
         // into parameters.
-        double fDistCut = 100*unit::mm;
+        double fDistCut = 300*unit::mm;
         double fHitDistCut = 100*unit::mm;
         for (boost::tie(vi,vi_end) = boost::vertices(g); vi != vi_end; ++vi) {
             MST::vertex_iterator_t vj, vj_end;
