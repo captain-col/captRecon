@@ -8,7 +8,8 @@
 #include <TReconTrack.hxx>
 #include <TReconCluster.hxx>
 #include <TCaptLog.hxx>
- 
+#include <TRuntimeParameters.hxx>
+
 #include <memory>
 #include <cmath>
 #include <set>
@@ -19,7 +20,7 @@
 /// but this set type should only hold 2D hits.
 typedef std::set< CP::THandle< CP::THit > > HitSet;
 
-/// A structrue to hold the 2D hits that contribute to a reconstruction
+/// A structure to hold the 2D hits that contribute to a reconstruction
 /// object.
 typedef struct {
     HitSet fXHits;
@@ -31,7 +32,8 @@ typedef struct {
 CP::TCombineOverlaps::TCombineOverlaps()
     : TAlgorithm("TCombineOverlaps", 
                  "Combine overlapping objects") {
-    fOverlapCut = 0.5;
+    fOverlapCut = CP::TRuntimeParameters::Get().GetParameterD(
+            "captRecon.combineOverlaps.overlap");
 }
 
 CP::TCombineOverlaps::~TCombineOverlaps() { }
@@ -40,7 +42,7 @@ double CP::TCombineOverlaps::CheckOverlap(
     CP::THandle<CP::TReconBase> object1,
     CP::THandle<CP::TReconBase> object2) {
 
-    // Divide into objects 2D hits.
+    // Divide objects into 2D hits.
     std::set< CP::THandle<CP::THit> > set1;
     for (CP::THitSelection::iterator h = object1->GetHits()->begin();
          h != object1->GetHits()->end(); ++h) {

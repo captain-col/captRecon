@@ -54,3 +54,7 @@ corrected by the recombination probability (~43%)
 
 < captRecon.energyPerCharge = 34.1 eV >
 
+Define the parameters associated with combining objects that are
+representing the same sets of hits.
+
+< captRecon.combineOverlaps.overlap = 0.66 >
