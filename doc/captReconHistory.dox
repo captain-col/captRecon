@@ -13,4 +13,16 @@ FIRST FREEZE
 Freeze for initial physics studies and in preparation for the mini-CAPTAIN
 cosmic ray runs.
 
+
+\section captRecon_v0r1p0_history Version 0.1.0
+
+Freeze information:
+   - Freeze Date: Thu Feb 25 14:35:38 2016
+   - Freeze User: mcgrew
+   - Freeze Host: boxer boxer 
+
+
+Many many changes.  This is after a lot of work to try and handle high
+angle tracks better.
+
 */
