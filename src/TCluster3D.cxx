@@ -28,7 +28,7 @@ namespace {
 };
 
 TVector3 CP::TCluster3D::PositionXY(const CP::THandle<CP::THit>& hit1,
-                                    const CP::THandle<CP::THit>& hit2) {
+                                    const CP::THandle<CP::THit>& hit2) const {
     double x1 = hit1->GetPosition().X();
     double y1 = hit1->GetPosition().Y();
     double dx1 = hit1->GetYAxis().X();
@@ -52,10 +52,76 @@ TVector3 CP::TCluster3D::PositionXY(const CP::THandle<CP::THit>& hit1,
     return TVector3( (x1+s1*dx1), (y1+s1*dy1), 0.0);
 }
 
+double CP::TCluster3D::ChargeOverlap(const CP::THandle<CP::THit>& hit1,
+                                     const CP::THandle<CP::THit>& hit2) const {
+    double startTime = 9E+30;
+    double stopTime = -9E+30;
+    double expectedCharge = 9E+30;
+    
+    // Find the full range of time covered by this hit.
+    if (hit1) {
+        startTime = std::min(startTime, hit1->GetTimeStart());
+        stopTime = std::max(stopTime, hit1->GetTimeStop());
+        expectedCharge = std::min(expectedCharge, hit1->GetCharge());
+    }
+
+    if (hit2) {
+        startTime = std::min(startTime, hit2->GetTimeStart());
+        stopTime = std::max(stopTime, hit2->GetTimeStop());
+        expectedCharge = std::min(expectedCharge, hit2->GetCharge());
+    }
+
+    // Extend the time range to cover for the drift between the wires.
+    startTime -= 15*unit::microsecond;
+    stopTime += 15*unit::microsecond;
+
+    // Build an "overlap charge distribution"
+    int bins = (stopTime-startTime)/fDigitStep + 1;
+    std::vector<double> overlap(bins);
+
+    CP::TDriftPosition drift;
+    if (hit1) {
+        double hitStart = drift.GetTime(*hit1);
+        hitStart += hit1->GetTimeStart()-hit1->GetTime();
+        if (hit1->GetTimeSamples() > 1) {
+            int ibin = (hitStart - startTime)/fDigitStep;
+            for (int i = 0; i<hit1->GetTimeSamples(); ++i) {
+                // The first hit must exist so just assign it.
+                overlap[i+ibin] = std::max(0.0,hit1->GetTimeSample(i));
+            }
+        }
+    }
+
+    if (hit2) {
+        double hitStart = drift.GetTime(*hit2);
+        hitStart += hit2->GetTimeStart()-hit2->GetTime();
+        if (hit2->GetTimeSamples() > 1) {
+            int ibin = (hitStart - startTime)/fDigitStep;
+            for (int i=0; i<ibin; ++i) overlap[i] = 0.0;
+            for (int i = 0; i<hit2->GetTimeSamples(); ++i) {
+                overlap[i+ibin] = std::max(0.0,
+                                           std::min(overlap[i+ibin],
+                                                    hit2->GetTimeSample(i)));
+            }
+            for (std::size_t i=ibin+hit2->GetTimeSamples();
+                 i<overlap.size(); ++i) {
+                overlap[i] = 0.0;
+            }
+        }
+    }
+
+    double charge = 0.0;
+    for (std::size_t i = 0; i<overlap.size(); ++i) {
+        charge += overlap[i];
+    }
+
+    return charge;
+}
+
 bool CP::TCluster3D::OverlapXY(const CP::THandle<CP::THit>& hit1,
                                const CP::THandle<CP::THit>& hit2,
                                const CP::THandle<CP::THit>& hit3,
-                               TVector3& position) {
+                               TVector3& position) const {
     
     if (CP::GeomId::Captain::GetWirePlane(hit1->GetGeomId())
         == CP::GeomId::Captain::GetWirePlane(hit2->GetGeomId())) {
@@ -333,7 +399,8 @@ bool CP::TCluster3D::MakeHit(CP::THitSelection& writableHits,
                                            std::min(overlap[i+ibin],
                                                     hit2->GetTimeSample(i)));
             }
-            for (std::size_t i=ibin+hit2->GetTimeSamples(); i<overlap.size(); ++i) {
+            for (std::size_t i=ibin+hit2->GetTimeSamples();
+                 i<overlap.size(); ++i) {
                 overlap[i] = 0.0;
             }
         }
@@ -350,7 +417,8 @@ bool CP::TCluster3D::MakeHit(CP::THitSelection& writableHits,
                                            std::min(overlap[i+ibin],
                                                     hit3->GetTimeSample(i)));
             }
-            for (std::size_t i=ibin+hit3->GetTimeSamples(); i<overlap.size(); ++i) {
+            for (std::size_t i=ibin+hit3->GetTimeSamples();
+                 i<overlap.size(); ++i) {
                 overlap[i] = 0.0;
             }
         }
@@ -628,10 +696,13 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
 
     CP::TDriftPosition drift;
     CP::THitSelection xvMatch;
+    CP::THitSelection xuMatch;
     
     CP::THitSelection writableHits;
     for (CP::THitSelection::iterator xh=xHits.begin();
          xh!=xHits.end(); ++xh) {
+        int hitsForThisXHit = 0;
+
         xvMatch.clear();
         for (CP::THitSelection::iterator vh=vHits.begin();
              vh!=vHits.end(); ++vh) {
@@ -640,11 +711,13 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
             xvMatch.push_back(*vh);
         }
         
+        xuMatch.clear();
         for (CP::THitSelection::iterator uh=uHits.begin();
              uh!=uHits.end(); ++uh) {
             // Check that the X and U wires overlap in time.
             if (!OverlappingHits(*xh, *uh)) continue;
-
+            xuMatch.push_back(*uh);
+            
             for (CP::THitSelection::iterator vh=xvMatch.begin();
                  vh != xvMatch.end(); ++vh) {
                 // Check that the U and V wires overlap in time.
@@ -662,6 +735,7 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 // the 2D wire hits overlap for a long time (several
                 // microseconds), this create several new 3D hits.
                 if (!MakeHit(writableHits,hitPosition,t0,*xh,*vh,*uh)) continue;
+                ++hitsForThisXHit;
                 
                 // These three wire hits make a 3D point.  Get them into the
                 // correct hit selections.  To protect against bogus events
@@ -680,6 +754,59 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 }
             }
         }
+
+        /// Check to see if there are any hits currently associated with the X
+        /// hit.  If there are not, then that means there wasn't a "UVX"
+        /// triplet with matching times.  It's still possible that there may
+        /// be a good UX, or VX hit.  This makes up for the inefficiency to
+        /// find a U or V (induction) hit when the track crosses the wire at
+        /// an oblique angle.
+        if (hitsForThisXHit>0) continue;
+        
+        CP::THandle<CP::THit> bestPartner;
+        double partnerCharge = 0.0;
+        for (CP::THitSelection::iterator ph = xuMatch.begin();
+             ph != xuMatch.end(); ++ph) {
+            if (!bestPartner) {
+                bestPartner = *ph;
+                partnerCharge = ChargeOverlap(*xh,*ph);
+                continue;
+            }
+            double charge = ChargeOverlap(*xh,*ph);
+            if (partnerCharge > charge) continue;
+            partnerCharge = charge;
+            bestPartner = *ph;
+        }
+        
+        for (CP::THitSelection::iterator ph = xvMatch.begin();
+             ph != xvMatch.end(); ++ph) {
+            if (!bestPartner) {
+                bestPartner = *ph;
+                partnerCharge = ChargeOverlap(*xh,*ph);
+                continue;
+            }
+            double charge = ChargeOverlap(*xh,*ph);
+            if (partnerCharge > charge) continue;
+            partnerCharge = charge;
+            bestPartner = *ph;
+        }
+        
+        continue;
+        
+        // No partner was found.
+        if (!bestPartner) continue;
+        
+        // See if it's a reasonable hit.
+        if (!MakeHit(writableHits,PositionXY(*xh,bestPartner),
+                     t0,*xh,bestPartner,CP::THandle<CP::THit>())) continue;
+
+        // Now check if it can be added to the bookkeeping objects.
+        if (wireHits->size() > hitLimit) continue;
+        used->AddHit(*xh);
+        unused->RemoveHit(*xh);
+                
+        used->AddHit(bestPartner);
+        unused->RemoveHit(bestPartner);
     }
 
     CaptNamedLog("Cluster","Number of 3D Hits: " << writableHits.size());

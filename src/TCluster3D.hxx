@@ -45,7 +45,7 @@ public:
     /// exception if the wires are parallel (e.g. two X wires).  The
     /// z-position of the position is always set to zero.
     TVector3 PositionXY(const CP::THandle<CP::THit>& hit1,
-                        const CP::THandle<CP::THit>& hit2);
+                        const CP::THandle<CP::THit>& hit2) const;
 
     /// Determine if three hits overlap at a single point.  If the wires
     /// overlap, the position is returned by reference.  The z-position of the
@@ -53,7 +53,7 @@ public:
     bool OverlapXY(const CP::THandle<CP::THit>& hit1,
                    const CP::THandle<CP::THit>& hit2,
                    const CP::THandle<CP::THit>& hit3,
-                   TVector3& position);
+                   TVector3& position) const;
 
     /// Determine the time zero for the event based on the pmt and wire hits.
     /// The time zero is essentially just time time of the first PMT time
@@ -132,6 +132,10 @@ private:
     /// Find the fractional overlap of the hit with the constituent.
     double FindOverlap(const CP::THandle<CP::THit>& hit,
                        const CP::THandle<CP::THit>& constituent) const;
+
+    /// Find the overlapping charge between two wire hits.
+    double ChargeOverlap(const CP::THandle<CP::THit>& hit1,
+                         const CP::THandle<CP::THit>& hit2) const;
 
 };
 #endif
