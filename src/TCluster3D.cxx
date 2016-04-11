@@ -754,7 +754,7 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 }
             }
         }
-
+        
         /// Check to see if there are any hits currently associated with the X
         /// hit.  If there are not, then that means there wasn't a "UVX"
         /// triplet with matching times.  It's still possible that there may
@@ -790,8 +790,6 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
             partnerCharge = charge;
             bestPartner = *ph;
         }
-        
-        continue;
         
         // No partner was found.
         if (!bestPartner) continue;
