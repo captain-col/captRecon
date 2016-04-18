@@ -57,7 +57,7 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
     if (inputHits->size() < fMinHits) return result;
     
     /// Copy the input hits and sort them by the Z position.
-    std::auto_ptr<CP::THitSelection> hits(new THitSelection);
+    std::unique_ptr<CP::THitSelection> hits(new THitSelection);
     hits->reserve(inputHits->size());
     std::copy(inputHits->begin(), inputHits->end(), std::back_inserter(*hits));
     std::sort(hits->begin(), hits->end(), HitZSort());
@@ -92,11 +92,8 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
     std::cout << "MINIMUM CLUSTER SIZE " << minSize << " " << eventScale
               << std::endl;
     
-    std::auto_ptr<ClusterAlgorithm> 
+    std::unique_ptr<ClusterAlgorithm> 
         clusterAlgorithm(new ClusterAlgorithm((int) minSize, fClusterExtent));
-
-    double totalCharge = 0.0;
-    double totalVariance = 0.0;
 
     int trials = 0;
     CP::THitSelection::iterator curr = hits->begin();
@@ -178,11 +175,6 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
         }
     }
 
-    CaptNamedLog("TClusterSlice",
-                 "Event Charge: "
-                 << unit::AsString(totalCharge,
-                                   std::sqrt(totalVariance),"charge"));
-            
     return result;
 }
 
@@ -204,7 +196,7 @@ CP::TClusterSlice::Process(const CP::TAlgorithmResult& input,
     
     // Create the output containers.
     CP::THandle<CP::TAlgorithmResult> result = CreateResult();
-    std::auto_ptr<CP::TReconObjectContainer> 
+    std::unique_ptr<CP::TReconObjectContainer> 
         final(new CP::TReconObjectContainer("final"));
 
     if (inputObjects) {
@@ -232,7 +224,7 @@ CP::TClusterSlice::Process(const CP::TAlgorithmResult& input,
     if (inputHits->size() < 5000) {
         CP::THandle<CP::THitSelection> hits 
             = CP::hits::ReconHits(final->begin(), final->end());
-        std::auto_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
+        std::unique_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
         if (hits) {
             used->reserve(hits->size());
             std::copy(hits->begin(), hits->end(), std::back_inserter(*used));
