@@ -36,16 +36,15 @@ neighbors in the region, and maxDistance is the radius of the region.
 < captRecon.densityCluster.maxDistance = 20 mm >
 
 The parameters slicing the hits into first guess tracks. The minimum points
-is the number of neighbors in the region, and maxDistance is the radius of
+is the number of neighbors in the region, and clusterExtent is the radius of
 the region. 
 
-< captRecon.clusterSlice.clusterExtent = 6 mm > 
+< captRecon.clusterSlice.clusterExtent = 7 mm > 
 < captRecon.clusterSlice.clusterGrowth = 10 > 
 < captRecon.clusterSlice.clusterStep = 3 mm > 
 < captRecon.clusterSlice.minHits = 2 > 
 < captRecon.clusterSlice.minPoints = 1 >
 < captRecon.clusterSlice.minStep = 0.75 mm >
-< captRecon.clusterSlice.maxDistance = 5 mm >
 
 Define the conversion between charge and energy.  The units are energy per
 charge in eV/(collected electron).  This matches the ICARUS measurement of

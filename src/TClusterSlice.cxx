@@ -30,8 +30,6 @@ CP::TClusterSlice::TClusterSlice()
     : TAlgorithm("TClusterSlice", "Find Simply Connected Hits") {
     fMinPoints = CP::TRuntimeParameters::Get().GetParameterI(
         "captRecon.clusterSlice.minPoints");
-    fMaxDist = CP::TRuntimeParameters::Get().GetParameterD(
-        "captRecon.clusterSlice.maxDistance");
     fMinHits = CP::TRuntimeParameters::Get().GetParameterD(
         "captRecon.clusterSlice.minHits");
     fMinStep = CP::TRuntimeParameters::Get().GetParameterD(
@@ -62,13 +60,6 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
     std::copy(inputHits->begin(), inputHits->end(), std::back_inserter(*hits));
     std::sort(hits->begin(), hits->end(), HitZSort());
 
-    for (CP::THitSelection::iterator h = hits->begin();
-         h != hits->end(); ++h) {
-        if (!std::isfinite((*h)->GetPosition().Z())) {
-            throw CP::EReconInvalidHit();
-        }
-    }
-             
     // Distance between first and last point.
     double deltaZ = std::abs(hits->front()->GetPosition().Z() 
                              - hits->back()->GetPosition().Z());
@@ -77,7 +68,7 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
     // The adjusted step size so that each step is the same "thickness" in Z.
     double zStep = deltaZ / steps;
 
-    CaptNamedLog("TClusterSlice","Make a maximum of " << steps << " slices"
+    CaptNamedInfo("TClusterSlice","Make a maximum of " << steps << " slices"
                  << " in " 
                  << unit::AsString(deltaZ,"length") 
                  << " (" << unit::AsString(zStep,"length") << " each)");
@@ -89,20 +80,21 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
     double eventScale = std::log(1.0*hits->size()+1.0)/std::log(fClusterGrowth);
     int minSize = eventScale;
     minSize = std::max(1,minSize);
-    std::cout << "MINIMUM CLUSTER SIZE " << minSize << " " << eventScale
-              << std::endl;
-    
-    std::unique_ptr<ClusterAlgorithm> 
-        clusterAlgorithm(new ClusterAlgorithm((int) minSize, fClusterExtent));
-
+        
     int trials = 0;
     CP::THitSelection::iterator curr = hits->begin();
     CP::THitSelection::iterator end = hits->end();
     CP::THitSelection::iterator first = curr;
     while (curr != end) {
-
         // Make sure each slice has at least fMinPoints)
         if (curr-first < fMinPoints) {
+            ++curr;
+            continue;
+        }
+
+        // Check the case where the minimum cluster size (minSize) is bigger
+        // than the minimum required points in a layer.
+        if (curr-first <= minSize) {
             ++curr;
             continue;
         }
@@ -125,7 +117,7 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
 
         ++trials;
         if (!(trials % 20)) {
-            CaptNamedLog("TClusterSlice", "Working on slice " << trials);
+            CaptNamedInfo("TClusterSlice", "Working on slice " << trials);
         }
 
         // Time for a new slice of clusters.
@@ -135,16 +127,20 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
         // then add all the remaining points to this cluster. (not really a
         // good plan, but it's got to suffice for now...}
         if (end-curr < fMinPoints) break;
+        if (end-curr <= minSize) break;
 
         // The hits between first and curr should be run through the density
         // cluster again since it's very likely that the hits are disjoint in
         // the Z slice.
+        std::unique_ptr<ClusterAlgorithm> 
+            clusterAlgorithm(new ClusterAlgorithm((int) minSize,
+                                                  fClusterExtent));
         clusterAlgorithm->Cluster(first,curr);
         int nClusters = clusterAlgorithm->GetClusterCount();
         CaptNamedInfo("TClusterSlice",
                      trials
                      << " -- Slice with " << nClusters
-                     << " clusters from " << curr-first << " in slice"
+                     << " clusters from " << curr-first << " hits in slice"
                      << "   dZ: " << deltaZ);
         for (int i=0; i<nClusters; ++i) {
             const ClusterAlgorithm::Points& points 
@@ -160,6 +156,9 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
     }
     if (first != end) {
         // Build the final clusters.
+        std::unique_ptr<ClusterAlgorithm> 
+            clusterAlgorithm(new ClusterAlgorithm((int) minSize,
+                                                  fClusterExtent));
         clusterAlgorithm->Cluster(first,end);
         int nClusters = clusterAlgorithm->GetClusterCount();
         CaptNamedVerbose("TClusterSlice","    Final slice with " << nClusters
@@ -192,6 +191,32 @@ CP::TClusterSlice::Process(const CP::TAlgorithmResult& input,
         return CP::THandle<CP::TAlgorithmResult>();
     }
 
+#ifdef CHECK_FOR_DUPLICATE_HITS
+    CP::THandle<CP::THit> last;
+    for (CP::THitSelection::iterator h = inputHits->begin();
+         h != inputHits->end(); ++h) {
+        do {
+            if (!last) break;
+            if (last->GetConstituentCount()!=(*h)->GetConstituentCount()) break;
+            int match = 0;
+            for (int i=0; i<last->GetConstituentCount(); ++i) {
+                if (last->GetConstituent(i)->GetChannelId()
+                    == (*h)->GetConstituent(i)->GetChannelId()) ++match;
+            }
+            if (match != last->GetConstituentCount()) break;
+            if (std::abs(last->GetPosition().Z()-(*h)->GetPosition().Z())>1)
+                break;
+            std::cout << "Duplicate hit " << match;
+            for (int i=0; i<last->GetConstituentCount(); ++i) {
+                std::cout << " " << last->GetConstituent(i)->GetChannelId();
+            }
+            std::cout << " " << (*h)->GetPosition().Z();
+            std::cout << " " << last->GetPosition().Z() << std::endl;
+        }  while (false);
+        last = *h;
+    }
+#endif
+    
     CaptLog("TClusterSlice Process " << GetEvent().GetContext());
     
     // Create the output containers.
