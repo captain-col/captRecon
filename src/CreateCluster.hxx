@@ -9,6 +9,7 @@
 #include <THandle.hxx>
 #include <TReconHit.hxx>
 #include <THit.hxx>
+#include <CaptGeomId.hxx>
 
 namespace CP {
 
@@ -91,9 +92,18 @@ CP::CreateCluster(const char* name, hitIterator begin, hitIterator end,
         double sigma = rHit->GetChargeUncertainty();
         summedCharge += rHit->GetCharge();
         summedVar +=  sigma*sigma;
-        xHits.insert(rHit->GetConstituent(0));
-        vHits.insert(rHit->GetConstituent(1));
-        uHits.insert(rHit->GetConstituent(2));
+        for (int i=0; i<rHit->GetConstituentCount(); ++i) {
+            CP::THandle<CP::THit> c = rHit->GetConstituent(i);
+            if (CP::GeomId::Captain::IsUWire(c->GetGeomId())) {
+                uHits.insert(rHit->GetConstituent(i));
+            }
+            else if (CP::GeomId::Captain::IsVWire(c->GetGeomId())) {
+                vHits.insert(rHit->GetConstituent(i));
+            }
+            else if (CP::GeomId::Captain::IsXWire(c->GetGeomId())) {
+                xHits.insert(rHit->GetConstituent(i));
+            }
+        }
         ++p;
     }
 
