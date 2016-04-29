@@ -46,10 +46,6 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
     }
 
     CP::THandle<CP::THitSelection> pmts = pmtInput.GetHits();
-    if (!pmts) {
-        CaptError("No PMT hits");
-        return CP::THandle<CP::TAlgorithmResult>();
-    }
 
     // The final objects from this will be copied into the final recon
     // container.  It might be NULL if there is a problem.
@@ -65,8 +61,13 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
     ///////////////////////////////////////////////////////////
     do {
         // Find the time zero and the 3D hits.
-        CP::THandle<CP::TAlgorithmResult> cluster3DResult
-            = Run<CP::TCluster3D>(*wires,*pmts);
+        CP::THandle<CP::TAlgorithmResult> cluster3DResult;
+        if (pmts) {
+            cluster3DResult = Run<CP::TCluster3D>(*wires,*pmts);
+        }
+        else {
+            cluster3DResult = Run<CP::TCluster3D>(*wires);
+        }
         if (!cluster3DResult) break;
         currentResult = cluster3DResult;
         allHits = currentResult->GetHits();

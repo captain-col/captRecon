@@ -25,13 +25,11 @@ public:
         /// An event without any drift hits.  Just pass it through.
         if (!drift) return true;
 
-        /// An event without any PMT hits.  Just pass it through.
-        if (!pmt) return true;
-
         // Run the event reconstruction on the event.
         std::auto_ptr<CP::TAlgorithm> captRecon(new CP::TCaptainRecon());
-        CP::THandle<CP::TAlgorithmResult> result 
-            = captRecon->Process(*drift,*pmt);
+        CP::THandle<CP::TAlgorithmResult> result;
+        if (pmt) result = captRecon->Process(*drift,*pmt);
+        else result = captRecon->Process(*drift);
         if (result) event.AddFit(result);
         else {
             CaptError("No reconstruction result");

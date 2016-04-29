@@ -125,19 +125,19 @@ bool CP::TCluster3D::OverlapXY(const CP::THandle<CP::THit>& hit1,
     
     if (CP::GeomId::Captain::GetWirePlane(hit1->GetGeomId())
         == CP::GeomId::Captain::GetWirePlane(hit2->GetGeomId())) {
-        CaptError("Hit1 and Hit2 illegal");
+        CaptError("Hit1 and Hit2 are illegal");
         return false;
     }
 
     if (CP::GeomId::Captain::GetWirePlane(hit1->GetGeomId())
         == CP::GeomId::Captain::GetWirePlane(hit3->GetGeomId())) {
-        CaptError("Hit1 and Hit3 illegal");
+        CaptError("Hit1 and Hit3 are illegal");
         return false;
     }
     
     if (CP::GeomId::Captain::GetWirePlane(hit2->GetGeomId())
         == CP::GeomId::Captain::GetWirePlane(hit3->GetGeomId())) {
-        CaptError("Hit2 and Hit3 illegal");
+        CaptError("Hit2 and Hit3 are illegal");
         return false;
     }
 
@@ -627,13 +627,9 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
         return CP::THandle<CP::TAlgorithmResult>();
     }
 
-    CP::THandle<CP::THitSelection> pmtHits = pmts.GetHits();
-    if (!pmtHits || pmtHits->size() < 1) {
-        CaptError("No PMT hits provide so time zero cannot be found");
-        return CP::THandle<CP::TAlgorithmResult>();
-    }
-
-    double t0 = TimeZero(*pmtHits,*wireHits);
+    double t0 = 0.0;
+    CP::THandle<CP::THitSelection>  pmtHits = pmts.GetHits();
+    if (pmtHits) t0 = TimeZero(*pmtHits,*wireHits);
         
     CP::THandle<CP::TAlgorithmResult> result = CreateResult();
     std::auto_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
