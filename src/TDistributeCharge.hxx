@@ -284,7 +284,7 @@ public:
     /// been called, the charge in the measurement groups have been updated.
     /// The couple equations are solved using interative relaxation.  The
     /// return value is the change in the last iteration. 
-    double Solve(double tolerance = 1E-3, int iterations = 5000);
+    double Solve(double tolerance = 1E-3, int iterations = 2500);
 
     /// Return the measurement groups.  This is how the result of the charge
     /// sharing is accessed.

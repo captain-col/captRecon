@@ -19,12 +19,68 @@
 #include <cmath>
 
 namespace {
-    struct compareHitTime {
+    struct hitTimeLowerBound {
         bool operator () (const CP::THandle<CP::THit>& lhs,
-                     const CP::THandle<CP::THit>& rhs) {
+                          const double& rhs) {
+            return lhs->GetTime() < rhs;
+        }
+    };
+
+    struct hitTimeUpperBound {
+        bool operator () (const double& lhs,
+                          const CP::THandle<CP::THit>& rhs) {
+            return lhs < rhs->GetTime();
+        }
+    };
+
+    struct compareHitTimes {
+        bool operator () (const CP::THandle<CP::THit>& lhs,
+                          const CP::THandle<CP::THit>& rhs) {
             return lhs->GetTime() < rhs->GetTime();
         }
     };
+
+    double hitRMS(CP::THitSelection::iterator begin, 
+                  CP::THitSelection::iterator end) {
+        double mean = 0;
+        double mean2 = 0;
+        double w = 0.0;
+        while (begin != end) {
+            double v = (*begin)->GetCharge();
+            mean += v;
+            mean2 += v*v;
+            w += 1.0;
+            ++begin;
+        }
+        mean /= w;
+        mean2 /= w;
+        return std::sqrt(mean2 - mean*mean);
+    }
+
+    double hitMean(CP::THitSelection::iterator begin, 
+                   CP::THitSelection::iterator end) {
+        double mean = 0;
+        double w = 0.0;
+        while (begin != end) {
+            double v = (*begin)->GetCharge();
+            mean += v;
+            w += 1.0;
+            ++begin;
+        }
+        mean /= w;
+        return mean;
+    }
+
+    double hitTotal(CP::THitSelection::iterator begin, 
+                   CP::THitSelection::iterator end) {
+        double mean = 0;
+        while (begin != end) {
+            double v = (*begin)->GetCharge();
+            mean += v;
+            ++begin;
+        }
+        return mean;
+    }
 };
 
 TVector3 CP::TCluster3D::PositionXY(const CP::THandle<CP::THit>& hit1,
@@ -252,50 +308,6 @@ bool CP::TCluster3D::OverlappingHits(CP::THandle<CP::THit> h1,
     return (std::abs(t1-t2) < OverlapTime(r1,r2,fMinSeparation));
 #endif
 }
-
-namespace {
-    double hitRMS(CP::THitSelection::iterator begin, 
-                  CP::THitSelection::iterator end) {
-        double mean = 0;
-        double mean2 = 0;
-        double w = 0.0;
-        while (begin != end) {
-            double v = (*begin)->GetCharge();
-            mean += v;
-            mean2 += v*v;
-            w += 1.0;
-            ++begin;
-        }
-        mean /= w;
-        mean2 /= w;
-        return std::sqrt(mean2 - mean*mean);
-    }
-
-    double hitMean(CP::THitSelection::iterator begin, 
-                   CP::THitSelection::iterator end) {
-        double mean = 0;
-        double w = 0.0;
-        while (begin != end) {
-            double v = (*begin)->GetCharge();
-            mean += v;
-            w += 1.0;
-            ++begin;
-        }
-        mean /= w;
-        return mean;
-    }
-
-    double hitTotal(CP::THitSelection::iterator begin, 
-                   CP::THitSelection::iterator end) {
-        double mean = 0;
-        while (begin != end) {
-            double v = (*begin)->GetCharge();
-            mean += v;
-            ++begin;
-        }
-        return mean;
-    }
-};
 
 bool CP::TCluster3D::MakeHit(CP::THitSelection& writableHits,
                              const TVector3& hitPosition,
@@ -627,6 +639,26 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
         return CP::THandle<CP::TAlgorithmResult>();
     }
 
+#define CHECK_FOR_OVERLAPPED_HITS
+#ifdef  CHECK_FOR_OVERLAPPED_HITS
+    for (CP::THitSelection::iterator h = wireHits->begin();
+         h != wireHits->end(); ++h) {
+        for (CP::THitSelection::iterator i = h+1; i != wireHits->end(); ++i) {
+            // The hits aren't the same channel, so they can't overlap.
+            if ((*i)->GetChannelId() != (*h)->GetChannelId()) continue;
+            // "i" starts after "h" ends, so they can't overlap.
+            if ((*i)->GetTimeStart() >= (*h)->GetTimeStop()) continue;
+            // "i" ends before "h" begins, so they can't overlap.
+            if ((*i)->GetTimeStop() <= (*h)->GetTimeStart()) continue;
+            CaptError("Overlapping hit on " << (*h)->GetChannelId());
+            CaptError("   hit " << (*h)->GetTimeStart()
+                      << " " << (*h)->GetTimeStop());
+            CaptError("   hit " << (*i)->GetTimeStart()
+                      << " " << (*i)->GetTimeStop());
+        }
+    }
+#endif
+
     double t0 = 0.0;
     CP::THandle<CP::THitSelection>  pmtHits = pmts.GetHits();
     if (pmtHits) t0 = TimeZero(*pmtHits,*wireHits);
@@ -677,11 +709,12 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     // O(nHits^3), so for large events this is a very slow.
     double deltaRMS = 3.0;
     std::sort(allRMS.begin(), allRMS.end());
-    maxDeltaT = std::min(maxDeltaT, deltaRMS*allRMS.back());
-
-    std::sort(xHits.begin(), xHits.end(), compareHitTime());
-    std::sort(vHits.begin(), vHits.end(), compareHitTime());
-    std::sort(uHits.begin(), uHits.end(), compareHitTime());
+    maxDeltaT = std::min(maxDeltaT, deltaRMS*allRMS[0.90*allRMS.size()]);
+    maxDeltaT = std::max(maxDeltaT,2*unit::microsecond);
+    
+    std::sort(xHits.begin(), xHits.end(), compareHitTimes());
+    std::sort(vHits.begin(), vHits.end(), compareHitTimes());
+    std::sort(uHits.begin(), uHits.end(), compareHitTimes());
 
     CP::TCaptLog::IncreaseIndentation();
     CaptLog("X Hits: " << xHits.size()
@@ -700,16 +733,42 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
         int hitsForThisXHit = 0;
 
         xvMatch.clear();
-        for (CP::THitSelection::iterator vh=vHits.begin();
-             vh!=vHits.end(); ++vh) {
+#ifdef LOOK_AT_ALL_HITS
+        CP::THitSelection::iterator xvBegin = vHits.begin();
+        CP::THitSelection::iterator xvEnd = vHits.end();
+#else
+        CP::THitSelection::iterator xvBegin
+            = std::lower_bound(vHits.begin(), vHits.end(),
+                               (*xh)->GetTime()-maxDeltaT,
+                               hitTimeLowerBound());
+        CP::THitSelection::iterator xvEnd
+            = std::upper_bound(xvBegin, vHits.end(),
+                               (*xh)->GetTime()+maxDeltaT,
+                               hitTimeUpperBound());
+#endif
+        for (CP::THitSelection::iterator vh=xvBegin;
+             vh!=xvEnd; ++vh) {
             // Check that the X and V wires overlap in time.
             if (!OverlappingHits(*xh, *vh)) continue;
             xvMatch.push_back(*vh);
         }
         
         xuMatch.clear();
-        for (CP::THitSelection::iterator uh=uHits.begin();
-             uh!=uHits.end(); ++uh) {
+#ifdef LOOK_AT_ALL_HITS
+        CP::THitSelection::iterator xuBegin = uHits.begin();
+        CP::THitSelection::iterator xuEnd = uHits.end();
+#else
+        CP::THitSelection::iterator xuBegin
+            = std::lower_bound(uHits.begin(), uHits.end(),
+                               (*xh)->GetTime()-maxDeltaT,
+                               hitTimeLowerBound());
+        CP::THitSelection::iterator xuEnd
+            = std::upper_bound(xuBegin, uHits.end(),
+                               (*xh)->GetTime()+maxDeltaT,
+                               hitTimeUpperBound());
+#endif
+        for (CP::THitSelection::iterator uh=xuBegin;
+             uh!=xuEnd; ++uh) {
             // Check that the X and U wires overlap in time.
             if (!OverlappingHits(*xh, *uh)) continue;
             xuMatch.push_back(*uh);
@@ -861,7 +920,7 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
          h != writableHits.end(); ++h) {
         CP::THandle<CP::TWritableReconHit> hit = *h;
         // Don't include hits that have had all their charge taken away by the
-        // charge sharing.  The  10 pe cut corresponds to a hit energy of
+        // charge sharing.  The  10 electron cut corresponds to a hit energy of
         // about 340 eV.
         if (hit->GetCharge() < 10.0) continue;
         clustered->push_back(
