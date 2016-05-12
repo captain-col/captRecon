@@ -3,6 +3,7 @@
 #include <TAlgorithm.hxx>
 #include <TAlgorithmResult.hxx>
 #include <TReconCluster.hxx>
+#include "TPositionNeighbors.hxx"
 
 namespace CP {
     class TClusterMerge;
@@ -15,6 +16,7 @@ namespace CP {
 /// clusters of hits along the prefered axis.
 class CP::TClusterMerge
     : public CP::TAlgorithm {
+    typedef CP::TPositionNeighbors< CP::THandle<CP::THit> > Neighbors;
 public:
     TClusterMerge();
     virtual ~TClusterMerge();
@@ -49,6 +51,7 @@ private:
     // This is looking for clusters that have been sliced at a high angle to
     // the track direction (e.g. cluster slices for a horizontal track)
     bool OverlappingClusters(
+        CP::TClusterMerge::Neighbors& neighbors,
         const CP::THandle<CP::TReconCluster>& cluster1,
         const CP::THandle<CP::TReconCluster>& cluster2);
 

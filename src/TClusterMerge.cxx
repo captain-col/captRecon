@@ -59,23 +59,22 @@ CP::TClusterMerge::Process(const CP::TAlgorithmResult& input,
 
     CP::THandle<CP::TReconCluster> work;
     CP::TReconObjectContainer::iterator next = remainingClusters.begin();
+    std::unique_ptr<Neighbors> neighbors;
     while (next != remainingClusters.end()) {
         work = *(next++);
-        std::cout << "Check next cluster " << remainingClusters.end()-next
-                  << std::endl;
+        neighbors.reset(new Neighbors(work->GetHits()->begin(),
+                                      work->GetHits()->end()));
         for (CP::TReconObjectContainer::iterator check = next;
              check != remainingClusters.end(); ++check) {
-            if (OverlappingClusters(work,*check)) {
-                std::cout << "       Combine " << check-next
-                          << " " << work->GetHits()->size()
-                          << " " << (*check)->GetHits()->size()
-                          << std::endl;
+            if (OverlappingClusters(*neighbors,work,*check)) {
                 // Move the cluster that will be combined with work off of
                 // it's position in the vector.  The cluster to be combined is
                 // now at the slot pointed to by next.
                 std::swap(*next,*check);
                 // Combine the clusters.
                 work=CombineClusters(work,*next);
+                neighbors.reset(new Neighbors(work->GetHits()->begin(),
+                                              work->GetHits()->end()));
                 // After work is combine, start over and check any other
                 // clusters to see if they should be combined.  This basically
                 // restarts the for loop, but now with one less cluster in the
@@ -123,6 +122,7 @@ CP::THandle<CP::TReconCluster> CP::TClusterMerge::CombineClusters(
 }
 
 bool CP::TClusterMerge::OverlappingClusters(
+    CP::TClusterMerge::Neighbors& neighbors,
     const CP::THandle<CP::TReconCluster>& cluster1,
     const CP::THandle<CP::TReconCluster>& cluster2) {
     double dZ = cluster1->GetPosition().Z() - cluster2->GetPosition().Z();
@@ -137,25 +137,26 @@ bool CP::TClusterMerge::OverlappingClusters(
         return false;
     }
     double overlaps = 0;
-    for (CP::THitSelection::iterator c1 = cluster1->GetHits()->begin();
-         c1 != cluster1->GetHits()->end(); ++c1) {
-        for (CP::THitSelection::iterator c2 = cluster2->GetHits()->begin();
-             c2 != cluster2->GetHits()->end(); ++c2) {
-            double d = std::abs((*c1)->GetPosition().Z()
-                                -(*c2)->GetPosition().Z());
-            if (d > 5*unit::mm) continue;
-            d = std::abs((*c1)->GetPosition().X()-(*c2)->GetPosition().X());
-            if (d > 2*unit::mm) continue;
-            d = std::abs((*c1)->GetPosition().Y()-(*c2)->GetPosition().Y());
-            if (d > 2*unit::mm) continue;
-            overlaps += 1.0;
-            if (overlaps > 30) return true;
-            double r1 = overlaps/cluster1->GetHits()->size();
-            double r2 = overlaps/cluster2->GetHits()->size();
-            const double minOverlap = 0.1;
-            if (r1 > minOverlap) return true;
-            if (r2 > minOverlap) return true;
-        }
+
+    for (CP::THitSelection::iterator c2 = cluster2->GetHits()->begin();
+         c2 != cluster2->GetHits()->end(); ++c2) {
+        Neighbors::iterator neighbor = neighbors.begin((*c2));
+        if (neighbor == neighbors.end()) continue;
+        double d = std::abs((*c2)->GetPosition().Z()
+                            -neighbor->first->GetPosition().Z());
+        if (d > 5*unit::mm) continue;
+        d = std::abs((*c2)->GetPosition().X()-neighbor->first->GetPosition().X());
+        if (d > 2*unit::mm) continue;
+        d = std::abs((*c2)->GetPosition().Y()-neighbor->first->GetPosition().Y());
+        if (d > 2*unit::mm) continue;
+        overlaps += 1.0;
+        if (overlaps > 30) return true;
+        double r1 = overlaps/cluster1->GetHits()->size();
+        double r2 = overlaps/cluster2->GetHits()->size();
+        const double minOverlap = 0.1;
+        if (r1 > minOverlap) return true;
+        if (r2 > minOverlap) return true;
     }
+    
     return false;
 }
