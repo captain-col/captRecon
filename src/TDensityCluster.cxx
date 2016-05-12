@@ -43,15 +43,15 @@ CP::TDensityCluster::Process(const CP::TAlgorithmResult& input,
 
 
     CP::THandle<CP::TAlgorithmResult> result = CreateResult();
-    std::auto_ptr<CP::TReconObjectContainer> 
+    std::unique_ptr<CP::TReconObjectContainer> 
         final(new CP::TReconObjectContainer("final"));
-    std::auto_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
+    std::unique_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
 
     // This is the (dramatically) faster clustering algorithm for hits.
     typedef CP::TPositionDensityCluster< CP::THandle<CP::THit> > 
         ClusterAlgorithm;
 
-    std::auto_ptr<ClusterAlgorithm> 
+    std::unique_ptr<ClusterAlgorithm> 
         clusterAlgorithm(new ClusterAlgorithm(fMinPoints,fMaxDist));
 
     clusterAlgorithm->Cluster(inputHits->begin(), inputHits->end());

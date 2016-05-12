@@ -230,7 +230,7 @@ CP::TTrackMassFit::Apply(CP::THandle<CP::TReconTrack>& input) {
 
     /// Create the minimizer.
     CP::MF::TMassFitFunction fitFunction;
-    std::auto_ptr<ROOT::Math::Minimizer> 
+    std::unique_ptr<ROOT::Math::Minimizer> 
         rootMinimizer(ROOT::Math::Factory::CreateMinimizer("Minuit2"));
     rootMinimizer->SetFunction(fitFunction);
     rootMinimizer->SetErrorDef(1.0);

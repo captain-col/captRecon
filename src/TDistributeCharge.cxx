@@ -112,16 +112,19 @@ double CP::DistributeCharge::TMeasurement::UpdateWeights() {
     if (totalWeight < 1E-6) return 0.0;
 
     double change = 0;
+    double links = 0;
     for (CP::DistributeCharge::TLinks::iterator link = GetLinks().begin();
          link != GetLinks().end(); ++link) {
         double w = (*link)->GetNewWeight();
         if (w<0) w = 0;
         w = w/totalWeight;
         change += std::abs(w - (*link)->GetWeight());
+        links += 1.0;
         (*link)->SetNewWeight(w);
         (*link)->SetWeight(w);
     }
 
+    if (links>0) change /= links;
     return change;
 }
 

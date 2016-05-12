@@ -36,7 +36,7 @@ CP::TBestTubeTrack::MakeTracks(const CP::TReconObjectContainer& input,
                      << " in " << remains.size() << " clusters");
         // Find a seed.
         seed.clear();
-        std::auto_ptr<CP::TBestTube> bestTube(new CP::TBestTube);
+        std::unique_ptr<CP::TBestTube> bestTube(new CP::TBestTube);
         std::size_t lastRemains = remains.size();
         bestTube->Process(remains);
         bestTube->FillSeed(seed);
@@ -50,7 +50,7 @@ CP::TBestTubeTrack::MakeTracks(const CP::TReconObjectContainer& input,
         if (thisResult) {
             std::ostringstream seedName;
             seedName << "seed" << i;
-            std::auto_ptr<CP::TReconObjectContainer> 
+            std::unique_ptr<CP::TReconObjectContainer> 
                 saveSeed(new CP::TReconObjectContainer(seedName.str().c_str()));
             std::copy(seed.begin(), seed.end(), std::back_inserter(*saveSeed));
             thisResult->AddResultsContainer(saveSeed.release());
@@ -58,7 +58,7 @@ CP::TBestTubeTrack::MakeTracks(const CP::TReconObjectContainer& input,
 #endif
 
         // Make the track.
-        std::auto_ptr<CP::TLinearRoad> road(new CP::TLinearRoad);
+        std::unique_ptr<CP::TLinearRoad> road(new CP::TLinearRoad);
         road->Process(seed,remains);
         CP::THandle<CP::TReconTrack> track = road->GetTrack();
 
@@ -67,7 +67,7 @@ CP::TBestTubeTrack::MakeTracks(const CP::TReconObjectContainer& input,
         if (thisResult) {
             std::ostringstream trackName;
             trackName << "rawTrack" << i;
-            std::auto_ptr<CP::TReconObjectContainer> 
+            std::unique_ptr<CP::TReconObjectContainer> 
                 saveTrack(new CP::TReconObjectContainer(
                               trackName.str().c_str()));
             for (CP::TReconNodeContainer::iterator n 
@@ -118,9 +118,9 @@ CP::TBestTubeTrack::Process(const CP::TAlgorithmResult& input,
     
     // Create the output containers.
     CP::THandle<CP::TAlgorithmResult> result = CreateResult();
-    std::auto_ptr<CP::TReconObjectContainer> 
+    std::unique_ptr<CP::TReconObjectContainer> 
         final(new CP::TReconObjectContainer("final"));
-    std::auto_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
+    std::unique_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
 
     CP::THandle<CP::TReconObjectContainer> tracks 
         = MakeTracks(*inputObjects,result);

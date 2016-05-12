@@ -2,6 +2,7 @@
 #include "TCluster3D.hxx"
 #include "TDensityCluster.hxx"
 #include "TClusterSlice.hxx"
+#include "TClusterMerge.hxx"
 #include "TBestTubeTrack.hxx"
 #include "TMinimalSpanningTrack.hxx"
 #include "TSplitTracks.hxx"
@@ -93,13 +94,13 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         result->AddDatum(currentResult);
 #endif
 
-// Not usually applied because it is very slow.
-#ifdef Apply_TBestTubeTrack
+#define Apply_TClusterMerge
+#ifdef Apply_TClusterMerge
         // Cluster the 3D hits by position to find object candidates. 
-        CP::THandle<CP::TAlgorithmResult> bestTubeResult
-            = Run<CP::TBestTubeTrack>(*currentResult);
-        if (!bestTubeResult) break;
-        currentResult = bestTubeResult;
+        CP::THandle<CP::TAlgorithmResult> clusterMergeResult
+            = Run<CP::TClusterMerge>(*currentResult);
+        if (!clusterMergeResult) break;
+        currentResult = clusterMergeResult;
         result->AddDatum(currentResult);
 #endif
 
@@ -160,7 +161,7 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         return result;
     }
     
-    std::auto_ptr<CP::TReconObjectContainer> 
+    std::unique_ptr<CP::TReconObjectContainer> 
         finalObjects(new CP::TReconObjectContainer("final"));
 
     // Copy the reconstruction objects from the last algorithm result into the
@@ -174,9 +175,9 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
 
     // Save the hits, but only if there aren't to many.
     if (allHits && allHits->size() < 10000) {
-        std::auto_ptr<CP::THitSelection> 
+        std::unique_ptr<CP::THitSelection> 
             used(new CP::THitSelection("used"));
-        std::auto_ptr<CP::THitSelection> 
+        std::unique_ptr<CP::THitSelection> 
             unused(new CP::THitSelection("unused"));
         
         // Get all of the hits in the final object and add them to used.

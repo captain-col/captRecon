@@ -301,7 +301,7 @@ CP::TLinearRoad::NextCluster(const SeedContainer& seed,
 
     // The direction is estimated using a PCA analysis of the seed cluster
     // positions.
-    std::auto_ptr<TPrincipal> principal(new TPrincipal(3,""));
+    std::unique_ptr<TPrincipal> principal(new TPrincipal(3,""));
     for (SeedContainer::const_iterator s = seed.begin();s != seed.end(); ++s) {
         double row1[3] = {(*s)->GetPosition().X()-(*s)->GetLongAxis().X(),
                           (*s)->GetPosition().Y()-(*s)->GetLongAxis().Y(),

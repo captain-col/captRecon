@@ -11,6 +11,7 @@
 #include <HEPUnits.hxx>
 #include <TUnitsTable.hxx>
 #include <TRuntimeParameters.hxx>
+#include <ostreamTVector3.hxx>
 
 #include <TMatrixD.h>
 #include <TPrincipal.h>
@@ -21,7 +22,7 @@
 
 CP::TSplitTracks::TSplitTracks()
     : TAlgorithm("TSplitTracks", 
-                 "Split Tracks with Kinks and Gaps") {
+                 "Split Tracks with Kinks and Gaps") {\
     fThreeInLineCut = 3.0;
     fRadiusOfCurvature = 25*unit::cm;
     fSplitDistanceCut = 30.0*unit::mm;
@@ -62,7 +63,7 @@ void CP::TSplitTracks::SaveTrack(
         = CP::CreateTrackFromClusters("TSplitTracks",begin, end);
 
     if (!track) {
-        CaptNamedInfo("Split", "Track not created");
+        CaptNamedInfo("Split", "Track not created by CreateTrackFromClusters");
     }
     
     CP::TTrackFit fitter;
@@ -158,8 +159,10 @@ double CP::TSplitTracks::KinkAngle(ClusterContainer::iterator here,
     if (here-begin+1 < minStep) return 0;
     if (end-here < minStep) return 0;
 
-    double p0[3] = {0.0,0,0};
-    double p1[3] = {1.0,0,0};
+    double p0[3] = {0.0,0.0,0.0};
+    double p1[3] = {1.0,0.0,0.0};
+    double p2[3] = {0.0,1.0,0.0};
+    double p3[3] = {0.0,0.0,1.0};
     double x[3];
 
     // Find out where to start the fit in the backward direction.  This makes
@@ -168,31 +171,65 @@ double CP::TSplitTracks::KinkAngle(ClusterContainer::iterator here,
     while (startStep != begin) {
         --startStep;
         if (here-startStep+1 < minStep) continue;
-        double r = ((*startStep)->GetPosition()-(*here)->GetPosition()).Mag();
+        double r = ((*startStep)->GetPosition().Vect()
+                    -(*here)->GetPosition().Vect()).Mag();
         if (r > 4*unit::cm) break;
     }
 
     // Do a simple fit in the backward direction.  This includes the cluster
     // being checked.
     TPrincipal pca1(3,"");
+    TPrincipal pca1e(3,"");
     for (ClusterContainer::iterator i = startStep; i != here+1; ++i) {
-        double row[3] 
-            = {(*i)->GetPosition().X(),
-               (*i)->GetPosition().Y(),
-               (*i)->GetPosition().Z()};
+        double row[3] = {(*i)->GetPosition().X(),
+                         (*i)->GetPosition().Y(),
+                         (*i)->GetPosition().Z()};
         pca1.AddRow(row);
+        pca1e.AddRow(row);
+        TVector3 corner;
+
+        corner = (*i)->GetPosition().Vect() + 1.5*(*i)->GetLongAxis();
+        double row1[3] = {corner.X(), corner.Y(), corner.Z()};
+        pca1e.AddRow(row1);
+
+        corner = (*i)->GetPosition().Vect() - 1.5*(*i)->GetLongAxis();
+        double row2[3] = {corner.X(), corner.Y(), corner.Z()};
+        pca1e.AddRow(row2);
+
+        corner = (*i)->GetPosition().Vect() + (*i)->GetMajorAxis();
+        double row3[3] = {corner.X(), corner.Y(), corner.Z()};
+        pca1e.AddRow(row3);
+
+        corner = (*i)->GetPosition().Vect() - (*i)->GetMajorAxis();
+        double row4[3] = {corner.X(), corner.Y(), corner.Z()};
+        pca1e.AddRow(row4);
+
+        corner = (*i)->GetPosition().Vect() + 1.5*(*i)->GetMinorAxis();
+        double row5[3] = {corner.X(), corner.Y(), corner.Z()};
+        pca1e.AddRow(row5);
+
+        corner = (*i)->GetPosition().Vect() - 1.5*(*i)->GetMinorAxis();
+        double row6[3] = {corner.X(), corner.Y(), corner.Z()};
+        pca1e.AddRow(row6);
     }
     pca1.MakePrincipals();
-    pca1.P2X(p0,x,1);
+    pca1e.MakePrincipals();
+    pca1.P2X(p0,x,3);
     TVector3 base1(x);
-    pca1.P2X(p1,x,1);
+    pca1.P2X(p1,x,3);
     TVector3 dir1(x); 
     dir1 = (dir1-base1).Unit();
-
+    TVector3 dirSense1
+        = (*here)->GetPosition().Vect() - (*startStep)->GetPosition().Vect();
+    double sense1 = dir1*dirSense1;
+    if (sense1 < 0.0) dir1 = - dir1;
+    
+    // Find out where to end the fit in the forward direction.
     ClusterContainer::iterator endStep = here;
     while (endStep != end) {
         if (end-here < minStep) continue;
-        double r = ((*endStep)->GetPosition()-(*here)->GetPosition()).Mag();
+        double r = ((*endStep)->GetPosition().Vect()
+                    -(*here)->GetPosition().Vect()).Mag();
         ++endStep;
         if (r > 4*unit::cm) break; // Yes... the "if" comes after the increment.
     }
@@ -202,27 +239,128 @@ double CP::TSplitTracks::KinkAngle(ClusterContainer::iterator here,
     int foreStep = end-here;
     if (foreStep > maxStep) foreStep = maxStep;
     TPrincipal pca2(3,"");
+    TPrincipal pca2e(3,"");
     for (ClusterContainer::iterator i = here; i != endStep; ++i) {
         double row[3] 
             = {(*i)->GetPosition().X(),
                (*i)->GetPosition().Y(),
                (*i)->GetPosition().Z()};
         pca2.AddRow(row);
+        pca2e.AddRow(row);
+        TVector3 corner;
+
+        corner = (*i)->GetPosition().Vect() + 1.5*(*i)->GetLongAxis();
+        double row1[3] = {corner.X(), corner.Y(), corner.Z()};
+        pca2e.AddRow(row1);
+
+        corner = (*i)->GetPosition().Vect() - 1.5*(*i)->GetLongAxis();
+        double row2[3] = {corner.X(), corner.Y(), corner.Z()};
+        pca2e.AddRow(row2);
+
+        corner = (*i)->GetPosition().Vect() + 1.5*(*i)->GetMajorAxis();
+        double row3[3] = {corner.X(), corner.Y(), corner.Z()};
+        pca2e.AddRow(row3);
+
+        corner = (*i)->GetPosition().Vect() - 1.5*(*i)->GetMajorAxis();
+        double row4[3] = {corner.X(), corner.Y(), corner.Z()};
+        pca2e.AddRow(row4);
+
+        corner = (*i)->GetPosition().Vect() + 1.5*(*i)->GetMinorAxis();
+        double row5[3] = {corner.X(), corner.Y(), corner.Z()};
+        pca2e.AddRow(row5);
+
+        corner = (*i)->GetPosition().Vect() - 1.5*(*i)->GetMinorAxis();
+        double row6[3] = {corner.X(), corner.Y(), corner.Z()};
+        pca2e.AddRow(row6);
     }
     pca2.MakePrincipals();
-    pca2.P2X(p0,x,1);
+    pca2e.MakePrincipals();
+    pca2.P2X(p0,x,3);
     TVector3 base2(x);
-    pca2.P2X(p1,x,1);
+    pca2.P2X(p1,x,3);
     TVector3 dir2(x); 
     dir2 = (dir2-base2).Unit();
+    TVector3 dirSense2
+        = (*(endStep-1))->GetPosition().Vect() - (*here)->GetPosition().Vect();
+    double sense2 = dir2*dirSense2;
+    if (sense2 < 0.0) dir2 = - dir2;
 
     // Find the cosine of the angle between the fore and back segments.
-    double dcos = std::abs(dir1*dir2);
-    if (dcos >= 1.0) return 0.0;
+    double dcos = dir1*dir2;
+    dcos = std::max(-1.0,std::min(dcos,1.0));
+    double angle = std::acos(dcos);
 
-    // Return the angle between the segments.  This could be done with the
-    // sine (using a sqrt), but I think acos is fast enough.
-    return std::acos(dcos);
+    // Find the error on the angle.  This changes the direction to make the
+    // calculation.
+    TVector3 dirDiff = dir2;
+    if (dcos < 0) dirDiff = -dir2;
+    dirDiff = (dirDiff - dir1).Unit();
+    
+    double transMag = 0.0;
+    {
+        pca1e.P2X(p0,x,3);
+        TVector3 b(x[0],x[1],x[2]);
+        pca1e.P2X(p1,x,3);
+        TVector3 v(x[0],x[1],x[2]);
+        v = (*pca1e.GetSigmas())(0)*(v - b);
+        transMag += std::abs(v*dirDiff);
+    }
+    {
+        pca1e.P2X(p0,x,3);
+        TVector3 b(x[0],x[1],x[2]);
+        pca1e.P2X(p2,x,3);
+        TVector3 v(x[0],x[1],x[2]);
+        v = (*pca1e.GetSigmas())(1)*(v - b);
+        transMag += std::abs(v*dirDiff);
+    }
+    {
+        pca1e.P2X(p0,x,3);
+        TVector3 b(x[0],x[1],x[2]);
+        pca1e.P2X(p3,x,3);
+        TVector3 v(x[0],x[1],x[2]);
+        v = (*pca1e.GetSigmas())(2)*(v - b);
+        transMag += std::abs(v*dirDiff);
+    }
+    double dAng1 = atan2(transMag,(base1-(*here)->GetPosition().Vect()).Mag());
+    
+    transMag = 0.0;
+    {
+        pca2e.P2X(p0,x,3);
+        TVector3 b(x[0],x[1],x[2]);
+        pca2e.P2X(p1,x,3);
+        TVector3 v(x[0],x[1],x[2]);
+        v = (*pca2e.GetSigmas())(0)*(v - b);
+        transMag += std::abs(v*dirDiff);
+    }
+    {
+        pca2e.P2X(p0,x,3);
+        TVector3 b(x[0],x[1],x[2]);
+        pca2e.P2X(p2,x,3);
+        TVector3 v(x[0],x[1],x[2]);
+        v = (*pca2e.GetSigmas())(1)*(v - b);
+        transMag += std::abs(v*dirDiff);
+    }
+    {
+        pca2e.P2X(p0,x,3);
+        TVector3 b(x[0],x[1],x[2]);
+        pca2e.P2X(p3,x,3);
+        TVector3 v(x[0],x[1],x[2]);
+        v = (*pca2e.GetSigmas())(2)*(v - b);
+        transMag += std::abs(v*dirDiff);
+    }
+    double dAng2 = atan2(transMag,(base2-(*here)->GetPosition().Vect()).Mag());
+
+    double angle1 = angle - std::sqrt(dAng1*dAng1 + dAng2*dAng2);
+    if (angle1 < 0.0) angle1 = 0.0;
+    
+    std::cout << "ANGLE " << angle
+              << " " << angle1
+              << " " << dAng1
+              << " " << dAng2
+              << std::endl;
+
+    // Return the angle between the segments.
+    return angle1;
 }
 
 CP::THandle<CP::TAlgorithmResult>
@@ -279,7 +417,7 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
         CaptNamedInfo("Split",
                       "Track Stack: " << trackStack.size()
                       << "    Track size: " << track->GetNodes().size()
-                      << "    UID: " << track->GetUniqueID());
+                      << "    Pop UID: " << track->GetUniqueID());
         
         // Make a copy of the clusters in the track.  These are basically the
         // track nodes.
@@ -429,11 +567,14 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
             continue;
         }
 
+        CaptNamedInfo("Split", "Check long track"
+                      << " (UID " << track->GetUniqueID() << ")");
+
         // Look for parts of the track where three clusters are not in a line.
         // The segment with the worst chi2 will be a "short" kink in the
         // track.  There are at least five clusters in the track when this bit
         // of code starts.  The kink can't be right at either end.
-        ClusterContainer::iterator sharpestKink;
+        ClusterContainer::iterator sharpestKink = begin+1;
         double worstChi2 = 0.0;
         double worstRadius = 1000.0*unit::mm;
         for (ClusterContainer::iterator i = begin+1; i+3 != end; ++i) {
@@ -446,6 +587,13 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
                 sharpestKink = i+1;
             }
         }
+
+        CaptNamedInfo("Split", "Sharpest kink found has chi2 " << worstChi2
+                      << " (" << fThreeInLineCut << ")"
+                      << " radius " << worstRadius
+                      << " at " << sharpestKink-begin
+                      << " of " << end-begin
+                      << "  UID: " << sharpestKink->GetUniqueID());
 
         // If the worstChi2 is too big, there is a kink and the track should
         // be split.  The two pieces are put back on the stack and we start
@@ -471,7 +619,7 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
         // Find the biggest gap in the track.  The can't be right at the end
         // of the track.  There are at least 5 clusters in the track to get to
         // this point, so the check (i+3 != end) should be OK.
-        ClusterContainer::iterator biggestGap;
+        ClusterContainer::iterator biggestGap = begin+1;
         double maxDist = 0.0;
         for (ClusterContainer::iterator i = begin+1; i+3 != end; ++i) {
             double v = ClusterDistance(**(i),**(i+1));
@@ -480,6 +628,12 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
                 biggestGap = i+1;
             }
         }
+
+        CaptNamedInfo("Split", "Biggest gap " << maxDist
+                      << " (" << fSplitDistanceCut << ")"
+                      << " at " << biggestGap-begin
+                      << " of " << end-begin
+                      << "  UID: " << biggestGap->GetUniqueID());
 
         // If the biggest gap is too big the track should be split.  The two
         // pieces are put back on the stack and we start over again.
@@ -504,31 +658,42 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
         // based on the track segments to either side of the current cluster.
         // This reuses the sharpestKink iterator.
         double biggestAngle = 0.0;
+        ClusterContainer::iterator biggestBend = begin;
         for (ClusterContainer::iterator i = begin; i != end; ++i) {
             double v = KinkAngle(i,begin,end);
             if (biggestAngle < v) {
                 biggestAngle = v;
-                sharpestKink = i;
+                biggestBend = i;
             }
+            CaptNamedInfo("SplitAngle","  Angle at " << i-begin
+                          << " is " << v/unit::degree << " deg"
+                          << " biggest angle is " << biggestAngle/unit::degree
+                          << " at " << biggestBend-begin);
         }
+
+        CaptNamedInfo("Split", "Biggest bend " << biggestAngle
+                      << " (" << fKinkAngleCut << ")"
+                      << " at " << biggestBend-begin
+                      << " of " << end-begin
+                      << "  UID: " << biggestBend->GetUniqueID());
 
         // If the kink angle is to big there is a kink and the track should
         // be split.  The two pieces are put back on the stack and we start
         // over again.
         if (biggestAngle > fKinkAngleCut) {
-            track = CreateTrackFromClusters("TSplitTracks",begin,sharpestKink+1);
+            track = CreateTrackFromClusters("TSplitTracks",begin,biggestBend+1);
             CaptNamedInfo("Split", "Stack track "
                           << " (UID " << track->GetUniqueID() << ")");
             trackStack.push_back(track);
-            track = CreateTrackFromClusters("TSplitTracks",sharpestKink,end);
+            track = CreateTrackFromClusters("TSplitTracks",biggestBend,end);
             CaptNamedInfo("Split", "Stack track "
                           << " (UID " << track->GetUniqueID() << ")");
             trackStack.push_back(track);
             CaptNamedInfo("Split","Split at kink --"
                          << " Angle: " << biggestAngle
                          << "  Original: "   << end-begin
-                         << "  First: "   << sharpestKink-begin+1
-                         << "  Second: "   << end-sharpestKink);
+                         << "  First: "   << biggestBend-begin+1
+                         << "  Second: "   << end-biggestBend);
             continue;
         }
 
@@ -537,7 +702,7 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
     }
     
     // Copy the outputStack objects to final.
-    std::auto_ptr<CP::TReconObjectContainer> 
+    std::unique_ptr<CP::TReconObjectContainer> 
         final(new CP::TReconObjectContainer("final"));
 
     // A stack of clusters that have been seen.

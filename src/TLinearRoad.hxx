@@ -20,7 +20,7 @@ namespace CP {
 /// 
 /// To use this class
 /// \code
-/// std::auto_ptr<TLinearRoad> obj(new TLinearRoad(clusters, seed));
+/// std::unique_ptr<TLinearRoad> obj(new TLinearRoad(clusters, seed));
 /// obj->Process();
 /// CP::THandle<CP::TReconTrack> foundTrack = obj->GetTrack();
 /// \endcode

@@ -51,7 +51,7 @@ CP::TClusterTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     /////////////////////////////////////////////////////////////////////
     /// Find the center position and direction of the track from the nodes.
     /////////////////////////////////////////////////////////////////////
-    std::auto_ptr<TPrincipal> pca(new TPrincipal(3,""));
+    std::unique_ptr<TPrincipal> pca(new TPrincipal(3,""));
     TMatrixD posCov(3,3);
     for (TReconNodeContainer::iterator n = nodes.begin();
          n != nodes.end(); ++n) {

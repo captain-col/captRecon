@@ -1,6 +1,5 @@
 #include "TMergeTracks.hxx"
 #include "TTrackFit.hxx"
-#include "ClusterDistance.hxx"
 #include "CreateTrack.hxx"
 #include "CompareReconObjects.hxx"
 #include "TTrackMassFit.hxx"
@@ -361,7 +360,7 @@ CP::TMergeTracks::Process(const CP::TAlgorithmResult& input,
 
     // Create the output containers.
     CP::THandle<CP::TAlgorithmResult> result = CreateResult();
-    std::auto_ptr<CP::TReconObjectContainer> 
+    std::unique_ptr<CP::TReconObjectContainer> 
         final(new CP::TReconObjectContainer("final"));
 
     // Create a stack to keep tracks in.  When the stack is empty, all the

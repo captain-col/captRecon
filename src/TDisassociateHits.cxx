@@ -41,15 +41,15 @@ CP::TDisassociateHits::Process(const CP::TAlgorithmResult& input,
 
     // Create the output containers.
     CP::THandle<CP::TAlgorithmResult> result = CreateResult();
-    std::auto_ptr<CP::TReconObjectContainer> 
+    std::unique_ptr<CP::TReconObjectContainer> 
         final(new CP::TReconObjectContainer("final"));
-    std::auto_ptr<CP::TReconObjectContainer> 
+    std::unique_ptr<CP::TReconObjectContainer> 
         tracks(new CP::TReconObjectContainer("tracks"));
-    std::auto_ptr<CP::TReconObjectContainer>
+    std::unique_ptr<CP::TReconObjectContainer>
         showers(new CP::TReconObjectContainer("showers"));
-    std::auto_ptr<CP::TReconObjectContainer> 
+    std::unique_ptr<CP::TReconObjectContainer> 
         big(new CP::TReconObjectContainer("big"));
-    std::auto_ptr<CP::TReconObjectContainer> 
+    std::unique_ptr<CP::TReconObjectContainer> 
         small(new CP::TReconObjectContainer("small"));
 
     // Check to see if there are tracks and clusters to disassociate.
@@ -67,7 +67,7 @@ CP::TDisassociateHits::Process(const CP::TAlgorithmResult& input,
                  << " for " << trackCount << " tracks");
     
     // Objects to break up.
-    std::auto_ptr<CP::TReconObjectContainer> 
+    std::unique_ptr<CP::TReconObjectContainer> 
         disassociate(new CP::TReconObjectContainer("disassociate"));
 
     // Divide into objects to save and objects to disintegrate.

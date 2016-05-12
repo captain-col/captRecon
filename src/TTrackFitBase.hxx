@@ -34,7 +34,7 @@ namespace CP {
 /// can also be applied using the Apply method which will be more convenient
 /// when the fitter is referenced by a pointer.
 /// \code
-/// std::auto_ptr<CP::TTrackFitBase> trackFit(new TTrackFit);
+/// std::unique_ptr<CP::TTrackFitBase> trackFit(new TTrackFit);
 /// THandle<TReconTrack> fittedTrack = trackFit->Apply(inputTrack);
 /// \endcode
 ///

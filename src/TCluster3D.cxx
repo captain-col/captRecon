@@ -664,9 +664,9 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     if (pmtHits) t0 = TimeZero(*pmtHits,*wireHits);
         
     CP::THandle<CP::TAlgorithmResult> result = CreateResult();
-    std::auto_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
-    std::auto_ptr<CP::THitSelection> unused(new CP::THitSelection("unused"));
-    std::auto_ptr<CP::THitSelection> clustered(new CP::THitSelection(
+    std::unique_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
+    std::unique_ptr<CP::THitSelection> unused(new CP::THitSelection("unused"));
+    std::unique_ptr<CP::THitSelection> clustered(new CP::THitSelection(
                                                    "clustered"));
 
     /// Only save the used and unused hits if there are fewer than this many
@@ -887,7 +887,9 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
         }
     }
 
-    share.Solve();
+    int iterations = 10 + 100000/writableHits.size();
+    iterations = std::min(iterations,5000);
+    share.Solve(0.01,iterations);
 
     // Loops over the measurement groups, and update the charges of the 3D
     // hits.  Since the 3D hit handles reference the hits in the writableHits

@@ -71,9 +71,10 @@ namespace BTF {
 class BTF::TSystemPDF 
     : public BFL::ConditionalPdf<ColumnVector,ColumnVector> {
 public:
-    TSystemPDF(double momentumEstimate) 
-        : BFL::ConditionalPdf<ColumnVector,ColumnVector>(kStateSize,1) {
-        fMomentumEstimate = momentumEstimate;
+    TSystemPDF(double momentumEstimate, BTF::TMeasurementPDF& measurement) 
+        : BFL::ConditionalPdf<ColumnVector,ColumnVector>(kStateSize,1),
+        fMomentumEstimate(momentumEstimate),
+        fMeasurement(measurement) {
     }
     virtual ~TSystemPDF() {}
     
@@ -83,12 +84,6 @@ public:
     /// if the track energy were being updated to say whether to the energy
     /// increases or decreases.
     void SetBackwardUpdate(bool back=true) {fBackwardUpdate = back;}
-    
-    /// Set the measurement object (i.e. the cluster) associated with the
-    /// next state.
-    void SetMeasurement(CP::THandle<CP::TReconCluster> next) {
-        fMeasurement = next;
-    }
     
     /// The function to generate one updated state.  The previous state of the
     /// system is accessed through the ConditionalArgumentGet(0) method.  The
@@ -107,7 +102,7 @@ private:
     bool fBackwardUpdate;
     
     /// This is the measurement that will be associated with the state.
-    CP::THandle<CP::TReconCluster> fMeasurement;
+    TMeasurementPDF& fMeasurement;
 
     /// The momentum estimate needed for multiple scattering.
     double fMomentumEstimate;
@@ -131,14 +126,20 @@ public:
     
     /// Get the probability for a position based on the current measurement.  
     virtual BFL::Probability
-    ProbabilityGet(const TVector3& position)const;
-
+    ProbabilityGet(const TVector3& position) const;
+    
     /// Set the measurement object (i.e. the cluster).  This also sets the
     /// value of the fGaussian field so that it describes the current
     /// measurement.
     void SetMeasurement(CP::THandle<CP::TReconCluster> next);
+
+    /// Get the measurement object.
+    CP::THandle<CP::TReconCluster> GetMeasurement() const {
+        return fMeasurement;
+    }
     
 private:
+    
     /// This is the measurement that will be associated with the state.
     CP::THandle<CP::TReconCluster> fMeasurement;
 
@@ -208,14 +209,6 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     // Define the size of the state.
     const int stateSize = BTF::kStateSize;
 
-    // Define the system model.  The system model contains the current PDF for
-    // the track fit parameters that will be updated with new measurement
-    // information.  The system model is initialized using forwardPrior (which
-    // is filled using GeneratePrior) and then is iteratively updated with new
-    // measurement information.
-    BTF::TSystemPDF systemPDF(momentum);
-    BFL::SystemModel<BTF::ColumnVector> systemModel(&systemPDF);
-
     // Define the measurement model.  The main purpose of the measurement
     // model is to calculte the probability of a state (updated as a
     // prediction for the next measurement) relative to the actual
@@ -224,6 +217,14 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     BFL::MeasurementModel<BTF::ColumnVector, BTF::ColumnVector> 
         measurementModel(&measurementPDF);
     BTF::ColumnVector measurement(1);
+
+    // Define the system model.  The system model contains the current PDF for
+    // the track fit parameters that will be updated with new measurement
+    // information.  The system model is initialized using forwardPrior (which
+    // is filled using GeneratePrior) and then is iteratively updated with new
+    // measurement information.
+    BTF::TSystemPDF systemPDF(momentum, measurementPDF);
+    BFL::SystemModel<BTF::ColumnVector> systemModel(&systemPDF);
 
     /////////////////////////////////////////////////////////////////////
     // Forward filtering.
@@ -266,7 +267,6 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         // Get the measurement from the node.
         CP::THandle<CP::TTrackState> trackState = node->GetState();
         CP::THandle<CP::TReconCluster> cluster = node->GetObject();
-        systemPDF.SetMeasurement(cluster);
         measurementPDF.SetMeasurement(cluster);
 
         // Update the filter
@@ -296,12 +296,22 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
             }
         }
 
-        // This is the first step, so give it a large variance.  Otherwise the
-        // prior has too much weight.
-        if (step < 1) {
+        // This is near the beginning of the fit, so give it a large variance
+        // to reduce the weight of the prior in the final answer.  This
+        // matters when combining with the backward filtering (below).
+        std::size_t excludePrior = std::max((std::size_t)1,nodes.size()/2);
+        if (step < excludePrior) {
+            double posVariance = 10*unit::cm*(excludePrior-step)/excludePrior;
+            posVariance = posVariance*posVariance;
+            double dirVariance = 1.0*unit::cm*(excludePrior-step)/excludePrior;
+            dirVariance = dirVariance*dirVariance;
             for (int i=0; i<3; ++i) {
-                trackState->SetPositionCovariance(i,i,10*unit::cm);
-                trackState->SetDirectionCovariance(i,i,1.0);
+                double p = trackState->GetPositionCovariance(i,i);
+                p += posVariance;
+                trackState->SetPositionCovariance(i,i,p);
+                double d = trackState->GetDirectionCovariance(i,i);
+                d += dirVariance;
+                trackState->SetDirectionCovariance(i,i,d);
             }
         }
 
@@ -370,7 +380,6 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
             continue;
         }
 
-        systemPDF.SetMeasurement(cluster);
         measurementPDF.SetMeasurement(cluster);
 
         // Update the filter
@@ -426,6 +435,29 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
             if (vPosB[i] < 0.001*unit::mm) vPosB[i] = 1000*unit::meter;
         }
 
+        // This is near the beginning of the fit, so give it a large variance
+        // to reduce the weight of the prior in the final answer.  This
+        // matters when combining with the backward filtering (below).
+        std::size_t excludePrior = std::max((std::size_t) 1,nodes.size()/2);
+        double posVarianceIncrease = 0.0;
+        double dirVarianceIncrease = 0.0;
+        if (step >= nodes.size() - excludePrior) {
+            posVarianceIncrease
+                = 10.0*unit::cm*(excludePrior-(nodes.size()-step)+1)/excludePrior;
+            posVarianceIncrease = posVarianceIncrease*posVarianceIncrease;
+            dirVarianceIncrease
+                = 1.0*(excludePrior-(nodes.size()-step)+1)/excludePrior;
+            dirVarianceIncrease = dirVarianceIncrease*dirVarianceIncrease;
+            for (int i=0; i<3; ++i) {
+                double p = vPosB[i];
+                p += posVarianceIncrease;
+                vPosB[i] = p;
+            }
+            double d = vDirB;
+            d += dirVarianceIncrease;
+            vDirB = d;
+        }
+
         // Find the average position.
         double xx = posF.X()/vPosF.X() + posB.X()/vPosB.X();
         xx = xx/(1.0/vPosF.X() + 1.0/vPosB.X());
@@ -462,8 +494,8 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         for (int i=0; i<3; ++i) {
             for (int j=0; j<3; ++j) {
                 pcov2(i,j) = cv(BTF::kXPos+i+1, BTF::kXPos+j+1);
-                if (step == (int) nodes.size()-1 && i == j) {
-                    pcov2(i,j) = 10*unit::cm;
+                if (i == j) {
+                    pcov2(i,i) = vPosB[i];
                 }
             }
         }
@@ -473,7 +505,9 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         for (int i=0; i<3; ++i) {
             for (int j=0; j<3; ++j) {
                 dcov2(i,j) = cv(BTF::kXDir+i+1, BTF::kXDir+j+1);
-                if (step == (int) nodes.size()-1 && i == j) dcov2(i,j) = 1.0;
+                if (i == j) {
+                    dcov2(i,i) += dirVarianceIncrease;
+                }
             }
         }
         dcov2.InvertFast();
@@ -607,12 +641,14 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
 
 bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
                                  int method, void* args) const {
-    // Get the previous state.
+    // Get a copy of the previous state.
     ColumnVector state = ConditionalArgumentGet(0);
 
+    // And copy it into convenient variables.
     TVector3 pos(state[BTF::kXPos], state[BTF::kYPos], state[BTF::kZPos]);
     TVector3 dir(state[BTF::kXDir], state[BTF::kYDir], state[BTF::kZDir]);
-
+    TVector3 origPos = pos;
+    
     for (int i=0; i<3; ++i) {
         if (!std::isfinite(pos[i])) {
             CaptError("Error in position " << pos);
@@ -632,7 +668,7 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
     }
 
     // Find the distance to the closest approach to the next measurement.
-    TVector3 diff1 = fMeasurement->GetPosition().Vect() - pos;
+    TVector3 diff1 = fMeasurement.GetMeasurement()->GetPosition().Vect() - pos;
     double dist1 = diff1*dir;
 
     // Find the amount of scattering. This can be found based on the
@@ -677,7 +713,7 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
 
     // Find the distance to the closest approach to the next measurement using
     // the updated position and direction.
-    TVector3 diff2 = fMeasurement->GetPosition().Vect() - pos;
+    TVector3 diff2 = fMeasurement.GetMeasurement()->GetPosition().Vect() - pos;
     double dist2 = diff2*dir;
     pos = pos + dist2*dir;
 
@@ -699,7 +735,27 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
             CaptError("Direction is short " << dir);
     }
 
-    // Update the state.
+#define HANDLE_KINKS
+#ifdef HANDLE_KINKS
+    double prob = fMeasurement.ProbabilityGet(pos);
+    const double probThreshold = 4E-6; // prevent 5 sigma fluctuations...
+    if (prob < probThreshold) {
+        TVector3 meas = fMeasurement.GetMeasurement()->GetPosition().Vect();
+        while (prob < probThreshold) {
+            for (int i=0; i<3; ++i) {
+                double s = fMeasurement.GetMeasurement()->GetPositionVariance()[i];
+                if (0 < s) s = std::sqrt(s);
+                else s = 2*unit::mm;
+                pos[i] = gRandom->Gaus(meas[i], s);
+            }
+            prob = fMeasurement.ProbabilityGet(pos);
+        }
+        dir = (pos-origPos).Unit();
+    }
+#endif
+
+    // Update the copy of the old state with the new sample state (saves
+    // creating a new copy).
     state[BTF::kXPos] = pos.X();
     state[BTF::kYPos] = pos.Y();
     state[BTF::kZPos] = pos.Z();
@@ -707,7 +763,7 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
     state[BTF::kYDir] = dir.Y();
     state[BTF::kZDir] = dir.Z();
 
-    // Return the results in oneSample
+    // Put the updated state into oneSample.
     oneSample.ValueSet(state);
 
     return true;
@@ -730,9 +786,12 @@ BTF::TMeasurementPDF::ProbabilityGet(const TVector3& expected) const {
         }
     }
     double v = std::exp(-0.5*X2)*fGaussianConstant;
-#define LIMIT_TAILS
+
 #ifdef LIMIT_TAILS
-    v = std::max(v, 1E-10*fGaussianConstant*std::exp(-std::sqrt(X2)));
+    // const double exponentialNorm = std::exp(-0.5*5*5)*std::exp(5.0);
+    // const double exponentialNorm = std::exp(-0.5*4*4)*std::exp(4.0);
+    const double exponentialNorm = std::exp(-0.5*3*3)*std::exp(3.0);
+    v = std::max(v, exponentialNorm*fGaussianConstant*std::exp(-std::sqrt(X2)));
 #endif
 
     if (!std::isfinite(v)) {

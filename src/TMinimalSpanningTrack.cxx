@@ -111,7 +111,7 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
 
     // Create the output containers.
     CP::THandle<CP::TAlgorithmResult> result = CreateResult();
-    std::auto_ptr<CP::TReconObjectContainer> 
+    std::unique_ptr<CP::TReconObjectContainer> 
         final(new CP::TReconObjectContainer("final"));
 
     // Find the clusters in the input object and copy them into the
@@ -164,9 +164,11 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
                 double dist = (g[*vi].cluster->GetPosition().Vect()
                                - g[*vj].cluster->GetPosition().Vect()).Mag();
                 if (dist > fDistCut) continue;
-                double hitDist = CP::ClusterDistance(*g[*vi].cluster,
+                double hitDist = CP::ClusterVicinity(*g[*vi].cluster,
                                                      *g[*vj].cluster);
                 if (hitDist > fHitDistCut) continue;
+                hitDist = CP::ClusterDistance(*g[*vi].cluster,
+                                              *g[*vj].cluster);
                 MST::edge_t edge = boost::add_edge(*vi, *vj, g).first;
                 g[edge].length = hitDist;
             }

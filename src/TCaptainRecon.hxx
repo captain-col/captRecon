@@ -44,7 +44,7 @@ private:
     /// TAlgorithm memory management.
     template<typename T>
     CP::THandle<CP::TAlgorithmResult> Run(const CP::TAlgorithmResult& in) {
-        std::auto_ptr<T> ptr(new T);
+        std::unique_ptr<T> ptr(new T);
         return ptr->Process(in);
     }
 
@@ -53,7 +53,7 @@ private:
     template<typename T>
     CP::THandle<CP::TAlgorithmResult> Run(const CP::TAlgorithmResult& in1,
                                           const CP::TAlgorithmResult& in2) {
-        std::auto_ptr<T> ptr(new T);
+        std::unique_ptr<T> ptr(new T);
         return ptr->Process(in1,in2);
     }
 };
