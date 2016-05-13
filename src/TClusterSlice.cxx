@@ -206,12 +206,13 @@ CP::TClusterSlice::Process(const CP::TAlgorithmResult& input,
             if (match != last->GetConstituentCount()) break;
             if (std::abs(last->GetPosition().Z()-(*h)->GetPosition().Z())>1)
                 break;
-            std::cout << "Duplicate hit " << match;
+            CaptError("Duplicate hit " << match);
             for (int i=0; i<last->GetConstituentCount(); ++i) {
-                std::cout << " " << last->GetConstituent(i)->GetChannelId();
+                CaptError("  Channels: "
+                          << last->GetConstituent(i)->GetChannelId());
             }
-            std::cout << " " << (*h)->GetPosition().Z();
-            std::cout << " " << last->GetPosition().Z() << std::endl;
+            CaptError("  hit Z " << (*h)->GetPosition().Z());
+            CaptError("  last Z " << last->GetPosition().Z());
         }  while (false);
         last = *h;
     }
