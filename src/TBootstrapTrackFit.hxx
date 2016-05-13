@@ -46,6 +46,11 @@ private:
     /// scattering.   This assumes a muon track so it's a really crude estimate.
     double EstimateMomentum(const CP::TReconNodeContainer& nodes);
 
+    /// Estimate the scattering for the track based on the node to node
+    /// variation.
+    double
+    EstimateScatter(const CP::TReconNodeContainer& nodes);
+
     /// The number of trials for each iteration of the fitter.
     int fTrials;
 };
