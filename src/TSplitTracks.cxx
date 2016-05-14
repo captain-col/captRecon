@@ -151,13 +151,17 @@ double CP::TSplitTracks::KinkAngle(ClusterContainer::iterator here,
                                    ClusterContainer::iterator end) {
     // The minimum and maximum number of clusters to include in the segments
     // to either side of the cluster being checked.  The count includes the
-    // current cluster.
-    int minStep = 5;
-    int maxStep = 10;
+    // current cluster.  Near the end of the track, there may still be fewer
+    // than minStep clusters used to find the kink.
+    const int minStep = 4;
+    const int maxStep = 20;
 
-    // No kinks right at the end.
-    if (here-begin+1 < minStep) return 0;
-    if (end-here < minStep) return 0;
+    // The maximum length of track that will be fit.
+    const double maxLength = 4*unit::cm;
+    
+    // No kinks right at the very end.
+    if (here-begin+1 < 2) return 0;
+    if (end-here < 2) return 0;
 
     double p0[3] = {0.0,0.0,0.0};
     double p1[3] = {1.0,0.0,0.0};
@@ -171,9 +175,10 @@ double CP::TSplitTracks::KinkAngle(ClusterContainer::iterator here,
     while (startStep != begin) {
         --startStep;
         if (here-startStep+1 < minStep) continue;
+        if (here-startStep+1 > maxStep) break;
         double r = ((*startStep)->GetPosition().Vect()
                     -(*here)->GetPosition().Vect()).Mag();
-        if (r > 4*unit::cm) break;
+        if (r > maxLength) break;
     }
 
     // Do a simple fit in the backward direction.  This includes the cluster
@@ -227,17 +232,19 @@ double CP::TSplitTracks::KinkAngle(ClusterContainer::iterator here,
     // Find out where to end the fit in the forward direction.
     ClusterContainer::iterator endStep = here;
     while (endStep != end) {
-        if (end-here < minStep) continue;
+        if (endStep-here < minStep) {
+            ++endStep;
+            continue;
+        }
+        if (endStep-here+1 > maxStep) break;
         double r = ((*endStep)->GetPosition().Vect()
                     -(*here)->GetPosition().Vect()).Mag();
         ++endStep;
-        if (r > 4*unit::cm) break; // Yes... the "if" comes after the increment.
+        if (r > maxLength) break; // Yes... the "if" is after the "increment".
     }
 
     // Do a simple fit in the forward direction.  This includes the cluster
     // being checked.
-    int foreStep = end-here;
-    if (foreStep > maxStep) foreStep = maxStep;
     TPrincipal pca2(3,"");
     TPrincipal pca2e(3,"");
     for (ClusterContainer::iterator i = here; i != endStep; ++i) {
@@ -353,12 +360,6 @@ double CP::TSplitTracks::KinkAngle(ClusterContainer::iterator here,
     double angle1 = angle - std::sqrt(dAng1*dAng1 + dAng2*dAng2);
     if (angle1 < 0.0) angle1 = 0.0;
     
-    std::cout << "ANGLE " << angle
-              << " " << angle1
-              << " " << dAng1
-              << " " << dAng2
-              << std::endl;
-
     // Return the angle between the segments.
     return angle1;
 }
@@ -459,7 +460,9 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
                           << " Radius: " << r
                           << " End Dist: " << d
                           << " Clusters: " << (end-begin)-1);
+            // See if there is a bad chi-squared for a line.
             if (v < fThreeInLineCut && d < fEndDistanceCut) break;
+            // A large radius of curvature and no gap.
             if (r > fRadiusOfCurvature && d < fEndDistanceCut) break;
             CaptNamedInfo("Split",
                           "Discard front UID "
@@ -485,7 +488,9 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
                           << " Radius: " << r
                           << " End Dist: " << d
                           << " Clusters: " << (end-begin)-1);
+            // See if there is a bad chi-squared for a line.
             if (v < fThreeInLineCut && d < fEndDistanceCut) break;
+            // A large radius of curvature and no gap.
             if (r > fRadiusOfCurvature && d < fEndDistanceCut) break;
             CaptNamedInfo("Split",
                           "Discard back UID " 
