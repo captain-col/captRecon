@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <list>
+#include <set>
 
 #include <TAlgorithm.hxx>
 #include <TCaptLog.hxx>
@@ -50,25 +51,33 @@ public:
     /// Normalize the weights in the link list.  The weights are normalized so
     /// that the sum of weight*physicsWeight is 1.0, and none of the weights
     /// are greater than 1.0.
-    void NormalizeWeights();
+    void NormalizeWeights() const;
 
     /// Normalize the weights in the link list for this measurement.  The
     /// weights are normalize so that the maximum weight is 1.0.
-    void NormalizePhysicsWeights();
+    void NormalizePhysicsWeights() const;
 
     /// Update the weights with the new weights in the link list.
-    double UpdateWeights();
+    double UpdateWeights() const;
 
     /// Find the link weights for this measurement.
-    void FindLinkWeights();
+    void FindLinkWeights() const;
 
     /// Eliminate excess links.  This checks for any links that have almost
     /// zero weight and eliminates them.  When a link is eliminated, the
     /// measurement group that it links to have the charge set to zero.
-    void EliminateLinks(double weightCut);
+    void EliminateLinks(double weightCut) const;
 
     /// Dump the measurement
     void Dump(bool dumpLinks = true) const;
+
+    bool operator == (const CP::DistributeCharge::TMeasurement& rhs) const {
+        return (CP::GetPointer(GetObject()) == CP::GetPointer(rhs.GetObject()));
+    }
+
+    bool operator < (const CP::DistributeCharge::TMeasurement& rhs) const {
+        return (CP::GetPointer(GetObject()) < CP::GetPointer(rhs.GetObject()));
+    }
 
 private:
     /// The object associated with this measurement.  This is a single
@@ -263,7 +272,7 @@ public:
     friend class CP::DistributeCharge::TMeasurementGroup;
 
     typedef std::list<CP::DistributeCharge::TLink> Links;
-    typedef std::list<CP::DistributeCharge::TMeasurement> Measurements;
+    typedef std::set<CP::DistributeCharge::TMeasurement> Measurements;
     typedef std::list<CP::DistributeCharge::TMeasurementGroup> Groups;
 
     TDistributeCharge();

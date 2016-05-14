@@ -28,13 +28,13 @@ void CP::DistributeCharge::TMeasurement::Dump(bool dumpLinks) const  {
     }
 }
 
-void CP::DistributeCharge::TMeasurement::NormalizeWeights() {
+void CP::DistributeCharge::TMeasurement::NormalizeWeights() const {
     double totalWeight = 0;
     double weightOffset = 0.0;
     int throttle = 5;
     do {
         totalWeight = 0;
-        for (CP::DistributeCharge::TLinks::iterator link = GetLinks().begin();
+        for (CP::DistributeCharge::TLinks::const_iterator link = GetLinks().begin();
              link != GetLinks().end(); ++link) {
             double w = (*link)->GetWeight()*(*link)->GetPhysicsWeight();
             if (w<0) w = 0;
@@ -45,7 +45,7 @@ void CP::DistributeCharge::TMeasurement::NormalizeWeights() {
         // then set some default values.
         if (totalWeight < 1E-6) {
             totalWeight = 0.0;
-            for (CP::DistributeCharge::TLinks::iterator link
+            for (CP::DistributeCharge::TLinks::const_iterator link
                      = GetLinks().begin();
                  link != GetLinks().end(); ++link) {
                 (*link)->SetWeight(1.0/GetLinks().size());
@@ -59,7 +59,7 @@ void CP::DistributeCharge::TMeasurement::NormalizeWeights() {
 
         weightOffset = 0.0;
         totalWeight = 0.0;
-        for (CP::DistributeCharge::TLinks::iterator link 
+        for (CP::DistributeCharge::TLinks::const_iterator link 
                  = GetLinks().begin();
              link != GetLinks().end(); ++link) {
             double w = (*link)->GetWeight()/scaleFactor;
@@ -74,9 +74,9 @@ void CP::DistributeCharge::TMeasurement::NormalizeWeights() {
     } while (std::abs(totalWeight-1.0) > 0.001 && 0 <= --throttle);
 }
 
-void CP::DistributeCharge::TMeasurement::NormalizePhysicsWeights() {
+void CP::DistributeCharge::TMeasurement::NormalizePhysicsWeights() const {
     double maxWeight = 0.0;
-    for (CP::DistributeCharge::TLinks::iterator link = GetLinks().begin();
+    for (CP::DistributeCharge::TLinks::const_iterator link = GetLinks().begin();
          link != GetLinks().end(); ++link) {
         double w = (*link)->GetPhysicsWeight();
         if (w<0) w = 0.0;
@@ -84,14 +84,14 @@ void CP::DistributeCharge::TMeasurement::NormalizePhysicsWeights() {
     }
     
     if (maxWeight < 1E-6) {
-        for (CP::DistributeCharge::TLinks::iterator link = GetLinks().begin();
+        for (CP::DistributeCharge::TLinks::const_iterator link = GetLinks().begin();
              link != GetLinks().end(); ++link) {
             (*link)->SetPhysicsWeight(1.0);
         }
         return;
     }
 
-    for (CP::DistributeCharge::TLinks::iterator link = GetLinks().begin();
+    for (CP::DistributeCharge::TLinks::const_iterator link = GetLinks().begin();
          link != GetLinks().end(); ++link) {
         double w = (*link)->GetPhysicsWeight();
         if (w<0) w = maxWeight;
@@ -100,9 +100,9 @@ void CP::DistributeCharge::TMeasurement::NormalizePhysicsWeights() {
 
 }
 
-double CP::DistributeCharge::TMeasurement::UpdateWeights() {
+double CP::DistributeCharge::TMeasurement::UpdateWeights() const {
     double totalWeight = 0;
-    for (CP::DistributeCharge::TLinks::iterator link = GetLinks().begin();
+    for (CP::DistributeCharge::TLinks::const_iterator link = GetLinks().begin();
          link != GetLinks().end(); ++link) {
         double w = (*link)->GetNewWeight();
         if (w<0) w = 0;
@@ -113,7 +113,7 @@ double CP::DistributeCharge::TMeasurement::UpdateWeights() {
 
     double change = 0;
     double links = 0;
-    for (CP::DistributeCharge::TLinks::iterator link = GetLinks().begin();
+    for (CP::DistributeCharge::TLinks::const_iterator link = GetLinks().begin();
          link != GetLinks().end(); ++link) {
         double w = (*link)->GetNewWeight();
         if (w<0) w = 0;
@@ -128,7 +128,7 @@ double CP::DistributeCharge::TMeasurement::UpdateWeights() {
     return change;
 }
 
-void CP::DistributeCharge::TMeasurement::EliminateLinks(double weightCut) {
+void CP::DistributeCharge::TMeasurement::EliminateLinks(double weightCut) const {
     // There isn't an overlap.
     if (GetLinks().size()<2) return;
 
@@ -136,8 +136,8 @@ void CP::DistributeCharge::TMeasurement::EliminateLinks(double weightCut) {
     double totalWeight = 0;
     double minWeight = 1000.0;
     double maxWeight = 0.0;
-    CP::DistributeCharge::TLinks::iterator minLink = GetLinks().begin();
-    for (CP::DistributeCharge::TLinks::iterator link = GetLinks().begin();
+    CP::DistributeCharge::TLinks::const_iterator minLink = GetLinks().begin();
+    for (CP::DistributeCharge::TLinks::const_iterator link = GetLinks().begin();
          link != GetLinks().end(); ++link) {
         double w = (*link)->GetWeight();
         if (w<0) w = 0;
@@ -163,7 +163,7 @@ void CP::DistributeCharge::TMeasurement::EliminateLinks(double weightCut) {
     }
 }
 
-void CP::DistributeCharge::TMeasurement::FindLinkWeights() {
+void CP::DistributeCharge::TMeasurement::FindLinkWeights() const {
     // This should never happen.
     if (GetLinks().size()<0) return;
 
@@ -177,7 +177,7 @@ void CP::DistributeCharge::TMeasurement::FindLinkWeights() {
     // charge in this measurement.
     double totalCharge = 0.0;
     double groupCharge = 0.0;
-    for (CP::DistributeCharge::TLinks::iterator link = GetLinks().begin();
+    for (CP::DistributeCharge::TLinks::const_iterator link = GetLinks().begin();
          link != GetLinks().end(); ++link) {
         double q = (*link)->GetGroup()->GetUniqueCharge(this);
         groupCharge += (*link)->GetGroup()->GetGroupCharge();
@@ -198,7 +198,7 @@ void CP::DistributeCharge::TMeasurement::FindLinkWeights() {
     // Find the new weights for each link in this measurement.  The new weight
     // is the ratio of the unique charge in the measurement group that is
     // linked to to the total charge.
-    for (CP::DistributeCharge::TLinks::iterator link = GetLinks().begin();
+    for (CP::DistributeCharge::TLinks::const_iterator link = GetLinks().begin();
          link != GetLinks().end(); ++link) {
 #ifdef DUMP_DEBUG_INFO
         std::cout << "     ";
@@ -334,6 +334,7 @@ CP::DistributeCharge::TMeasurement*
 CP::TDistributeCharge::FindMeasurement(
     CP::DistributeCharge::TMeasurement::Object& object,
     double charge) {
+#ifdef USE_LIST
     for (Measurements::iterator m = fMeasurements.begin();
          m != fMeasurements.end(); ++m) {
         if (m->GetObject() == object) {
@@ -346,6 +347,12 @@ CP::TDistributeCharge::FindMeasurement(
     }
     fMeasurements.push_back(CP::DistributeCharge::TMeasurement(object,charge));
     return &(fMeasurements.back());
+#else
+    Measurements::iterator m
+        = fMeasurements.insert(
+            CP::DistributeCharge::TMeasurement(object,charge)).first;
+     return const_cast<CP::DistributeCharge::TMeasurement*>(&(*m));
+#endif
 }
 
 CP::DistributeCharge::TLink* CP::TDistributeCharge::CreateLink(
