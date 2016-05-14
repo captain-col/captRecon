@@ -887,8 +887,10 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
         }
     }
 
-    int iterations = 10 + 100000/writableHits.size();
+    int iterations = 15 + 100000/writableHits.size();
     iterations = std::min(iterations,5000);
+    CaptNamedLog("Cluster","Distribute charge with " <<
+                 iterations <<" iterations");
     share.Solve(0.01,iterations);
 
     // Loops over the measurement groups, and update the charges of the 3D
