@@ -102,6 +102,7 @@ CP::CreateClusters(const char* name, hitIterator begin, hitIterator end,
 
     // copy the hits into local storage so they can be sorted.
     CP::THitSelection hits;
+    hits.reserve(end-begin);
     std::copy(begin, end, std::back_inserter(hits));
     std::sort(hits.begin(), hits.end());
     CP::THitSelection::iterator kill = std::unique(hits.begin(), hits.end());
