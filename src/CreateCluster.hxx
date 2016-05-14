@@ -51,7 +51,6 @@ CP::THandle<CP::TReconCluster>
 CP::CreateCluster(const char* name, hitIterator begin, hitIterator end,
                   bool recalculateUncertainty) {
     
-#define DEBUG_CREATE_CLUSTER
 #ifdef DEBUG_CREATE_CLUSTER
     int count1 = 0;
     for (hitIterator i = begin; i!=end; ++i) {
