@@ -27,122 +27,32 @@ CP::TCombineOverlaps::TCombineOverlaps()
 
 CP::TCombineOverlaps::~TCombineOverlaps() { }
 
-double CP::TCombineOverlaps::CheckOverlap(
-    CP::THandle<CP::TReconBase> object1,
-    CP::THandle<CP::TReconBase> object2) {
-
-    // Divide objects into 2D hits.
-    std::set< CP::THandle<CP::THit> > set1u;
-    std::set< CP::THandle<CP::THit> > set1v;
-    std::set< CP::THandle<CP::THit> > set1x;
-    for (CP::THitSelection::iterator h = object1->GetHits()->begin();
-         h != object1->GetHits()->end(); ++h) {
-        for (int i = 0; i < (*h)->GetConstituentCount(); ++i) {
-            CP::THandle<CP::THit> w = (*h)->GetConstituent(i);
-            CP::TGeometryId id = w->GetGeomId();
-            if (CP::GeomId::Captain::IsUWire(id)) set1u.insert(w);
-            if (CP::GeomId::Captain::IsVWire(id)) set1v.insert(w);
-            if (CP::GeomId::Captain::IsXWire(id)) set1x.insert(w);
+double CP::TCombineOverlaps::CountSetOverlaps(
+    const CP::TCombineOverlaps::HitSet& set1,
+    const CP::TCombineOverlaps::HitSet& set2) const {
+    double set1Size = set1.size();
+    double set2Size = set2.size();
+    if (set1Size<1) return 1;
+    if (set2Size<1) return 1;
+    double overlap = 0;
+    if (set1Size < set2Size) {
+        for (HitSet::const_iterator h = set1.begin(); h!=set1.end(); ++h) {
+            if (set2.find(*h) != set2.end()) overlap += 1.0;
         }
+        return overlap/set1Size;
     }
-
-    std::set< CP::THandle<CP::THit> > set2u;
-    std::set< CP::THandle<CP::THit> > set2v;
-    std::set< CP::THandle<CP::THit> > set2x;
-    for (CP::THitSelection::iterator h = object2->GetHits()->begin();
-         h != object2->GetHits()->end(); ++h) {
-        for (int i = 0; i < (*h)->GetConstituentCount(); ++i) {
-            CP::THandle<CP::THit> w = (*h)->GetConstituent(i);
-            CP::TGeometryId id = w->GetGeomId();
-            if (CP::GeomId::Captain::IsUWire(id)) set2u.insert(w);
-            if (CP::GeomId::Captain::IsVWire(id)) set2v.insert(w);
-            if (CP::GeomId::Captain::IsXWire(id)) set2x.insert(w);
+    else {
+        for (HitSet::const_iterator h = set2.begin(); h!=set2.end(); ++h) {
+            if (set1.find(*h) != set1.end()) overlap += 1.0;
         }
+        return overlap/set2Size;
     }
-
-
-    // Subtract the larger from the smaller and find the overlap.
-    double set1USize = set1u.size(); // YES, IT IS A DOUBLE.
-    double set2USize = set2u.size(); // YES, IT IS A DOUBLE.
-    std::set< CP::THandle<CP::THit> > uniqueU;
-    double overlapU = 0.0;
-    if (set1USize < set2USize) {
-        std::set_difference(set1u.begin(), set1u.end(),
-                            set2u.begin(), set2u.end(),
-                            std::inserter(uniqueU, uniqueU.end()));
-        overlapU = 1.0 - uniqueU.size()/set1USize;
-    }
-    else {
-        std::set_difference(set2u.begin(), set2u.end(),
-                            set1u.begin(), set1u.end(),
-                            std::inserter(uniqueU, uniqueU.end()));
-        overlapU = 1.0 - uniqueU.size()/set2USize;
-    }
-
-    CaptNamedInfo("Combine", "U Overlap: " << overlapU
-                     << " out of " << set1USize 
-                     << " (" << object1->GetUniqueID() << ")"
-                     << " and " << set2USize
-                     << " (" << object2->GetUniqueID() << ")");
-
-    // Subtract the larger from the smaller and find the overlap.
-    double set1VSize = set1v.size(); // YES, IT IS A DOUBLE.
-    double set2VSize = set2v.size(); // YES, IT IS A DOUBLE.
-    std::set< CP::THandle<CP::THit> > uniqueV;
-    double overlapV = 0.0;
-    if (set1VSize < set2VSize) {
-        std::set_difference(set1v.begin(), set1v.end(),
-                            set2v.begin(), set2v.end(),
-                            std::inserter(uniqueV, uniqueV.end()));
-        overlapV = 1.0 - uniqueV.size()/set1VSize;
-    }
-    else {
-        std::set_difference(set2v.begin(), set2v.end(),
-                            set1v.begin(), set1v.end(),
-                            std::inserter(uniqueV, uniqueV.end()));
-        overlapV = 1.0 - uniqueV.size()/set2VSize;
-    }
-
-    CaptNamedInfo("Combine", "V Overlap: " << overlapV
-                  << " out of " << set1VSize 
-                  << " (" << object1->GetUniqueID() << ")"
-                  << " and " << set2VSize
-                  << " (" << object2->GetUniqueID() << ")");
-    
-    // Subtract the larger from the smaller and find the overlap.
-    double set1XSize = set1x.size(); // YES, IT IS A DOUBLE.
-    double set2XSize = set2x.size(); // YES, IT IS A DOUBLE.
-    std::set< CP::THandle<CP::THit> > uniqueX;
-    double overlapX = 0.0;
-    if (set1XSize < set2XSize) {
-        std::set_difference(set1x.begin(), set1x.end(),
-                            set2x.begin(), set2x.end(),
-                            std::inserter(uniqueX, uniqueX.end()));
-        overlapX = 1.0 - uniqueX.size()/set1XSize;
-    }
-    else {
-        std::set_difference(set2x.begin(), set2x.end(),
-                            set1x.begin(), set1x.end(),
-                            std::inserter(uniqueX, uniqueX.end()));
-        overlapX = 1.0 - uniqueX.size()/set2XSize;
-    }
-
-    CaptNamedInfo("Combine", "X Overlap: " << overlapX
-                     << " out of " << set1XSize 
-                     << " (" << object1->GetUniqueID() << ")"
-                     << " and " << set2XSize
-                     << " (" << object2->GetUniqueID() << ")");
-
-    double overlap = overlapU;
-    overlap = std::min(overlap,overlapV);
-    overlap = std::min(overlap,overlapX);
-    
-    return overlap;
+    return 0;
 }
-
+                                          
 CP::THandle<CP::TReconBase> 
 CP::TCombineOverlaps::MergeObjects(CP::THandle<CP::TReconBase> object1,
-             CP::THandle<CP::TReconBase> object2) {
+             CP::THandle<CP::TReconBase> object2) const { 
     std::set< CP::THandle<THit> > objectHits;
 
     // Insert the object hits into a set.  This will make sure they are unique
@@ -208,13 +118,62 @@ CP::TCombineOverlaps::Process(const CP::TAlgorithmResult& input,
                       << "    Object size: " << object1->GetNodes().size()
                       << "    UID: " << object1->GetUniqueID());
 
+        // Divide objects into 2D hits.
+        CP::TCombineOverlaps::HitSet set1u;
+        CP::TCombineOverlaps::HitSet set1v;
+        CP::TCombineOverlaps::HitSet set1x;
+        for (CP::THitSelection::iterator h = object1->GetHits()->begin();
+             h != object1->GetHits()->end(); ++h) {
+            for (int i = 0; i < (*h)->GetConstituentCount(); ++i) {
+                CP::THandle<CP::THit> w = (*h)->GetConstituent(i);
+                CP::TGeometryId id = w->GetGeomId();
+                if (CP::GeomId::Captain::IsUWire(id)) set1u.insert(w);
+                if (CP::GeomId::Captain::IsVWire(id)) set1v.insert(w);
+                if (CP::GeomId::Captain::IsXWire(id)) set1x.insert(w);
+            }
+        }
+
         for (ObjectList::iterator t = objectList.begin();
              t!=objectList.end(); ++t) {
             CP::THandle<CP::TReconBase> object2 = *t;
-            
-            double match = CheckOverlap(object1,object2);
 
-            CaptNamedVerbose("Combine", "Object overlap " << match 
+            CP::TCombineOverlaps::HitSet set2u;
+            CP::TCombineOverlaps::HitSet set2v;
+            CP::TCombineOverlaps::HitSet set2x;
+            for (CP::THitSelection::iterator h = object2->GetHits()->begin();
+                 h != object2->GetHits()->end(); ++h) {
+                for (int i = 0; i < (*h)->GetConstituentCount(); ++i) {
+                    CP::THandle<CP::THit> w = (*h)->GetConstituent(i);
+                    CP::TGeometryId id = w->GetGeomId();
+                    if (CP::GeomId::Captain::IsUWire(id)) set2u.insert(w);
+                    if (CP::GeomId::Captain::IsVWire(id)) set2v.insert(w);
+                    if (CP::GeomId::Captain::IsXWire(id)) set2x.insert(w);
+                }
+            }
+
+            // Subtract the larger from the smaller and find the overlap.
+            double overlapU = CountSetOverlaps(set1u,set2u);
+            CaptNamedVerbose("Combine", "U Overlap: " << overlapU
+                          << " (" << object1->GetUniqueID() << ")"
+                          << " (" << object2->GetUniqueID() << ")");
+            
+            // Subtract the larger from the smaller and find the overlap.
+            double overlapV = CountSetOverlaps(set1v,set2v);
+            CaptNamedVerbose("Combine", "V Overlap: " << overlapV
+                          << " (" << object1->GetUniqueID() << ")"
+                          << " (" << object2->GetUniqueID() << ")");
+            
+            // Subtract the larger from the smaller and find the overlap.
+            double overlapX = CountSetOverlaps(set1x,set2x);
+            CaptNamedVerbose("Combine", "X Overlap: " << overlapX
+                          << " (" << object1->GetUniqueID() << ")"
+                          << " (" << object2->GetUniqueID() << ")");
+            
+            double overlap = overlapU;
+            overlap = std::min(overlap,overlapV);
+            overlap = std::min(overlap,overlapX);
+            
+            CaptNamedInfo("Combine", "Object overlap " << overlap
                              << " w/ objects: " 
                              << object1->GetUniqueID()
                              << " ("  << object1->GetHits()->size() << " hits)"
@@ -222,7 +181,7 @@ CP::TCombineOverlaps::Process(const CP::TAlgorithmResult& input,
                              << "  (" << object2->GetHits()->size()
                              << " hits)");
 
-            if (match < fOverlapCut) continue;
+            if (overlap < fOverlapCut) continue;
             
             ///////////////////////////////////////////////////////
             // If we get here then the tracks should be merged.
@@ -238,7 +197,7 @@ CP::TCombineOverlaps::Process(const CP::TAlgorithmResult& input,
             objectList.erase(t);
 
             // Merge the tracks.
-            CaptNamedInfo("Combine", "Matched: " << match << " -- "
+            CaptNamedInfo("Combine", "Matched: " << overlap << " -- "
                          << object1->GetUniqueID() 
                          << " w/ " << object1->GetHits()->size()
                          << ", " << object2->GetUniqueID()

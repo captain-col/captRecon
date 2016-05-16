@@ -4,6 +4,8 @@
 #include <TAlgorithm.hxx>
 #include <TAlgorithmResult.hxx>
 
+#include <set>
+
 namespace CP {
     class TCombineOverlaps;
 };
@@ -17,6 +19,8 @@ namespace CP {
 class CP::TCombineOverlaps
     : public CP::TAlgorithm {
 public:
+    typedef std::set< CP::THandle<CP::THit> > HitSet;
+
     TCombineOverlaps();
     virtual ~TCombineOverlaps();
 
@@ -36,12 +40,16 @@ private:
 
     /// Check the amount of overlap between the hits in the two objectgs.
     double CheckOverlap(CP::THandle<CP::TReconBase> object1,
-                        CP::THandle<CP::TReconBase> object2);
+                        CP::THandle<CP::TReconBase> object2) const;
 
+    /// Count the number of overlaps in a set.
+    double CountSetOverlaps(const CP::TCombineOverlaps::HitSet& set1,
+                            const CP::TCombineOverlaps::HitSet& set2) const;
+    
     /// Merge the to objects into a single object.
     CP::THandle<CP::TReconBase> 
     MergeObjects(CP::THandle<CP::TReconBase> object1,
-                 CP::THandle<CP::TReconBase> object2);
+                 CP::THandle<CP::TReconBase> object2) const;
 
     /// Objects with more than this amount of overlap in the 2D hits will be
     /// combined.
