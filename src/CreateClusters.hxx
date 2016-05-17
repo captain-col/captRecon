@@ -261,12 +261,17 @@ CP::THandle<CP::TReconObjectContainer>
 CP::CreateTrackClusters(const char* name, hitIterator begin, hitIterator end,
                         const TVector3& approxDir) {
 
-    double minLength = 5*unit::mm;
-    double maxLength = 15*unit::mm;
+    double minLength = 3*unit::mm;
+    double maxLength
+        = ((*begin)->GetPosition()-(*(end-1))->GetPosition()).Mag();
+    maxLength = std::min(15*unit::mm,
+                         std::max(2.0*minLength,maxLength/10.0));
+
     int minSize = end - begin;
-    minSize = std::max(11, minSize/100);
+    minSize = std::max(3, minSize/100);
     int maxSize = end-begin;
-    maxSize = maxSize/3 + 1;
+    maxSize = std::max(4*minSize, maxSize/3);
+    
     return CreateClusters(name,begin,end,approxDir,
                           minLength,maxLength,
                           minSize, maxSize);
