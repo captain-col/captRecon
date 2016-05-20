@@ -179,6 +179,8 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
         // There are not enough edges!  Stop now.
         if (boost::num_edges(g) < 2) break;
 
+        int bestRoot = -1;
+#ifdef USE_MOST_CENTRAL
         // Find the most central vertex on the principle that it will be close
         // to the event vertex.  This is going to be the root.  The Brandes
         // betweenness centrality is O(V*E) [V is number of vertices, and E is
@@ -199,8 +201,24 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
                 }
             }
         }
+        bestRoot = mostCentral;
+#else
+        // Find the most extreme vertex.  This is a vertex that will almost
+        // certainly be at the end of one or another track.
+        std::size_t extremeVertex = 0;
+        CP::THandle<CP::TReconCluster> extremeCluster;
+        for (boost::tie(vi,vi_end) = boost::vertices(g); vi != vi_end; ++vi) {
+            if (extremeCluster) {
+                if (extremeCluster->GetPosition().X()
+                    < g[*vi].cluster->GetPosition().X()) continue;
+            }
+            extremeCluster = g[*vi].cluster;
+            extremeVertex = *vi;
+        }
+        bestRoot = extremeVertex;
+#endif
 
-        // This finds the MST with vertex mostCentral as the root, and uses
+        // This finds the MST with the vertex bestRoot as the root, and uses
         // the EdgeProperties::length field for the edge length (the
         // weight_map needed by prim_minimum_spanning_tree).
         std::vector<MST::vertex_t> p(boost::num_vertices(g));
@@ -208,7 +226,7 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
             g, &p[0],
             boost::weight_map(boost::get(&MST::edge_properties_t::length,g)).
             distance_map(boost::get(&MST::vertex_properties_t::distance,g)).
-            root_vertex(mostCentral));
+            root_vertex(bestRoot));
 
         // Find the number of children, the number of steps to the root, the
         // distance to root, and the parent for each vertex.
