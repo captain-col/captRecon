@@ -9,6 +9,8 @@
 #include <THandle.hxx>
 #include <ECore.hxx>
 
+#include <TMatrixD.h>
+
 namespace CP {
 
     /// A base fitting object.
@@ -48,7 +50,7 @@ private:
 
     /// Estimate the scattering for the track based on the node to node
     /// variation.
-    double
+    TMatrixD
     EstimateScatter(const CP::TReconNodeContainer& nodes);
 
     /// The number of trials for each iteration of the fitter.

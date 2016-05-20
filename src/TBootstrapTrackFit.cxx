@@ -5,6 +5,7 @@
 #include <HEPUnits.hxx>
 #include <HEPConstants.hxx>
 #include <TCaptLog.hxx>
+#include <TUnitsTable.hxx>
 
 #include <ostreamTVector3.hxx>
 #include <ostreamTLorentzVector.hxx>
@@ -27,6 +28,7 @@
 /// could be placed in the anonymous namespace, but placing them in a named
 /// one makes life a little easier.
 namespace BTF {
+
     /// A class to update the prediction of the system state.
     class TSystemPDF;
 
@@ -74,7 +76,7 @@ class BTF::TSystemPDF
 public:
     TSystemPDF(BTF::TMeasurementPDF& measurement,
                double momentumEstimate,
-               double scatterEstimate) 
+               const TMatrixD& scatterEstimate) 
         : BFL::ConditionalPdf<ColumnVector,ColumnVector>(kStateSize,1),
         fMeasurement(measurement),
         fMomentumEstimate(momentumEstimate),
@@ -111,7 +113,8 @@ private:
     double fMomentumEstimate;
 
     /// The momentum estimate needed for multiple scattering.
-    double fScatterEstimate;
+    TMatrixD fScatterEstimate;
+
 };
 
 /// A class to calculate the probability of an expected measurement
@@ -195,13 +198,22 @@ CP::TBootstrapTrackFit::EstimateMomentum(const CP::TReconNodeContainer& nodes) {
     return momentum;
 }
 
-double
+TMatrixD
 CP::TBootstrapTrackFit::EstimateScatter(const CP::TReconNodeContainer& nodes) { 
-    CP::THandle<CP::TReconCluster> lastCluster;
     TPrincipal pca(3,"");
-    for (CP::TReconNodeContainer::const_iterator n = nodes.begin();
+    if (nodes.size()<3) return TMatrixD(3,3);
+    double range = EstimateRange(nodes);
+    CP::TReconNodeContainer::const_iterator last = nodes.begin();
+    for (CP::TReconNodeContainer::const_iterator n = last+1;
          n != nodes.end(); ++n) { 
         CP::THandle<CP::TReconCluster> cluster = (*n)->GetObject();
+        CP::THandle<CP::TReconCluster> lastCluster = (*last)->GetObject();
+        while ((cluster->GetPosition().Vect()
+                -lastCluster->GetPosition().Vect()).Mag() > 10*unit::mm
+               && last+1 < n) {
+            ++last;
+            lastCluster = (*last)->GetObject();
+        }
         if (!cluster) {
             throw EBootstrapMissingNodeObject();
         }
@@ -211,13 +223,37 @@ CP::TBootstrapTrackFit::EstimateScatter(const CP::TReconNodeContainer& nodes) {
             double row[3] = {dir.X(),dir.Y(),dir.Z()};
             pca.AddRow(row);
         }
-        lastCluster = cluster;
     }
     pca.MakePrincipals();
-    double range = EstimateRange(nodes);
-    double scatter = (*pca.GetEigenValues())(1);
-    if (range > 0) scatter /= std::sqrt(range);
-    return scatter;
+    double x0[3], p0[3] = {0,0,0};
+    pca.P2X(p0,x0,3);
+    TVector3 v0(x0);
+    double x1[3], p1[3] = {1,0,0};
+    pca.P2X(p1,x1,3);
+    TVector3 v1(x1);
+    v1 = v1 - v0;
+    double x2[3], p2[3] = {0,1,0};
+    pca.P2X(p2,x2,3);
+    TVector3 v2(x2);
+    v2 = v2 - v0;
+    double x3[3], p3[3] = {0,0,1};
+    pca.P2X(p3,x3,3);
+    TVector3 v3(x3);
+    v3 = v3 - v0;
+    
+    std::cout << "V0 " << v0 << " " << std::endl;
+    std::cout << "V1 " << v1 << " " << (*pca.GetSigmas())(0) << std::endl;
+    std::cout << "V2 " << v2 << " " << (*pca.GetSigmas())(1) << std::endl;
+    std::cout << "V3 " << v3 << " " << (*pca.GetSigmas())(2) << std::endl;
+        
+    TMatrixD scatterMatrix(3,3);
+    for (int r=0; r<3; ++r) {
+        scatterMatrix(r,0) = (((*pca.GetSigmas())(0)/std::sqrt(range))*v1)[r];
+        scatterMatrix(r,1) = (((*pca.GetSigmas())(1)/std::sqrt(range))*v2)[r];
+        scatterMatrix(r,2) = (((*pca.GetSigmas())(2)/std::sqrt(range))*v3)[r];
+    }
+    scatterMatrix.Print();
+    return scatterMatrix;
 }
 
 CP::THandle<CP::TReconTrack>
@@ -231,13 +267,24 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
 
     double range = EstimateRange(nodes);
     double momentum = EstimateMomentum(nodes);
-    double scatter = EstimateScatter(nodes);
-
+    TMatrixD scatterMatrix = EstimateScatter(nodes);
+    
     CaptLog("Bootstrap " << input->GetUniqueID() 
             << " w/ " << nodes.size() << " nodes"
-            << "  range: " << range/unit::mm << " mm"
-            << "  rough momentum: " << momentum/unit::MeV << " MeV/c"
-            << "  scattering: " << scatter);
+            << " Range: " << unit::AsString(range,"length")
+            << " Momentum: " << unit::AsString(momentum,"momentum"));
+    {
+        TVector3 a1, a2, a3;
+        for (int c=0; c<3; ++c) {
+            a1(c) = scatterMatrix(0,c);
+            a2(c) = scatterMatrix(1,c);
+            a3(c) = scatterMatrix(2,c);
+        }
+        CaptLog("    Scatter"
+                << " " << unit::AsString(a1.Mag(), "angle") << "/sqrt(mm)"
+                << " " << unit::AsString(a2.Mag(), "angle") << "/sqrt(mm)"
+                << " " << unit::AsString(a3.Mag(), "angle") << "/sqrt(mm)");
+    }
 
     // Define the number of states to use in the particle filter.
     const int numSamples = fTrials;
@@ -245,14 +292,19 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     // Define the size of the state.
     const int stateSize = BTF::kStateSize;
 
+#define EXCLUDE_PRIOR
+#ifdef EXCLUDE_PRIOR
     // Exclude the effect of the prior near the ends of the fit.  This is done
     // by giving it a large variance to reduce the weight of the prior in the
     // final answer.  This matters when combining the forward and backward
-    // filtering (below).
-    std::size_t excludePrior = std::min(std::max((std::size_t) 2,
-                                                 nodes.size()/5),
-                                        nodes.size()/2);
-    excludePrior = 0;
+    // filtering (below).  The prior is estimated from the positions of the
+    // first two nodes in the filtering.
+    const std::size_t excludePrior = 1;
+#else
+    // The prior isn't excluded since it's estimated from the first two nodes
+    // of the filtering.
+    const std::size_t excludePrior = 0;
+#endif
     
     // Define the measurement model.  The main purpose of the measurement
     // model is to calculte the probability of a state (updated as a
@@ -268,7 +320,7 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     // information.  The system model is initialized using forwardPrior (which
     // is filled using GeneratePrior) and then is iteratively updated with new
     // measurement information.
-    BTF::TSystemPDF systemPDF(measurementPDF, momentum, scatter);
+    BTF::TSystemPDF systemPDF(measurementPDF, momentum, scatterMatrix);
     BFL::SystemModel<BTF::ColumnVector> systemModel(&systemPDF);
 
     /////////////////////////////////////////////////////////////////////
@@ -346,7 +398,7 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         if (step < excludePrior) {
             double posVariance = 10*unit::cm*(excludePrior-step)/excludePrior;
             posVariance = posVariance*posVariance;
-            double dirVariance = 1.0*unit::cm*(excludePrior-step)/excludePrior;
+            double dirVariance = 1.0*(excludePrior-step)/excludePrior;
             dirVariance = dirVariance*dirVariance;
             for (int i=0; i<3; ++i) {
                 double p = trackState->GetPositionCovariance(i,i);
@@ -483,13 +535,13 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         // matters when combining with the backward filtering (below).
         double posVarianceIncrease = 0.0;
         double dirVarianceIncrease = 0.0;
-        if (step >= (int) nodes.size() - (int) excludePrior) {
+        if (step >= (int) nodes.size()-(int) excludePrior) {
             posVarianceIncrease = 10.0*unit::cm;
-            posVarianceIncrease *= (excludePrior-(nodes.size()-step)+1);
+            posVarianceIncrease *= (excludePrior-(nodes.size()-step-1));
             posVarianceIncrease /= excludePrior;
             posVarianceIncrease = posVarianceIncrease*posVarianceIncrease;
             dirVarianceIncrease
-                = 1.0*(excludePrior-(nodes.size()-step)+1)/excludePrior;
+                = 1.0*(excludePrior-(nodes.size()-step-1))/excludePrior;
             dirVarianceIncrease = dirVarianceIncrease*dirVarianceIncrease;
             for (int i=0; i<3; ++i) {
                 double p = vPosB[i];
@@ -570,15 +622,29 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
             v /= (1.0/vPosF[i] + 1/vPosB[i]);
             pcov(i,i) += v;
         }
-        
+
+        // Never let the variance be smaller than our resolution.
+        double positionResolution = 1*unit::mm;
+        for (int i=0; i<3; ++i) {
+            pcov(i,i) += positionResolution*positionResolution;
+        }
+
         // Find the combined direction covariance, including the effect of the
         // fit values not being the same.
         TMatrixD dcov(3,3);
         dcov = dcov1 + dcov2;
         dcov.InvertFast();
+
+        double incF = (dirF-dir).Mag();
+        double incB = (dirB-dir).Mag();
+        double incDir = incF*incF/vDirF + incB*incB/vDirB;
+        incDir /= (1.0/vDirF + 1/vDirB);
+        for (int i=0; i<3; ++i)  dcov(i,i) += incDir;
+
+        // Never let the variance be smaller than our resolution.
+        double directionResolution = 1*unit::degree;
         for (int i=0; i<3; ++i) {
-            double v = dirF[i]-dirB[i];
-            dcov(i,i) += v*v;
+            dcov(i,i) += directionResolution*directionResolution;
         }
 
         for (int i=0; i<3; ++i) {
@@ -640,12 +706,25 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     for (CP::THitSelection::iterator h = frontHits->begin(); 
          h != frontHits->end(); ++h) {
         TVector3 diff = (*h)->GetPosition() - frontPos;
-        upstream = std::min(upstream, diff*frontDir);
+        double dist = diff*frontDir;
+        TVector3 approach = (*h)->GetPosition() - frontPos - dist*frontDir;
+        if (approach.Mag() > 6*unit::mm) continue;
+        upstream = std::min(upstream, dist);
     }
+#ifdef MOVE_END_STATE_FIXED_DISTANCE
+    upstream = -15*unit::mm;
+#endif
     frontPos = frontPos + upstream*frontDir;
     frontState->SetPosition(frontPos.X(), frontPos.Y(), frontPos.Z(),
                             frontState->GetPosition().T());
-
+    for (int i=0; i<3; ++i) {
+        for (int j=0; j<3; ++j) {
+            double v = frontState->GetPositionCovariance(i,j)
+                + std::abs(upstream)*frontState->GetDirectionCovariance(i,j);
+            frontState->SetPositionCovariance(i,j,v);
+        }
+    }
+    
     // Set the back state of the track.
     CP::THandle<CP::TTrackState> backState = input->GetBack();
     CP::THandle<CP::TTrackState> lastNodeState = nodes.back()->GetState();
@@ -675,12 +754,26 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     for (CP::THitSelection::iterator h = backHits->begin(); 
          h != backHits->end(); ++h) {
         TVector3 diff = (*h)->GetPosition() - backPos;
+        double dist = diff*backDir;
+        TVector3 approach = (*h)->GetPosition() - backPos - dist*backDir;
+        if (approach.Mag() > 6*unit::mm) continue;
         downstream = std::max(downstream, diff*backDir);
     }
+#ifdef MOVE_END_STATE_FIXED_DISTANCE
+    downstream = 15*unit::mm;
+#endif
     backPos = backPos + downstream*backDir;
     backState->SetPosition(backPos.X(), backPos.Y(), backPos.Z(),
                            backState->GetPosition().T());
-
+    for (int i=0; i<3; ++i) {
+        for (int j=0; j<3; ++j) {
+            double v = backState->GetPositionCovariance(i,j)
+                + std::abs(downstream)*backState->GetDirectionCovariance(i,j);
+            backState->SetPositionCovariance(i,j,v);
+        }
+    }
+    
+   
     int trackDOF = 3*nodes.size() - 6;
     input->SetStatus(TReconBase::kSuccess);
     input->SetStatus(TReconBase::kRan);
@@ -689,21 +782,19 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     input->SetQuality(-logLikelihood);
     input->SetNDOF(trackDOF);
 
-    if (backDir * frontDir < 0.0) {
-        CaptError("Front and back in opposite directions"
-                  << " front " << frontDir
-                  << " back " << backDir);
-    }
-
-    CaptLog("Bootstrap filter finished.  Quality: " 
-            << - logLikelihood 
-            << " / " << trackDOF);
+    CaptLog("Bootstrap finished " << input->GetUniqueID() 
+            << " w/ " << nodes.size() << " nodes");
+    CaptLog("   Front " << frontState->GetPosition().Vect()
+            << " --> " << frontState->GetDirection());
+    CaptLog("   Back " << backState->GetPosition().Vect()
+            << " --> " << backState->GetDirection());
 
     return input;
 }
 
 bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
                                  int method, void* args) const {
+    
     // Get a copy of the previous state.
     ColumnVector state = ConditionalArgumentGet(0);
 
@@ -726,13 +817,15 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
         }
     }
 
-    if (dir.Mag() < 0.1) {
+    if (dir.Mag() < 0.9) {
             CaptError("Direction is short " << dir);
     }
-
-    // Find the distance to the closest approach to the next measurement.
+    dir = dir.Unit();
+    
+    // Make a guess at the distance to the closest approach to the next
+    // measurement.  This is used to calculate the scattering.
     TVector3 diff1 = fMeasurement.GetMeasurement()->GetPosition().Vect() - pos;
-    double dist1 = diff1*dir;
+    double dist1 = std::abs(diff1*dir);
 
     // Find the amount of scattering. This can be found based on the
     // theoretical multiple scattering, or based on the deviation of a set of
@@ -740,54 +833,73 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
     // crucial, but does determine how many nodes contribute to the state
     // information since the scatter will erase the effect of very distant
     // nodes.
-    double posScatter = 0.0;
-    double dirScatter = 0.0;
 #define THEORY_SCATTER
 #ifdef THEORY_SCATTER
     // Note that this is only valid for muon like tracks.  The values are
     // taken from the PDG.
     double radLen = 14*unit::cm; // For liquid argon.
-    double X = std::abs(dist1)/radLen;
+    double X = dist1/radLen;
     double P = fMomentumEstimate/2.0; // HACK!  Assume half total momentum
     if (X < 0.001) X = 0.001;
-    // Set the minimum amount of scattering.  This isn't very physical, but
-    // there needs to be scattering or the fit doesn't work.
+    // Set the amount of scattering based on multiple scattering theory
     double theoryScatter
         = (1.0+0.038*std::log(X))*std::sqrt(X)*(13.6*unit::MeV)/(P);
-    dirScatter += theoryScatter*theoryScatter;
-#endif
-#define EMPIRICAL_SCATTER
-#ifdef EMPIRICAL_SCATTER
-    double empiricalScatter = fScatterEstimate*std::sqrt(std::abs(dist1));
-    dirScatter += empiricalScatter*empiricalScatter;
-#endif
-    if (dirScatter>0) dirScatter = std::sqrt(dirScatter);
-    
-    posScatter = std::abs(dist1*dirScatter);
-    
     // Generate a random amount of multiple scattering and use it to update
     // the position and direction.  Make sure that the direction is
     // normalized.  I'm approximating actual fluctuations, so this will
     // slightly overestimate the position variance.  However, since this is
     // "track" fitting and not "particle" fitting, we don't have a PID
     // hypothesis yet, so the scattering isn't right anyway.
-
-    if (dirScatter > 0.0) {
-        double scatter = gRandom->Gaus(0.0, dirScatter);
-        TVector3 ortho = scatter * (dir.Orthogonal().Unit());
+    if (theoryScatter > 0.0) {
+        double posScatter = dist1*theoryScatter;
+        double dirScatter = gRandom->Gaus(0.0, theoryScatter);
+        TVector3 ortho = dirScatter*(dir.Orthogonal().Unit());
         double phi = gRandom->Uniform(unit::twopi);
         ortho.Rotate(phi,dir);
         dir = (dir + ortho).Unit();
         for (int i=0; i<3; ++i) {
-            pos[i] = pos[i] + gRandom->Gaus(0.0, posScatter);
+            pos[i] = pos[i] + posScatter*gRandom->Gaus(0.0, posScatter);
         }
     }
-
-    // Find the distance to the closest approach to the next measurement using
-    // the updated position and direction.
+#endif
+#define EMPIRICAL_SCATTER
+#ifdef EMPIRICAL_SCATTER
+    // Set the amount of scattering based on how much the track bends.
+    TVector3 randomScatter(gRandom->Gaus(),gRandom->Gaus(),gRandom->Gaus());
+    TVector3 empiricalScatter;
+    for (int r=0; r<3; ++r) {
+        for (int c=0; c<3; ++c) {
+            empiricalScatter(r) +=
+                std::sqrt(dist1)*fScatterEstimate(r,c)*randomScatter(c);
+        }
+    }
+    empiricalScatter = empiricalScatter - (empiricalScatter*dir)*dir;
+    dir += empiricalScatter;
+#endif
+    
+    // Find the distance to the closest approach to the next measurement after
+    // the scattering has been taken into account.  This is used to update the
+    // final position.
     TVector3 diff2 = fMeasurement.GetMeasurement()->GetPosition().Vect() - pos;
     double dist2 = diff2*dir;
-    pos = pos + dist2*dir;
+
+    // If the direction is reversed (i.e. a backward step), keep stepping in
+    // the original direction, and make a small step.  The step length is set
+    // to be less than the inter-hit distance.
+    if ((dist2 < 0 && !fBackwardUpdate)
+        || (dist2 > 0 && fBackwardUpdate)) {
+        CaptWarn("Reversed @ " 
+                << " " << pos
+                << "-->" <<fMeasurement.GetMeasurement()->GetPosition().Vect());
+        // Update the copy of the old state with the new sample state (saves
+        // creating a new copy).
+        const double stepDist = 1*unit::mm;
+        if (fBackwardUpdate) pos = pos - stepDist*dir;
+        else pos = pos + stepDist*dir;
+    }
+    else {
+        pos = pos + dist2*dir;
+    }
 
     for (int i=0; i<3; ++i) {
         if (!std::isfinite(pos[i])) {
@@ -817,21 +929,35 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
     /// the cluster.
     double prob = fMeasurement.ProbabilityGet(pos);
     prob /= fMeasurement.GetConstant();
-    const double probThreshold = 4E-6; // prevent 5 sigma fluctuations...
-    const double kinkProbability = 0.1;
+    // No big fluctuations...  This should be set according to the number of
+    // samples at each step.  The default is a few hundred, so set this based
+    // on that assumption.  This is set so that about 0.5% of the time, a
+    // random sample centered on the measurement will fall below this
+    // probability.
+    const double probThreshold = 0.00001;
+    // The measurement might be a fluctuation, so only take the bend for a
+    // fraction of the points with low probability.
+    const double kinkProbability = 0.2;
     if (prob < probThreshold && gRandom->Uniform() < kinkProbability) {
         TVector3 meas = fMeasurement.GetMeasurement()->GetPosition().Vect();
-        while (prob < probThreshold) {
+        int throttle = 100;
+        while (prob < probThreshold && 0 < throttle--) {
+            pos = meas;
             for (int i=0; i<3; ++i) {
                 double s
                     = fMeasurement.GetMeasurement()->GetPositionVariance()[i];
                 if (0 < s) s = std::sqrt(s);
                 else s = 2*unit::mm;
-                pos[i] = gRandom->Gaus(meas[i], s);
+                pos[i] += gRandom->Gaus(0.0, s);
             }
             prob = fMeasurement.ProbabilityGet(pos);
+            prob /= fMeasurement.GetConstant();
         }
         dir = (pos-origPos).Unit();
+        if (fBackwardUpdate) dir = -dir;
+        diff2 = fMeasurement.GetMeasurement()->GetPosition().Vect() - pos;
+        dist2 = diff2*dir;
+        pos = pos + dist2*dir;
     }
 #endif
 
