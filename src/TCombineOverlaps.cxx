@@ -211,14 +211,17 @@ CP::TCombineOverlaps::Process(const CP::TAlgorithmResult& input,
             // Clear out the track variable.
             object1 = CP::THandle<CP::TReconBase>();
 
-            // Don't continue the loop looking for a pair of objects to
-            // merge.
+            // Don't continue the loop looking for a pair of objects to merge.
+            // If the objects aren't to be merged, then the "continue" above
+            // keeps the loop going.  If the objects were merged then the
+            // result is back on the stack and we need to start the loop
+            // again.
             break;
         }
 
         // If we get to the bottom of the loop looking for a pair of objects
-        // to merge then there is nothing to merge with this object.  Push it
-        // on to the final objects.
+        // to merge with a valid "object1, then there is nothing to be merged
+        // with this object.  Push it on to the final objects.
         if (object1) {
             CaptNamedInfo("Combine", "Save Object UID: "
                           << object1->GetUniqueID());
