@@ -107,7 +107,7 @@ CP::CreateTrackFromClusters(const char* name,
     }
 
     if (nodes.size() < 2) {
-        CaptError("Not enough clusters for a track");
+        CaptError("Not enough nodes for a track (" << nodes.size() << ")");
         return CP::THandle<CP::TReconTrack>();
     }
 
