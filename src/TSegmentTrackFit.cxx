@@ -131,7 +131,10 @@ CP::TSegmentTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     for (CP::THitSelection::iterator h = frontHits->begin(); 
          h != frontHits->end(); ++h) {
         TVector3 diff = (*h)->GetPosition() - frontPos;
-        upstream = std::min(upstream, diff*frontDir);
+        double dist = diff*frontDir;
+        TVector3 approach = (*h)->GetPosition() - frontPos - dist*frontDir;
+        if (approach.Mag() > 6*unit::mm) continue;
+        upstream = std::min(upstream, dist);
     }
     frontPos = frontPos + upstream*frontDir;
     frontState->SetPosition(frontPos.X(), frontPos.Y(), frontPos.Z(),
@@ -159,6 +162,9 @@ CP::TSegmentTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     for (CP::THitSelection::iterator h = backHits->begin(); 
          h != backHits->end(); ++h) {
         TVector3 diff = (*h)->GetPosition() - backPos;
+        double dist = diff*backDir;
+        TVector3 approach = (*h)->GetPosition() - backPos - dist*backDir;
+        if (approach.Mag() > 6*unit::mm) continue;
         downstream = std::max(downstream, diff*backDir);
     }
     backPos = backPos + downstream*backDir;
