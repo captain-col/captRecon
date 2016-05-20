@@ -241,11 +241,6 @@ CP::TBootstrapTrackFit::EstimateScatter(const CP::TReconNodeContainer& nodes) {
     TVector3 v3(x3);
     v3 = v3 - v0;
     
-    std::cout << "V0 " << v0 << " " << std::endl;
-    std::cout << "V1 " << v1 << " " << (*pca.GetSigmas())(0) << std::endl;
-    std::cout << "V2 " << v2 << " " << (*pca.GetSigmas())(1) << std::endl;
-    std::cout << "V3 " << v3 << " " << (*pca.GetSigmas())(2) << std::endl;
-        
     TMatrixD scatterMatrix(3,3);
     for (int r=0; r<3; ++r) {
         scatterMatrix(r,0) = (((*pca.GetSigmas())(0)/std::sqrt(range))*v1)[r];
