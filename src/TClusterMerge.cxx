@@ -94,11 +94,22 @@ CP::TClusterMerge::Process(const CP::TAlgorithmResult& input,
         TVector3 axis = work->GetLongAxis();
         double width = work->GetMajorAxis().Mag();
         if (width < 0.5*axis.Mag() && axis.Mag() > 15*unit::mm) {
+            double minLength = width;
+            double maxLength = axis.Mag();
+            maxLength = std::max(2.0*minLength,maxLength/100.0);
+            
+            int minSize = work->GetHits()->size();
+            minSize = std::max(3, minSize/100);
+            int maxSize = work->GetHits()->size();
+            maxSize = std::max(4*minSize, maxSize/3);
+            
             CP::THandle<CP::TReconObjectContainer> clusters
-                = CP::CreateTrackClusters("mergeClusters",
-                                          work->GetHits()->begin(), 
-                                          work->GetHits()->end(),
-                                          axis);
+                = CreateClusters("mergeClusters",
+                                 work->GetHits()->begin(), 
+                                 work->GetHits()->end(),
+                                 axis,
+                                 minLength,maxLength,
+                                 minSize, maxSize);
             if (clusters) {
                 for (CP::TReconObjectContainer::iterator o = clusters->begin();
                      o != clusters->end(); ++o) {
