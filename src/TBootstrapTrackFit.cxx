@@ -247,7 +247,6 @@ CP::TBootstrapTrackFit::EstimateScatter(const CP::TReconNodeContainer& nodes) {
         scatterMatrix(r,1) = (((*pca.GetSigmas())(1)/std::sqrt(range))*v2)[r];
         scatterMatrix(r,2) = (((*pca.GetSigmas())(2)/std::sqrt(range))*v3)[r];
     }
-    scatterMatrix.Print();
     return scatterMatrix;
 }
 
