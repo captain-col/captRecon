@@ -3,6 +3,7 @@
 #include "CreateClusters.hxx"
 #include "ClusterDistance.hxx"
 #include "TPositionNeighbors.hxx"
+#include "TPositionDensityCluster.hxx"
 
 #include <THandle.hxx>
 #include <TReconCluster.hxx>
@@ -82,6 +83,7 @@ CP::TClusterMerge::Process(const CP::TAlgorithmResult& input,
                 // restarts the for loop, but now with one less cluster in the
                 // vector to be checked.
                 check = ++next;
+                if (check == remainingClusters.end()) break;
             }
         }
 
@@ -113,13 +115,37 @@ CP::TClusterMerge::Process(const CP::TAlgorithmResult& input,
             if (clusters) {
                 for (CP::TReconObjectContainer::iterator o = clusters->begin();
                      o != clusters->end(); ++o) {
-#ifdef NOT_YET_IMPLEMENTED
+                    if ((*o)->GetHits()->size() < 10) {
+                        final->push_back(*o);
+                        continue;
+                    }
                     // Before saving the new split clusters, we need to see if
                     // they should be resplit.  This handles some "odd" V
                     // topologies where two branches can be merged, but are
                     // clearly split away from the "V".
-#endif
-                    final->push_back(*o);
+                    typedef CP::TPositionDensityCluster<CP::THandle<CP::THit> > 
+                        ClusterAlgorithm;
+                    // The hits between first and curr should be run through
+                    // the density cluster again since it's very likely that
+                    // the hits are disjoint in the Z slice.
+                    std::unique_ptr<ClusterAlgorithm> 
+                        clusterAlgorithm(new ClusterAlgorithm(1,
+                                                              7*unit::mm));
+                    clusterAlgorithm->Cluster((*o)->GetHits()->begin(),
+                                              (*o)->GetHits()->end());
+                    int nClusters = clusterAlgorithm->GetClusterCount();
+                    if (nClusters<2) {
+                        final->push_back(*o);
+                        continue;
+                    }
+                    for (int i=0; i<nClusters; ++i) {
+                        const ClusterAlgorithm::Points& points 
+                            = clusterAlgorithm->GetCluster(i);
+                        CP::THandle<CP::TReconCluster> cluster
+                            = CreateCluster("mergedCluster",
+                                            points.begin(),points.end());
+                        final->push_back(cluster);
+                    }
                 }
             }
             else {
@@ -168,19 +194,19 @@ bool CP::TClusterMerge::OverlappingClusters(
          c2 != cluster2->GetHits()->end(); ++c2) {
         Neighbors::iterator neighbor = neighbors.begin((*c2));
         if (neighbor == neighbors.end()) continue;
-        double d = std::abs((*c2)->GetPosition().X()
+        double dX = std::abs((*c2)->GetPosition().X()
                      -neighbor->first->GetPosition().X());
-        if (d > 3*unit::mm) continue;
-        d = std::abs((*c2)->GetPosition().Y()
+        if (dX > 1*unit::mm) continue;
+        double dY = std::abs((*c2)->GetPosition().Y()
                      -neighbor->first->GetPosition().Y());
-        if (d > 3*unit::mm) continue;
-        d = std::abs((*c2)->GetPosition().Z()
+        if (dY > 1*unit::mm) continue;
+        double dZ = std::abs((*c2)->GetPosition().Z()
                             -neighbor->first->GetPosition().Z());
         double v2 = (*c2)->GetUncertainty().Z();
-        double v1 = (*c2)->GetUncertainty().Z();
-        const double zOverlap = 2.5;
-        double v = zOverlap*std::abs(v1)+zOverlap*std::abs(v2)+3.0;
-        if (d > v) continue;
+        double v1 = neighbor->first->GetUncertainty().Z();
+        const double zOverlap = 2.0;
+        double v = std::max(zOverlap*std::abs(v1)+zOverlap*std::abs(v2),3.0);
+        if (dZ > v) continue;
         overlaps += 1.0;
         if (overlaps > 30) return true;
         double r1 = overlaps/cluster1->GetHits()->size();
