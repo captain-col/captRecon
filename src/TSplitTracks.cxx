@@ -25,8 +25,9 @@ CP::TSplitTracks::TSplitTracks()
                  "Split Tracks with Kinks and Gaps") {\
     fThreeInLineCut = 2.0;
     fRadiusOfCurvature = 25*unit::cm;
-    fSplitDistanceCut = 30.0*unit::mm;
+    fTransversityCut = 2.0;
     fEndDistanceCut = 10.0*unit::mm;
+    fSplitDistanceCut = 30.0*unit::mm;
     fKinkAngleCut = 20*unit::degree;
 }
 
@@ -59,6 +60,17 @@ void CP::TSplitTracks::SaveTrack(
         }
     }
 
+    if (end-begin < 5) {
+        double length = TrackLength(begin,end);
+        double transversity = MaxTransversity(begin,end);
+        if (length < transversity*3) {
+            CaptNamedLog("Split",
+                         "Candidate track is to wide, not constructing.");
+            std::copy(begin,end,std::back_inserter(container));
+            return;
+        }
+    }
+
     CP::THandle<CP::TReconTrack> track
         = CP::CreateTrackFromClusters("TSplitTracks",begin, end);
 
@@ -76,7 +88,7 @@ void CP::TSplitTracks::SaveTrack(
 double
 CP::TSplitTracks::RadiusOfCurvature(CP::THandle<CP::TReconCluster> a,
                                     CP::THandle<CP::TReconCluster> b, 
-                                    CP::THandle<CP::TReconCluster> c) {
+                                    CP::THandle<CP::TReconCluster> c) const {
     // The assumption is that B lies between A and C, but the code will work
     
     double len = (c->GetPosition().Vect()-a->GetPosition().Vect()).Mag();
@@ -92,7 +104,7 @@ CP::TSplitTracks::RadiusOfCurvature(CP::THandle<CP::TReconCluster> a,
 double
 CP::TSplitTracks::ThreeInLine(CP::THandle<CP::TReconCluster> a,
                               CP::THandle<CP::TReconCluster> b, 
-                              CP::THandle<CP::TReconCluster> c) {
+                              CP::THandle<CP::TReconCluster> c) const {
     // The assumption is that B lies between A and C, but the code will work
     // even if that's not true.
 
@@ -143,9 +155,92 @@ CP::TSplitTracks::ThreeInLine(CP::THandle<CP::TReconCluster> a,
     return result;
 }
 
+double CP::TSplitTracks::Transversity(CP::THandle<CP::TReconCluster> cluster,
+                                      const TVector3& vect) const {
+    TVector3 dir = vect.Unit();
+
+    double a=(cluster->GetLongAxis()-(cluster->GetLongAxis()*dir)*dir).Mag();
+    double b=(cluster->GetMajorAxis()-(cluster->GetMajorAxis()*dir)*dir).Mag();
+    double c=(cluster->GetMinorAxis()-(cluster->GetMinorAxis()*dir)*dir).Mag();
+    
+    return std::sqrt(a*a+b*b+c*c);
+}
+    
+double
+CP::TSplitTracks::MaxTransversity(const CP::TReconNodeContainer& nodes) const { 
+    CP::THandle<CP::TReconCluster> lastCluster;
+    double maxTransversity = 0.0;
+    for (CP::TReconNodeContainer::const_iterator n = nodes.begin();
+         n != nodes.end(); ++n) { 
+        CP::THandle<CP::TReconCluster> cluster = (*n)->GetObject();
+        if (lastCluster) {
+            TVector3 dir = (lastCluster->GetPosition().Vect() 
+                            - cluster->GetPosition().Vect()).Unit();
+            double t = Transversity(lastCluster,dir);
+            maxTransversity = std::max(t,maxTransversity);
+            t = Transversity(cluster,dir);
+            maxTransversity = std::max(t,maxTransversity);
+        }
+        lastCluster = cluster;
+    }
+    return maxTransversity;
+}
+
+double
+CP::TSplitTracks::MaxTransversity(ClusterContainer::iterator begin,
+                                  ClusterContainer::iterator end) const {
+    CP::THandle<CP::TReconCluster> lastCluster;
+    double maxTransversity = 0.0;
+    for (ClusterContainer::iterator n = begin;
+         n != end; ++n) { 
+        CP::THandle<CP::TReconCluster> cluster = (*n);
+        if (lastCluster) {
+            TVector3 dir = (lastCluster->GetPosition().Vect() 
+                            - cluster->GetPosition().Vect()).Unit();
+            double t = Transversity(lastCluster,dir);
+            maxTransversity = std::max(t,maxTransversity);
+            t = Transversity(cluster,dir);
+            maxTransversity = std::max(t,maxTransversity);
+        }
+        lastCluster = cluster;
+    }
+    return maxTransversity;
+}
+
+double
+CP::TSplitTracks::TrackLength(const CP::TReconNodeContainer& nodes) const { 
+    CP::THandle<CP::TReconCluster> lastCluster;
+    double range = 0.0;
+    for (CP::TReconNodeContainer::const_iterator n = nodes.begin();
+         n != nodes.end(); ++n) { 
+        CP::THandle<CP::TReconCluster> cluster = (*n)->GetObject();
+        if (lastCluster) {
+            range += (lastCluster->GetPosition().Vect() 
+                      - cluster->GetPosition().Vect()).Mag();
+        }
+        lastCluster = cluster;
+    }
+    return range;
+}
+
+double CP::TSplitTracks::TrackLength(ClusterContainer::iterator begin,
+                                     ClusterContainer::iterator end) const {
+    double range = 0.0;
+    CP::THandle<CP::TReconCluster> lastCluster;
+    for (ClusterContainer::iterator n = begin;
+         n != end; ++n) { 
+        if (lastCluster) {
+            range += (lastCluster->GetPosition().Vect() 
+                      - (*n)->GetPosition().Vect()).Mag();
+        }
+        lastCluster = (*n);
+    }
+    return range;
+}
+
 double CP::TSplitTracks::KinkAngle(ClusterContainer::iterator here, 
                                    ClusterContainer::iterator begin,
-                                   ClusterContainer::iterator end) {
+                                   ClusterContainer::iterator end) const {
     // The minimum and maximum number of clusters to include in the segments
     // to either side of the cluster being checked.  The count includes the
     // current cluster.  Near the end of the track, there may still be fewer
@@ -451,20 +546,53 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
         // Check to see if the front clusters should be removed from the
         // track.  Add any clusters that are removed to the final objects.
         while ((begin + 3) != end) {
-            double v = ThreeInLine(*begin, *(begin+1), *(begin+2));
-            double r = RadiusOfCurvature(*begin, *(begin+1), *(begin+2));
             double d = ClusterDistance(**begin, **(begin+1));
-            CaptNamedVerbose("Split",
-                          "Check front UID "
+            CaptNamedInfo("Split",
+                             "Check front UID "
+                             << (*begin)->GetUniqueID()
+                             << " Clusters: " << (end-begin)-1);
+            if (d > fEndDistanceCut) {
+                // Always split a big gap.
+                CaptNamedInfo("Split",
+                              "Discard front UID "
+                              << (*begin)->GetUniqueID() << " --"
+                              << " Large End Dist: " << d
+                              << " Clusters: " << (end-begin)-1);
+                outputStack.push_back(*begin);
+                ++begin;
+                continue;
+            }
+            // Check the radius of the front cluster relative to the track
+            // direction and make sure it's roughly the same "size" as the
+            // rest of the track.  This prevents wiping out delta-rays that
+            // join a "fat" horizontal track.
+            TVector3 vect = (*begin)->GetPosition().Vect()
+                - (*(begin+2))->GetPosition().Vect();
+            double t1 = Transversity(*begin,vect);
+            double t2 = Transversity(*(begin+1),vect);
+            CaptNamedInfo("Split",
+                          "Front transversity for UID "
                           << (*begin)->GetUniqueID() << " --"
-                          << " In Line: " << v
-                          << " Radius: " << r
-                          << " End Dist: " << d
+                          << " Transversity: " << t1 << " & " << t2
                           << " Clusters: " << (end-begin)-1);
+            if (t1 > fTransversityCut*t2) {
+                // Always a fat cluster.
+                CaptNamedInfo("Split",
+                              "Discard front UID "
+                              << (*begin)->GetUniqueID() << " --"
+                              << " Transversity: " << t1 << ">>" << t2
+                              << " Clusters: " << (end-begin)-1);
+                outputStack.push_back(*begin);
+                ++begin;
+                continue;
+            }
             // See if there is a bad chi-squared for a line.
-            if (v < fThreeInLineCut && d < fEndDistanceCut) break;
+            double v = ThreeInLine(*begin, *(begin+1), *(begin+2));
+            if (v < fThreeInLineCut) break;
             // A large radius of curvature and no gap.
-            if (r > fRadiusOfCurvature && d < fEndDistanceCut) break;
+            double r = RadiusOfCurvature(*begin, *(begin+1), *(begin+2));
+            if (r > fRadiusOfCurvature) break;
+            // Discard the first cluster in this track.
             CaptNamedInfo("Split",
                           "Discard front UID "
                           << (*begin)->GetUniqueID() << " --"
@@ -479,20 +607,52 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
         // Check to see if the back clusters should be removed from the track.
         // Add any clusters that are removed to the final objects.
         while (end != begin+3) {
-            double v = ThreeInLine(*(end-1), *(end-2), *(end-3));
-            double r = RadiusOfCurvature(*(end-1), *(end-2), *(end-3));
             double d = ClusterDistance(**(end-1), **(end-2));
-            CaptNamedVerbose("Split",
-                          "Check back UID " 
+            CaptNamedInfo("Split",
+                             "Check back UID " 
+                             << (*(end-1))->GetUniqueID()
+                             << " Clusters: " << (end-begin)-1);
+            if (d > fEndDistanceCut) {
+                // Always split a big gap.
+                CaptNamedInfo("Split",
+                              "Discard back UID " 
+                              << (*(end-1))->GetUniqueID() << " --"
+                              << " End Dist: " << d
+                              << " Clusters: " << (end-begin)-1);
+                outputStack.push_back(*(end-1));
+                --end;
+            }
+            // Check the radius of the back cluster relative to the track
+            // direction and make sure it's roughly the same "size" as the
+            // rest of the track.  This prevents wiping out delta-rays that
+            // join a "fat" horizontal track.
+            TVector3 vect = (*(end-1))->GetPosition().Vect()
+                - (*(end-3))->GetPosition().Vect();
+            double t1 = Transversity(*(end-1),vect);
+            double t2 = Transversity(*(end-2),vect);
+            CaptNamedInfo("Split",
+                          "Back transversity for UID "
                           << (*(end-1))->GetUniqueID() << " --"
-                          << " In Line: " << v
-                          << " Radius: " << r
-                          << " End Dist: " << d
+                          << " Transversity: " << t1 << " & " << t2
                           << " Clusters: " << (end-begin)-1);
+            if (t1 > fTransversityCut*t2) {
+                // Always split a fat cluster.
+                CaptNamedInfo("Split",
+                              "Discard front UID "
+                              << (*(end-1))->GetUniqueID() << " --"
+                              << " Transversity: " << t1 << ">>" << t2
+                              << " Clusters: " << (end-begin)-1);
+                outputStack.push_back(*(end-1));
+                --end;
+                continue;
+            }
             // See if there is a bad chi-squared for a line.
-            if (v < fThreeInLineCut && d < fEndDistanceCut) break;
+            double v = ThreeInLine(*(end-1), *(end-2), *(end-3));
+            if (v < fThreeInLineCut) break;
             // A large radius of curvature and no gap.
-            if (r > fRadiusOfCurvature && d < fEndDistanceCut) break;
+            double r = RadiusOfCurvature(*(end-1), *(end-2), *(end-3));
+            if (r > fRadiusOfCurvature) break;
+            // Discard the last cluster in this track.
             CaptNamedInfo("Split",
                           "Discard back UID " 
                           << (*(end-1))->GetUniqueID() << " --"
@@ -733,10 +893,20 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
         CP::THandle<CP::TReconTrack> track = *o;
         if (track) {
             tracks->push_back(track);
-            CP::THandle<CP::TReconTrack> fitTrack
-                = CP::CreateTrackFromHits("splitTracks",
-                                          track->GetHits()->begin(),
-                                          track->GetHits()->end());
+            CP::THandle<CP::TTrackState> frontState
+                = track->GetNodes().front()->GetState();
+            CP::THandle<CP::TTrackState> backState
+                = track->GetNodes().back()->GetState();            
+            TVector3 approxDir = (backState->GetPosition().Vect()
+                                  - frontState->GetPosition().Vect()).Unit();
+            double maxTransversity = MaxTransversity(track->GetNodes());
+            double length = TrackLength(track->GetNodes());
+            CP::THandle<CP::TReconTrack> fitTrack;
+            if (length > 3*maxTransversity) {
+                fitTrack = CP::CreateTrackFromHits("splitTracks",
+                                                   track->GetHits()->begin(),
+                                                   track->GetHits()->end());
+            }
             if (!fitTrack) {
                 CP::TReconObjectContainer trackClusters;
                 for (CP::TReconNodeContainer::iterator n
@@ -749,6 +919,7 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
                     }
                     trackClusters.push_back(c);
                 }
+                std::cout << "Track from clusters" << std::endl;
                 fitTrack = CP::CreateTrackFromClusters("splitTracks",
                                                        trackClusters.begin(),
                                                        trackClusters.end());
