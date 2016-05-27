@@ -85,6 +85,8 @@ namespace MST {
 
     /// The "index" into the graph for the edges.
     typedef boost::graph_traits < graph_t >::edge_descriptor edge_t;
+
+    typedef boost::graph_traits< graph_t >::adjacency_iterator adjacency_iterator_t;
 };
 
 CP::TMinimalSpanningTrack::TMinimalSpanningTrack()
@@ -132,7 +134,7 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
     int throttle = 10;
     do {
         CaptNamedLog("MST","Remaining iterations " << throttle 
-                  << " " << remainingClusters.size());
+                  << " Remaining Clusters " << remainingClusters.size());
 
         // Create the new graph.
         MST::graph_t g(remainingClusters.size());
@@ -174,8 +176,6 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
             }
         }
 
-        CaptNamedInfo("MST","Number of edges: " << boost::num_edges(g));
-
         // There are not enough edges!  Stop now.
         if (boost::num_edges(g) < 2) break;
 
@@ -212,6 +212,13 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
                 if (extremeCluster->GetPosition().X()
                     < g[*vi].cluster->GetPosition().X()) continue;
             }
+            int edges = 0;
+            MST::adjacency_iterator_t ai, ai_end;
+            for (boost::tie(ai,ai_end) = boost::adjacent_vertices(*vi,g);
+                 ai != ai_end; ++ai) {
+                ++edges;
+            }
+            if (edges < 1) continue;
             extremeCluster = g[*vi].cluster;
             extremeVertex = *vi;
         }
