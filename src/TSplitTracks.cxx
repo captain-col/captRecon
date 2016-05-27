@@ -64,7 +64,7 @@ void CP::TSplitTracks::SaveTrack(
         double length = TrackLength(begin,end);
         double transversity = MaxTransversity(begin,end);
         if (length < transversity*3) {
-            CaptNamedLog("Split",
+            CaptNamedInfo("Split",
                          "Candidate track is to wide, not constructing.");
             std::copy(begin,end,std::back_inserter(container));
             return;
