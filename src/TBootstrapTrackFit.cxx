@@ -851,11 +851,19 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
         double phi = gRandom->Uniform(unit::twopi);
         ortho.Rotate(phi,dir);
         dir = (dir + ortho).Unit();
-        for (int i=0; i<3; ++i) {
-            pos[i] = pos[i] + posScatter*gRandom->Gaus(0.0, posScatter);
+        if (posScatter > 0) {
+            for (int i=0; i<3; ++i) {
+                double r = gRandom->Gaus(0.0, posScatter);
+                if (!std::isfinite(r)) {
+                    CaptError("Error in scatter " << r);
+                    r = 0.0;
+                }
+                pos[i] = pos[i] + r;
+            }
         }
     }
 #endif
+
 #define EMPIRICAL_SCATTER
 #ifdef EMPIRICAL_SCATTER
     // Set the amount of scattering based on how much the track bends.
@@ -896,13 +904,6 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
     }
 
     for (int i=0; i<3; ++i) {
-        if (!std::isfinite(pos[i])) {
-            CaptError("Error in position " << pos);
-            break;
-        }
-    }
-            
-    for (int i=0; i<3; ++i) {
         if (!std::isfinite(dir[i])) {
             CaptError("Error in direction " << dir);
             break;
@@ -913,6 +914,13 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
             CaptError("Direction is short " << dir);
     }
 
+    for (int i=0; i<3; ++i) {
+        if (!std::isfinite(pos[i])) {
+            CaptError("Error in position " << pos);
+            break;
+        }
+    }
+            
 #define HANDLE_KINKS
 #ifdef HANDLE_KINKS
     /// This checks if the next sample is completely missing the next cluster.
