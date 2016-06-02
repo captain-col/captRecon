@@ -131,7 +131,7 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
     }
 
     // Loop until all of the remaining clusters are handled.
-    int throttle = 10;
+    int throttle = remainingClusters.size();
     do {
         CaptNamedLog("MST","Remaining iterations " << throttle 
                   << " Remaining Clusters " << remainingClusters.size());
