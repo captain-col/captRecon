@@ -32,8 +32,9 @@ double CP::TCombineOverlaps::CountSetOverlaps(
     const CP::TCombineOverlaps::HitSet& set2) const {
     double set1Size = set1.size();
     double set2Size = set2.size();
-    if (set1Size<1) return 1;
-    if (set2Size<1) return 1;
+    if (set1Size == 0 && set2Size == 0) return 1.0;
+    if (set1Size<1) return 0.0;
+    if (set2Size<1) return 0.0;
     double overlap = 0;
     if (set1Size < set2Size) {
         for (HitSet::const_iterator h = set1.begin(); h!=set1.end(); ++h) {
@@ -151,28 +152,49 @@ CP::TCombineOverlaps::Process(const CP::TAlgorithmResult& input,
                 }
             }
 
+            int overlappingDimensions = 0;
+            double overlap = 1.0;
+
             // Subtract the larger from the smaller and find the overlap.
-            double overlapU = CountSetOverlaps(set1u,set2u);
+            double overlapU = 0.0;
+            if (!set1u.empty() && !set2u.empty()) {
+                overlapU = CountSetOverlaps(set1u,set2u);
+                overlap = std::min(overlap,overlapU);
+                ++overlappingDimensions;
+            }
+
+            
+            // Subtract the larger from the smaller and find the overlap.
+            double overlapV = 0.0;
+            if (!set1v.empty() && !set2v.empty()) {
+                overlapV = CountSetOverlaps(set1v,set2v);
+                overlap = std::min(overlap,overlapV);
+                ++overlappingDimensions;
+            }
+            
+            // Subtract the larger from the smaller and find the overlap.
+            double overlapX = 0.0;
+            if (!set1v.empty() && !set2v.empty()) {
+                overlapX = CountSetOverlaps(set1x,set2x);
+                overlap = std::min(overlap,overlapX);
+                ++overlappingDimensions;
+            }
+            
             CaptNamedVerbose("Combine", "U Overlap: " << overlapU
-                          << " (" << object1->GetUniqueID() << ")"
-                          << " (" << object2->GetUniqueID() << ")");
-            
-            // Subtract the larger from the smaller and find the overlap.
-            double overlapV = CountSetOverlaps(set1v,set2v);
+                             << " (" << object1->GetUniqueID() << ")"
+                             << " size: " << set1u.size()
+                             << " (" << object2->GetUniqueID() << ")"
+                             << " size: " << set2u.size());
             CaptNamedVerbose("Combine", "V Overlap: " << overlapV
-                          << " (" << object1->GetUniqueID() << ")"
-                          << " (" << object2->GetUniqueID() << ")");
-            
-            // Subtract the larger from the smaller and find the overlap.
-            double overlapX = CountSetOverlaps(set1x,set2x);
+                             << " (" << object1->GetUniqueID() << ")"
+                             << " size: " << set1v.size()
+                             << " (" << object2->GetUniqueID() << ")"
+                             << " size: " << set2v.size());
             CaptNamedVerbose("Combine", "X Overlap: " << overlapX
-                          << " (" << object1->GetUniqueID() << ")"
-                          << " (" << object2->GetUniqueID() << ")");
-            
-            double overlap = overlapU;
-            overlap = std::min(overlap,overlapV);
-            overlap = std::min(overlap,overlapX);
-            
+                             << " (" << object1->GetUniqueID() << ")"
+                             << " size: " << set1x.size()
+                             << " (" << object2->GetUniqueID() << ")"
+                             << " size: " << set2x.size());
             CaptNamedInfo("Combine", "Object overlap " << overlap
                              << " w/ objects: " 
                              << object1->GetUniqueID()
@@ -181,8 +203,9 @@ CP::TCombineOverlaps::Process(const CP::TAlgorithmResult& input,
                              << "  (" << object2->GetHits()->size()
                              << " hits)");
 
+            if (overlappingDimensions < 2) continue;
             if (overlap < fOverlapCut) continue;
-            
+
             ///////////////////////////////////////////////////////
             // If we get here then the tracks should be merged.
             ///////////////////////////////////////////////////////
