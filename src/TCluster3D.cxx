@@ -664,36 +664,30 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     if (pmtHits) t0 = TimeZero(*pmtHits,*wireHits);
         
     CP::THandle<CP::TAlgorithmResult> result = CreateResult();
-    std::unique_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
-    std::unique_ptr<CP::THitSelection> unused(new CP::THitSelection("unused"));
-    std::unique_ptr<CP::THitSelection> clustered(new CP::THitSelection(
-                                                   "clustered"));
 
-    /// Only save the used and unused hits if there are fewer than this many
-    /// 2D hits.
-    const std::size_t hitLimit = 3000;
-
+    typedef std::set< CP::THandle<CP::THit> >  HitSet;
+    HitSet usedSet;
+    
     std::vector<float> allRMS;
     CP::THitSelection xHits;
     CP::THitSelection vHits;
     CP::THitSelection uHits;
-    for (CP::THitSelection::iterator h2 = wireHits->begin(); 
-         h2 != wireHits->end(); ++h2) {
-        int plane = CP::GeomId::Captain::GetWirePlane((*h2)->GetGeomId());
-        allRMS.push_back((*h2)->GetTimeRMS());
+    for (CP::THitSelection::iterator h = wireHits->begin(); 
+         h != wireHits->end(); ++h) {
+        int plane = CP::GeomId::Captain::GetWirePlane((*h)->GetGeomId());
+        allRMS.push_back((*h)->GetTimeRMS());
         if (plane == CP::GeomId::Captain::kXPlane) {
-            xHits.push_back(*h2);
+            xHits.push_back(*h);
         }
         else if (plane == CP::GeomId::Captain::kVPlane) {
-            vHits.push_back(*h2);
+            vHits.push_back(*h);
         }
         else if (plane == CP::GeomId::Captain::kUPlane) {
-            uHits.push_back(*h2);
+            uHits.push_back(*h);
         }
         else {
             CaptError("Invalid wire plane");
         }
-        if (wireHits->size() < hitLimit) unused->push_back(*h2);
     }
 
     // Set the maximum time difference between 2D clusters that might become a
@@ -755,6 +749,9 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
         
         xuMatch.clear();
 #ifdef LOOK_AT_ALL_HITS
+        // Define LOOK_AT_ALL_HITS to check if any X and U hit (and later X
+        // and V) hits overlap.  If this isn't set, then only U (V) hits
+        // within a time window of the X hit are checked for matchs.
         CP::THitSelection::iterator xuBegin = uHits.begin();
         CP::THitSelection::iterator xuEnd = uHits.end();
 #else
@@ -791,25 +788,15 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                 // microseconds), this create several new 3D hits.
                 if (!MakeHit(writableHits,hitPosition,t0,*xh,*vh,*uh)) continue;
                 ++hitsForThisXHit;
+
+                usedSet.insert(*xh);
+                usedSet.insert(*vh);
+                usedSet.insert(*uh);
                 
-                // These three wire hits make a 3D point.  Get them into the
-                // correct hit selections.  To protect against bogus events
-                // that have a to much "garbage", this only gets done if there
-                // aren't to many input hits (i.e. wireHits).  That prevents
-                // this class from getting into a "to much memory" situation.
-                if (wireHits->size() < hitLimit) {
-                    used->AddHit(*xh);
-                    unused->RemoveHit(*xh);
-                    
-                    used->AddHit(*vh);
-                    unused->RemoveHit(*vh);
-                    
-                    used->AddHit(*uh);
-                    unused->RemoveHit(*uh);
-                }
             }
         }
         
+#ifdef USE_BEST_PARTNER
         /// Check to see if there are any hits currently associated with the X
         /// hit.  If there are not, then that means there wasn't a "UVX"
         /// triplet with matching times.  It's still possible that there may
@@ -854,12 +841,56 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
                      t0,*xh,bestPartner,CP::THandle<CP::THit>())) continue;
 
         // Now check if it can be added to the bookkeeping objects.
-        if (wireHits->size() > hitLimit) continue;
-        used->AddHit(*xh);
-        unused->RemoveHit(*xh);
-                
-        used->AddHit(bestPartner);
-        unused->RemoveHit(bestPartner);
+        usedSet.insert(*xh);
+        usedSet.insert(bestPartner);
+#endif
+    }
+
+    // All of the 3 wire 3D hits have been found, now check any unassociated
+    // hits to see if there are any 2 wire 3D hits that should be formed.
+    CP::THitSelection xHits2;
+    CP::THitSelection vHits2;
+    CP::THitSelection uHits2;
+    for (CP::THitSelection::iterator h = wireHits->begin(); 
+         h != wireHits->end(); ++h) {
+        if (usedSet.find(*h) != usedSet.end()) continue;
+        int plane = CP::GeomId::Captain::GetWirePlane((*h)->GetGeomId());
+        if (plane == CP::GeomId::Captain::kXPlane) {
+            xHits2.push_back(*h);
+        }
+        else if (plane == CP::GeomId::Captain::kVPlane) {
+            vHits2.push_back(*h);
+        }
+        else if (plane == CP::GeomId::Captain::kUPlane) {
+            uHits2.push_back(*h);
+        }
+        else {
+            CaptError("Invalid wire plane");
+        }
+    }
+    CaptLog("X Hits2: " << xHits2.size()
+            << " V Hits2: " << vHits2.size()
+            << " U Hits2: " << uHits2.size());
+    
+    for (CP::THitSelection::iterator h1=xHits2.begin();
+         h1!=xHits2.end(); ++h1) {
+        for (CP::THitSelection::iterator h2=vHits2.begin();
+             h2!=vHits2.end(); ++h2) {
+            if (!OverlappingHits(*h1,*h2)) continue;
+            if (!MakeHit(writableHits,PositionXY(*h1,*h2),
+                         t0,*h1,*h2,CP::THandle<CP::THit>())) continue;
+            usedSet.insert(*h1);
+            usedSet.insert(*h2);
+        }
+
+        for (CP::THitSelection::iterator h2=uHits2.begin();
+             h2!=uHits2.end(); ++h2) {
+            if (!OverlappingHits(*h1,*h2)) continue;
+            if (!MakeHit(writableHits,PositionXY(*h1,*h2),
+                         t0,*h1,*h2,CP::THandle<CP::THit>())) continue;
+            usedSet.insert(*h1);
+            usedSet.insert(*h2);
+        }
     }
 
     CaptNamedLog("Cluster","Number of 3D Hits: " << writableHits.size());
@@ -919,6 +950,13 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
     }
 #endif
 
+    std::unique_ptr<CP::THitSelection> clustered(new CP::THitSelection(
+                                                     "clustered"));
+    std::unique_ptr<CP::THitSelection> twoWire(new CP::THitSelection(
+                                                   "twoWire"));
+    std::unique_ptr<CP::THitSelection> threeWire(new CP::THitSelection(
+                                                     "threeWire"));
+    
     // Copy the selection of writable hits into a selection of recon hits.
     for (CP::THitSelection::iterator h = writableHits.begin();
          h != writableHits.end(); ++h) {
@@ -927,8 +965,10 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
         // charge sharing.  The  10 electron cut corresponds to a hit energy of
         // about 340 eV.
         if (hit->GetCharge() < 10.0) continue;
-        clustered->push_back(
-            CP::THandle<CP::TReconHit>(new CP::TReconHit(*hit)));
+        CP::THandle<CP::TReconHit> newHit(new CP::TReconHit(*hit));
+        clustered->push_back(newHit);
+        if (hit->GetConstituentCount() < 3) twoWire->push_back(newHit);
+        else threeWire->push_back(newHit);
     }
 
     CaptNamedInfo("Cluster","Mean X Hit Charge " 
@@ -953,24 +993,53 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
             << unit::AsString(hitTotal(uHits.begin(), uHits.end()),
                               "pe"));
 
-    CP::TReconObjectContainer* final = new CP::TReconObjectContainer("final");
+    std::unique_ptr<CP::TReconObjectContainer> final(
+        new CP::TReconObjectContainer("final"));
+    std::unique_ptr<CP::TReconObjectContainer> clusters(
+        new CP::TReconObjectContainer("clusters"));
+
     CP::THandle<CP::TReconCluster> usedCluster 
         = CreateCluster("clustered", clustered->begin(), clustered->end());
     final->push_back(usedCluster);
-    result->AddResultsContainer(final);
+
+    CP::THandle<CP::TReconCluster> twoWireCluster
+        = CreateCluster("twoWire", twoWire->begin(), twoWire->end());
+    clusters->push_back(twoWireCluster);
     
+    CP::THandle<CP::TReconCluster> threeWireCluster
+        = CreateCluster("threeWire", threeWire->begin(), threeWire->end());
+    clusters->push_back(threeWireCluster);
+        
+    /// Save the used 2D wire hits for output.
+    std::unique_ptr<CP::THitSelection> used(new CP::THitSelection("used"));
+    for (HitSet::iterator h = usedSet.begin(); h != usedSet.end(); ++h) {
+        used->push_back(*h);
+    }
+
+    /// Save the unused 2D wire hits for output.
+    std::unique_ptr<CP::THitSelection> unused(new CP::THitSelection("unused"));
+    for (CP::THitSelection::iterator h = wireHits->begin(); 
+         h != wireHits->end(); ++h) {
+        if (usedSet.find(*h) != usedSet.end()) continue;
+        unused->push_back(*h);
+    }
+
     CaptLog("Total hit charge: " 
             << unit::AsString(usedCluster->GetEDeposit(),"pe")
             << " is " 
             << unit::AsString(fEnergyPerCharge*usedCluster->GetEDeposit(),
                               "energy")
             << " from " << clustered->size() << " hits.");
+    CaptLog("  Two wire hits: " << twoWire->size()
+            << "  Three wire hits: " << threeWire->size());
     CaptLog("  Used hits: " << used->size()
             << "  Unused hits: " << unused->size());
     
     if (unused->size() > 0) result->AddHits(unused.release());
     if (used->size() > 0) result->AddHits(used.release());
     result->AddHits(clustered.release());
+    result->AddResultsContainer(clusters.release());
+    result->AddResultsContainer(final.release());
 
     return result;
 }
