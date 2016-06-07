@@ -2,6 +2,7 @@
 #include "HitUtilities.hxx"
 #include "TPositionDensityCluster.hxx"
 #include "CreateCluster.hxx"
+#include "ApproxArgonProperties.hxx"
 
 #include <THandle.hxx>
 #include <TReconCluster.hxx>
@@ -155,6 +156,11 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
                          << " with " << points.size() << " hits");
             CP::THandle<CP::TReconCluster> cluster
                 = CreateCluster("zCluster",points.begin(),points.end());
+            if (!cluster) continue;
+            if (cluster->GetEDeposit()
+                < 0.5*unit::mm*approxArgon::dEdX*approxArgon::Electrons) {
+                continue;
+            }
             result->push_back(cluster);
         }
         // Reset first to start looking for a new set of hits.
@@ -176,6 +182,11 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
                          << " with " << points.size() << " hits");
             CP::THandle<CP::TReconCluster> cluster
                 = CreateCluster("zCluster",points.begin(),points.end());
+            if (!cluster) continue;
+            if (cluster->GetEDeposit()
+                < 0.5*unit::mm*approxArgon::dEdX*approxArgon::Electrons) {
+                continue;
+            }
             result->push_back(cluster);
         }
     }
