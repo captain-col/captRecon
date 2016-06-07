@@ -380,15 +380,42 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
                                 cluster->GetPosition().T());
         trackState->SetDirection(ev[BTF::kXDir],ev[BTF::kYDir],ev[BTF::kZDir]);
 
+        TMatrixD pcov(3,3);
         for (int i=0; i<3; ++i) {
             for (int j=0; j<3; ++j) {
                 double v = cv(BTF::kXPos+i+1, BTF::kXPos+j+1);
-                trackState->SetPositionCovariance(i,j,v);
+                pcov(i,j) = v;
                 v = cv(BTF::kXDir+i+1, BTF::kXDir+j+1);
                 trackState->SetDirectionCovariance(i,j,v);
             }
         }
 
+        // Never let the variance be smaller than our resolution.
+        double positionResolution = 1*unit::mm;
+        for (int i=0; i<3; ++i) {
+            pcov(i,i) += positionResolution*positionResolution;
+        }
+
+        while (pcov.Determinant() < 0.0) {
+            double positionResolution = 1*unit::mm;
+            for (int i=0; i<3; ++i) {
+                for (int j=0; j<3; ++j) {
+                    if (i==j) {
+                        pcov(i,i) += 9.0*positionResolution*positionResolution;
+                    }
+                    else {
+                        pcov(i,j) = 0.7*pcov(i,j);
+                    }
+                }
+            }
+        }
+
+        for (int i=0; i<3; ++i) {
+            for (int j=0; j<3; ++j) {
+                trackState->SetPositionCovariance(i,j,pcov(i,j));
+            }
+        }
+        
         if (step < excludePrior) {
             double posVariance = 10*unit::cm*(excludePrior-step)/excludePrior;
             posVariance = posVariance*posVariance;
@@ -604,6 +631,20 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         }
         dcov2.InvertFast();
 
+        double positionResolution = 1*unit::mm;
+        while (pcov2.Determinant() < 0.0) {
+            for (int i=0; i<3; ++i) {
+                for (int j=0; j<3; ++j) {
+                    if (i == j) {
+                        pcov2(i,i) += 9.0*positionResolution*positionResolution;
+                    }
+                    else {
+                        pcov2(i,j) = 0.7*pcov2(i,j);
+                    }
+                }
+            }
+        }
+
         // Find the combined position covariance, including the effect of the
         // fit values not being at the same location.
         TMatrixD pcov(3,3);
@@ -618,9 +659,21 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         }
 
         // Never let the variance be smaller than our resolution.
-        double positionResolution = 1*unit::mm;
         for (int i=0; i<3; ++i) {
             pcov(i,i) += positionResolution*positionResolution;
+        }
+
+        while (pcov.Determinant() < 0.0) {
+            for (int i=0; i<3; ++i) {
+                for (int j=0; j<3; ++j) {
+                    if (i == j) {
+                        pcov(i,i) += 9.0*positionResolution*positionResolution;
+                    }
+                    else {
+                        pcov(i,j) = 0.7*pcov(i,j);
+                    }
+                }
+            }
         }
 
         // Find the combined direction covariance, including the effect of the
@@ -672,8 +725,8 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
 
     // Set the front state of the track.
     CP::THandle<CP::TTrackState> frontState = input->GetFront();
-    CP::THandle<CP::TTrackState> firstNodeState = nodes.front()->GetState();
-    *frontState = *firstNodeState;
+    CP::THandle<CP::TTrackState> frontNodeState = nodes.front()->GetState();
+    *frontState = *frontNodeState;
     frontState->SetEDeposit(energyDeposit);
     frontState->SetEDepositVariance(energyVariance);
 
@@ -687,8 +740,8 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     // Now move the front state upstream to the position of the first hit.
     // Notice that the front state is not at the same location as the first
     // node.  
-    TVector3 frontPos = frontState->GetPosition().Vect();
-    TVector3 frontDir = frontState->GetDirection();
+    TVector3 frontPos = frontNodeState->GetPosition().Vect();
+    TVector3 frontDir = frontNodeState->GetDirection();
     CP::THandle<CP::THitSelection> frontHits 
         = nodes.front()->GetObject()->GetHits();
     if (!frontHits) {
@@ -705,24 +758,24 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         if (approach.Mag() > 6*unit::mm) continue;
         upstream = std::min(upstream, dist);
     }
-#ifdef MOVE_END_STATE_FIXED_DISTANCE
-    upstream = -15*unit::mm;
-#endif
     frontPos = frontPos + upstream*frontDir;
     frontState->SetPosition(frontPos.X(), frontPos.Y(), frontPos.Z(),
                             frontState->GetPosition().T());
+    TMatrixD frontCov(3,3);
     for (int i=0; i<3; ++i) {
         for (int j=0; j<3; ++j) {
-            double v = frontState->GetPositionCovariance(i,j)
-                + std::abs(upstream)*frontState->GetDirectionCovariance(i,j);
+            double v = frontNodeState->GetPositionCovariance(i,j);
+            double d = frontNodeState->GetDirectionCovariance(i,j);
+            v += upstream*upstream*d;
             frontState->SetPositionCovariance(i,j,v);
+            frontState->SetDirectionCovariance(i,j,d);
         }
     }
     
     // Set the back state of the track.
     CP::THandle<CP::TTrackState> backState = input->GetBack();
-    CP::THandle<CP::TTrackState> lastNodeState = nodes.back()->GetState();
-    *backState = *lastNodeState;
+    CP::THandle<CP::TTrackState> backNodeState = nodes.back()->GetState();
+    *backState = *backNodeState;
     backState->SetEDeposit(0.0);
     backState->SetEDepositVariance(0.0);
 
@@ -753,20 +806,18 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         if (approach.Mag() > 6*unit::mm) continue;
         downstream = std::max(downstream, diff*backDir);
     }
-#ifdef MOVE_END_STATE_FIXED_DISTANCE
-    downstream = 15*unit::mm;
-#endif
     backPos = backPos + downstream*backDir;
     backState->SetPosition(backPos.X(), backPos.Y(), backPos.Z(),
                            backState->GetPosition().T());
     for (int i=0; i<3; ++i) {
         for (int j=0; j<3; ++j) {
-            double v = backState->GetPositionCovariance(i,j)
-                + std::abs(downstream)*backState->GetDirectionCovariance(i,j);
+            double v = backNodeState->GetPositionCovariance(i,j);
+            double d = backNodeState->GetDirectionCovariance(i,j);
+            v += downstream*downstream*d;
             backState->SetPositionCovariance(i,j,v);
+            backState->SetDirectionCovariance(i,j,d);
         }
     }
-    
    
     int trackDOF = 3*nodes.size() - 6;
     input->SetStatus(TReconBase::kSuccess);
