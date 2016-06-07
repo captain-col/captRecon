@@ -322,6 +322,12 @@ CP::TMergeTracks::MatchGoodness(CP::THandle<CP::TReconTrack> t1,
     pos1Diff = pos1 - dist*dir1 - posAvg;
     posCov1.InvertFast();
     double pos1Goodness = pos1Diff*(posCov1*pos1Diff);
+    if (pos1Goodness < 0) {
+        CaptError("Negative chi2 (" << t1->GetUniqueID() << ")"
+                  << " " << pos1Diff
+                  << " " << posCov1.Determinant());
+        posCov1.Print();
+    }
 
     // Find out how well the second track matches the average position.
     TVector3 pos2Diff = pos2-posAvg;
@@ -329,6 +335,12 @@ CP::TMergeTracks::MatchGoodness(CP::THandle<CP::TReconTrack> t1,
     pos2Diff = pos2 - dist*dir2 - posAvg;
     posCov2.InvertFast();
     double pos2Goodness = pos2Diff*(posCov2*pos2Diff);
+    if (pos2Goodness < 0) {
+        CaptError("Negative chi2 (" << t2->GetUniqueID() << ")"
+                  << " " << pos2Diff
+                  << " " << posCov2.Determinant());
+        posCov2.Print();
+    }
 
     double result = dirGoodness + pos1Goodness + pos2Goodness;
     if (dirOverlap > 0.0) result += 1000.0;
@@ -397,11 +409,6 @@ CP::TMergeTracks::Process(const CP::TAlgorithmResult& input,
         if (track1->GetNodes().size() < 3) {
             CaptNamedInfo("Merge", "Save short track  (" 
                           << track1->GetUniqueID() << ")");
-#ifdef APPLY_MASS_FIT
-            TTrackMassFit massFitter;
-            CP::THandle<CP::TReconTrack> massTrack = massFitter(track1);
-            if (massTrack) track1 = massTrack;
-#endif
             final->push_back(track1);
             continue;
         }
@@ -451,11 +458,6 @@ CP::TMergeTracks::Process(const CP::TAlgorithmResult& input,
         // to the final objects.
         if (track1) {
             CaptNamedInfo("Merge", "Save Track");
-#ifdef APPLY_MASS_FIT
-            TTrackMassFit massFitter;
-            CP::THandle<CP::TReconTrack> massTrack = massFitter(track1);
-            if (massTrack) track1 = massTrack;
-#endif
             final->push_back(track1);
         }
 
