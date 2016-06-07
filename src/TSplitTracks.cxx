@@ -27,7 +27,7 @@ CP::TSplitTracks::TSplitTracks()
     fRadiusOfCurvature = 25*unit::cm;
     fTransversityCut = 2.0;
     fEndDistanceCut = 10.0*unit::mm;
-    fSplitDistanceCut = 30.0*unit::mm;
+    fSplitDistanceCut = 10.0*unit::mm;
     fKinkAngleCut = 20*unit::degree;
 }
 
