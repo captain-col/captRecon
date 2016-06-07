@@ -9,8 +9,8 @@
 #include <TVector3.h>
 
 // This finds the minimum distance between hits in the two clusters.
-double CP::ClusterDistance(const CP::TReconCluster& a, 
-                           const CP::TReconCluster& b,
+double CP::ClusterDistance(const CP::TReconBase& a, 
+                           const CP::TReconBase& b,
                            const int nDists) {
     CP::THandle<CP::THitSelection> aHits = a.GetHits();
     CP::THandle<CP::THitSelection> bHits = b.GetHits();
@@ -39,8 +39,8 @@ double CP::ClusterDistance(const CP::TReconCluster& a,
 }
 
 // This finds the minimum distance between hits in the two clusters.
-double CP::MinimumClusterDistance(const CP::TReconCluster& a, 
-                                  const CP::TReconCluster& b) {
+double CP::MinimumClusterDistance(const CP::TReconBase& a, 
+                                  const CP::TReconBase& b) {
     CP::THandle<CP::THitSelection> aHits = a.GetHits();
     CP::THandle<CP::THitSelection> bHits = b.GetHits();
     double minDist = 1000*unit::kilometer;
