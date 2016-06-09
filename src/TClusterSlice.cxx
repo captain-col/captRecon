@@ -42,7 +42,7 @@ CP::TClusterSlice::TClusterSlice()
         "captRecon.clusterSlice.clusterExtent");
     fClusterGrowth = CP::TRuntimeParameters::Get().GetParameterD(
         "captRecon.clusterSlice.clusterGrowth");
-    
+    fClusterCharge = 0.5*unit::mm*approxArgon::dEdX*approxArgon::Electrons;
 }
 
 CP::TClusterSlice::~TClusterSlice() { }
@@ -157,8 +157,7 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
             CP::THandle<CP::TReconCluster> cluster
                 = CreateCluster("zCluster",points.begin(),points.end());
             if (!cluster) continue;
-            if (cluster->GetEDeposit()
-                < 0.5*unit::mm*approxArgon::dEdX*approxArgon::Electrons) {
+            if (cluster->GetEDeposit() < fClusterCharge) {
                 continue;
             }
             result->push_back(cluster);
@@ -183,8 +182,7 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
             CP::THandle<CP::TReconCluster> cluster
                 = CreateCluster("zCluster",points.begin(),points.end());
             if (!cluster) continue;
-            if (cluster->GetEDeposit()
-                < 0.5*unit::mm*approxArgon::dEdX*approxArgon::Electrons) {
+            if (cluster->GetEDeposit() < fClusterCharge) {
                 continue;
             }
             result->push_back(cluster);

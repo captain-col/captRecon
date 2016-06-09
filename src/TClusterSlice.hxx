@@ -56,6 +56,10 @@ private:
     /// metric.
     double fClusterExtent;
 
+    /// The required amount of charge to be in any cluster.  This prevents
+    /// really small clusters from being formed.
+    double fClusterCharge;
+    
     /// The scaling factor for the cluster growth.
     double fClusterGrowth;
     
