@@ -24,7 +24,8 @@ double CP::ClusterDistance(const CP::TReconBase& a,
         for (CP::THitSelection::iterator k = bHits->begin(); 
              k != bHits->end(); ++k) {
             if (j == k) continue;
-            double dist = ((*j)->GetPosition()-(*k)->GetPosition()).Mag();
+            TVector3 hitDist = ((*j)->GetPosition()-(*k)->GetPosition());
+            double dist = hitDist.Mag();
             for (int i = 0; i<nDists; ++i) {
                 if (dist > closeDistances[i]) continue;
                 std::swap(dist,closeDistances[i]);
@@ -35,6 +36,8 @@ double CP::ClusterDistance(const CP::TReconBase& a,
     for (int i=0; i<nDists; ++i) {
         if (closeDistances[i]<10*unit::m) count = i;
     }
+    if (count > 0.1*aHits->size()) count = 0.1*aHits->size();
+    if (count > 0.1*bHits->size()) count = 0.1*bHits->size();
     return closeDistances[count];
 }
 
@@ -49,7 +52,8 @@ double CP::MinimumClusterDistance(const CP::TReconBase& a,
         for (CP::THitSelection::iterator k = bHits->begin(); 
              k != bHits->end(); ++k) {
             if (j == k) continue;
-            double dist = ((*j)->GetPosition()-(*k)->GetPosition()).Mag();
+            TVector3 hitDist = ((*j)->GetPosition()-(*k)->GetPosition());
+            double dist = hitDist.Mag();
             if (dist < minDist) minDist = dist;
         }
     }
