@@ -545,7 +545,7 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
 
         // Check to see if the front clusters should be removed from the
         // track.  Add any clusters that are removed to the final objects.
-        while ((begin + 3) != end) {
+        while (end-begin > 3) {
             double d = ClusterDistance(**begin, **(begin+1));
             CaptNamedInfo("Split",
                              "Check front UID "
@@ -606,7 +606,7 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
 
         // Check to see if the back clusters should be removed from the track.
         // Add any clusters that are removed to the final objects.
-        while (end != begin+3) {
+        while (end-begin > 3) {
             double d = ClusterDistance(**(end-1), **(end-2));
             CaptNamedInfo("Split",
                              "Check back UID " 
