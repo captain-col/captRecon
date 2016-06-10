@@ -165,677 +165,6 @@ private:
     double fGaussianConstant;
 };
 
-CP::TBootstrapTrackFit::TBootstrapTrackFit(int trials) : fTrials(trials) { }
-CP::TBootstrapTrackFit::~TBootstrapTrackFit() {}
-
-double
-CP::TBootstrapTrackFit::EstimateRange(const CP::TReconNodeContainer& nodes) { 
-    CP::THandle<CP::TReconCluster> lastCluster;
-    double range = 0.0;
-    for (CP::TReconNodeContainer::const_iterator n = nodes.begin();
-         n != nodes.end(); ++n) { 
-        CP::THandle<CP::TReconCluster> cluster = (*n)->GetObject();
-        if (!cluster) {
-            throw EBootstrapMissingNodeObject();
-        }
-        if (lastCluster) {
-            range += (lastCluster->GetPosition().Vect() 
-                      - cluster->GetPosition().Vect()).Mag();
-        }
-        lastCluster = cluster;
-    }
-    return range;
-}
-
-double
-CP::TBootstrapTrackFit::EstimateMomentum(const CP::TReconNodeContainer& nodes) {
-    double range = EstimateRange(nodes);
-    double dEdX = 0.2*unit::MeV/unit::mm;
-    double offset = 40*unit::MeV;
-    double mass = 105*unit::MeV;
-    double energy = range*dEdX + offset + mass;
-    double momentum = std::sqrt(energy*energy - mass*mass);
-    return momentum;
-}
-
-TMatrixD
-CP::TBootstrapTrackFit::EstimateScatter(const CP::TReconNodeContainer& nodes) { 
-    TPrincipal pca(3,"");
-    if (nodes.size()<3) return TMatrixD(3,3);
-    double range = EstimateRange(nodes);
-    CP::TReconNodeContainer::const_iterator last = nodes.begin();
-    for (CP::TReconNodeContainer::const_iterator n = last+1;
-         n != nodes.end(); ++n) { 
-        CP::THandle<CP::TReconCluster> cluster = (*n)->GetObject();
-        CP::THandle<CP::TReconCluster> lastCluster = (*last)->GetObject();
-        while ((cluster->GetPosition().Vect()
-                -lastCluster->GetPosition().Vect()).Mag() > 10*unit::mm
-               && last+1 < n) {
-            ++last;
-            lastCluster = (*last)->GetObject();
-        }
-        if (!cluster) {
-            throw EBootstrapMissingNodeObject();
-        }
-        if (lastCluster) {
-            TVector3 dir = (lastCluster->GetPosition().Vect() 
-                            - cluster->GetPosition().Vect()).Unit();
-            double row[3] = {dir.X(),dir.Y(),dir.Z()};
-            pca.AddRow(row);
-        }
-    }
-    pca.MakePrincipals();
-    double x0[3], p0[3] = {0,0,0};
-    pca.P2X(p0,x0,3);
-    TVector3 v0(x0);
-    double x1[3], p1[3] = {1,0,0};
-    pca.P2X(p1,x1,3);
-    TVector3 v1(x1);
-    v1 = v1 - v0;
-    double x2[3], p2[3] = {0,1,0};
-    pca.P2X(p2,x2,3);
-    TVector3 v2(x2);
-    v2 = v2 - v0;
-    double x3[3], p3[3] = {0,0,1};
-    pca.P2X(p3,x3,3);
-    TVector3 v3(x3);
-    v3 = v3 - v0;
-    
-    TMatrixD scatterMatrix(3,3);
-    for (int r=0; r<3; ++r) {
-        scatterMatrix(r,0) = (((*pca.GetSigmas())(0)/std::sqrt(range))*v1)[r];
-        scatterMatrix(r,1) = (((*pca.GetSigmas())(1)/std::sqrt(range))*v2)[r];
-        scatterMatrix(r,2) = (((*pca.GetSigmas())(2)/std::sqrt(range))*v3)[r];
-    }
-    return scatterMatrix;
-}
-
-CP::THandle<CP::TReconTrack>
-CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
-
-    TReconNodeContainer& nodes = input->GetNodes();
-    if (nodes.size() < 2) {
-        CaptError("Not enough nodes to fit.");
-        return CP::THandle<CP::TReconTrack>();
-    }
-
-    double range = EstimateRange(nodes);
-    double momentum = EstimateMomentum(nodes);
-    TMatrixD scatterMatrix = EstimateScatter(nodes);
-    
-    CaptLog("Bootstrap " << input->GetUniqueID() 
-            << " w/ " << nodes.size() << " nodes"
-            << " Range: " << unit::AsString(range,"length")
-            << " Momentum: " << unit::AsString(momentum,"momentum"));
-    {
-        TVector3 a1, a2, a3;
-        for (int c=0; c<3; ++c) {
-            a1(c) = scatterMatrix(0,c);
-            a2(c) = scatterMatrix(1,c);
-            a3(c) = scatterMatrix(2,c);
-        }
-        CaptLog("    Scatter"
-                << " " << unit::AsString(a1.Mag(), "angle") << "/sqrt(mm)"
-                << " " << unit::AsString(a2.Mag(), "angle") << "/sqrt(mm)"
-                << " " << unit::AsString(a3.Mag(), "angle") << "/sqrt(mm)");
-    }
-
-    // Define the number of states to use in the particle filter.
-    const int numSamples = fTrials;
-
-    // Define the size of the state.
-    const int stateSize = BTF::kStateSize;
-
-#define EXCLUDE_PRIOR
-#ifdef EXCLUDE_PRIOR
-    // Exclude the effect of the prior near the ends of the fit.  This is done
-    // by giving it a large variance to reduce the weight of the prior in the
-    // final answer.  This matters when combining the forward and backward
-    // filtering (below).  The prior is estimated from the positions of the
-    // first two nodes in the filtering.
-    const std::size_t excludePrior = 1;
-#else
-    // The prior isn't excluded since it's estimated from the first two nodes
-    // of the filtering.
-    const std::size_t excludePrior = 0;
-#endif
-    
-    // Define the measurement model.  The main purpose of the measurement
-    // model is to calculte the probability of a state (updated as a
-    // prediction for the next measurement) relative to the actual
-    // measurement.
-    BTF::TMeasurementPDF measurementPDF;
-    BFL::MeasurementModel<BTF::ColumnVector, BTF::ColumnVector> 
-        measurementModel(&measurementPDF);
-    BTF::ColumnVector measurement(1);
-
-    // Define the system model.  The system model contains the current PDF for
-    // the track fit parameters that will be updated with new measurement
-    // information.  The system model is initialized using forwardPrior (which
-    // is filled using GeneratePrior) and then is iteratively updated with new
-    // measurement information.
-    BTF::TSystemPDF systemPDF(measurementPDF, momentum, scatterMatrix);
-    BFL::SystemModel<BTF::ColumnVector> systemModel(&systemPDF);
-
-    /////////////////////////////////////////////////////////////////////
-    // Forward filtering.
-    /////////////////////////////////////////////////////////////////////
-    systemPDF.SetBackwardUpdate(false);
-
-    /////////////////////////////////////////////////////////////////////
-    // Generate the prior samples that are used to start the filter.  The
-    // prior samples are based on two nodes and are positioned so that the
-    // firstNode is "upstream" of the otherNode.  Rather than use the first
-    // two nodes in the track, this tries to find a node that is well
-    // separated from the first node so that it gets a better estimate of the
-    // track direction.
-    /////////////////////////////////////////////////////////////////////
-    CP::THandle<CP::TReconNode> firstNode = nodes[0];
-    CP::THandle<CP::TReconNode> otherNode = nodes[1];
-    for (std::size_t i=1; i<nodes.size()/3; ++i) {
-        CP::THandle<CP::TReconCluster> cluster1 = firstNode->GetObject();
-        CP::THandle<CP::TReconCluster> cluster2 = nodes[i]->GetObject();
-        double diff = (cluster1->GetPosition().Vect() 
-                       - cluster2->GetPosition().Vect()).Mag();
-        if (diff > 2*unit::cm) break;
-        otherNode = nodes[i];
-    }
-    std::vector< BFL::Sample<BTF::ColumnVector> > priorSamples(numSamples);
-    BTF::GeneratePrior(priorSamples, firstNode, otherNode);
-    BFL::MCPdf<BTF::ColumnVector> forwardPrior(numSamples,stateSize);
-    forwardPrior.ListOfSamplesSet(priorSamples);
-
-    BFL::BootstrapFilter<BTF::ColumnVector, BTF::ColumnVector> 
-        forwardFilter(&forwardPrior, 0, numSamples/4.0);
-
-    /////////////////////////////////////////////////////////////////////
-    /// Estimate the state at each node.  The temporary values are filled
-    /// directly into the track nodes and will be used later during backward
-    /// filtering
-    /////////////////////////////////////////////////////////////////////
-    for (std::size_t step = 0; step < nodes.size(); ++step) {
-        measurement[0] = step;
-        CP::THandle<CP::TReconNode> node = nodes[step];
-
-        // Get the measurement from the node.
-        CP::THandle<CP::TTrackState> trackState = node->GetState();
-        CP::THandle<CP::TReconCluster> cluster = node->GetObject();
-        measurementPDF.SetMeasurement(cluster);
-
-        // Update the filter
-        forwardFilter.Update(&systemModel, &measurementModel, measurement);
-        
-        // Get the updated state and it's covariance.  
-        BFL::MCPdf<BTF::ColumnVector>* posterior = forwardFilter.PostGet(); 
-
-        // Use the current expectation value and covariance to give temporary
-        // values to the track nodes.
-        BTF::ColumnVector ev = posterior->ExpectedValueGet();
-        MatrixWrapper::SymmetricMatrix cv = posterior->CovarianceGet();
-
-        // Set the values and covariances.
-        trackState->SetEDeposit(cluster->GetEDeposit());
-        trackState->SetEDepositVariance(cluster->GetEDepositVariance());
-        trackState->SetPosition(ev[BTF::kXPos],ev[BTF::kYPos],ev[BTF::kZPos],
-                                cluster->GetPosition().T());
-        trackState->SetDirection(ev[BTF::kXDir],ev[BTF::kYDir],ev[BTF::kZDir]);
-
-        TMatrixD pcov(3,3);
-        for (int i=0; i<3; ++i) {
-            for (int j=0; j<3; ++j) {
-                double v = cv(BTF::kXPos+i+1, BTF::kXPos+j+1);
-                pcov(i,j) = v;
-                v = cv(BTF::kXDir+i+1, BTF::kXDir+j+1);
-                trackState->SetDirectionCovariance(i,j,v);
-            }
-        }
-
-        // Never let the variance be smaller than our resolution.
-        double positionResolution = 1*unit::mm;
-        for (int i=0; i<3; ++i) {
-            pcov(i,i) += positionResolution*positionResolution;
-        }
-
-        while (pcov.Determinant() < 0.0) {
-            double positionResolution = 1*unit::mm;
-            for (int i=0; i<3; ++i) {
-                for (int j=0; j<3; ++j) {
-                    if (i==j) {
-                        pcov(i,i) += 9.0*positionResolution*positionResolution;
-                    }
-                    else {
-                        pcov(i,j) = 0.7*pcov(i,j);
-                    }
-                }
-            }
-        }
-
-        for (int i=0; i<3; ++i) {
-            for (int j=0; j<3; ++j) {
-                trackState->SetPositionCovariance(i,j,pcov(i,j));
-            }
-        }
-        
-        if (step < excludePrior) {
-            double posVariance = 10*unit::cm*(excludePrior-step)/excludePrior;
-            posVariance = posVariance*posVariance;
-            double dirVariance = 1.0*(excludePrior-step)/excludePrior;
-            dirVariance = dirVariance*dirVariance;
-            for (int i=0; i<3; ++i) {
-                double p = trackState->GetPositionCovariance(i,i);
-                p += posVariance;
-                trackState->SetPositionCovariance(i,i,p);
-                double d = trackState->GetDirectionCovariance(i,i);
-                d += dirVariance;
-                trackState->SetDirectionCovariance(i,i,d);
-            }
-        }
-
-        CaptNamedVerbose("BFL","Forward " 
-                         << trackState->GetPosition().Vect()
-                         << " -> " << trackState->GetDirection()
-                         << " diff " 
-                         << (trackState->GetPosition().Vect()
-                             - cluster->GetPosition().Vect()).Mag());
-        
-    }
-
-    /////////////////////////////////////////////////////////////////////
-    // Backward filtering.
-    /////////////////////////////////////////////////////////////////////
-    systemPDF.SetBackwardUpdate(true);
-
-    /////////////////////////////////////////////////////////////////////
-    // Generate the prior samples that are used to start the filter.  The
-    // prior samples are based on the first two nodes and are
-    // positioned just "upstream" of the first node.
-    /////////////////////////////////////////////////////////////////////
-    firstNode = nodes[nodes.size()-1];
-    otherNode = nodes[nodes.size()-2];
-    for (std::size_t i=2; i<nodes.size()/3; ++i) {
-        CP::THandle<CP::TReconCluster> cluster1 = firstNode->GetObject();
-        CP::THandle<CP::TReconCluster> cluster2 
-            = nodes[nodes.size()-i]->GetObject();
-        double diff = (cluster1->GetPosition().Vect() 
-                       - cluster2->GetPosition().Vect()).Mag();
-        if (diff > 2*unit::cm) break;
-        otherNode = nodes[nodes.size()-i];
-    }
-    BTF::GeneratePrior(priorSamples, otherNode, firstNode);
-    BFL::MCPdf<BTF::ColumnVector> backwardPrior(numSamples,stateSize);
-    backwardPrior.ListOfSamplesSet(priorSamples);
-
-    BFL::BootstrapFilter<BTF::ColumnVector, BTF::ColumnVector> 
-        backwardFilter(&backwardPrior, 0, numSamples/4.0);
-
-    // Calculate the goodness of fit during the backfilter.
-    double logLikelihood = 0.0;
-
-    /////////////////////////////////////////////////////////////////////
-    /// Estimate the state at each node.
-    /////////////////////////////////////////////////////////////////////
-    for (int step = (int) nodes.size()-1; 0 <= step; --step) {
-        CaptNamedDebug("BFL","Start backward step " << step);
-        measurement[0] = step;
-        CP::THandle<CP::TReconNode> node = nodes[step];
-        if (!node) {
-            CaptError("Missing node in step " << step);
-            continue;
-        }
-
-        // Get the measurement from the node.
-        CP::THandle<CP::TTrackState> trackState = node->GetState();
-        if (!trackState) {
-            CaptError("Missing track state in step " << step);
-            continue;
-        }
-
-        CP::THandle<CP::TReconCluster> cluster = node->GetObject();
-        if (!cluster) {
-            CaptError("Missing cluster in step " << step);
-            continue;
-        }
-
-        measurementPDF.SetMeasurement(cluster);
-
-        // Update the filter
-        backwardFilter.Update(&systemModel, &measurementModel, measurement);
-        
-        // Get the updated state and it's covariance.
-        BFL::MCPdf<BTF::ColumnVector>* posterior = backwardFilter.PostGet();
-        BTF::ColumnVector ev = posterior->ExpectedValueGet();
-        MatrixWrapper::SymmetricMatrix cv = posterior->CovarianceGet();
-
-        // Set the values and covariances based on the back filtering, but
-        // drop the correlations between position and direction (it makes life
-        // simpler, and makes the calculation more stable).  
-
-        // First check that the covariances are OK.
-        double oldCov = 0.0;
-        double newCov = 0.0;
-        for (int i=0; i<3; ++i) {
-            oldCov += trackState->GetPositionCovariance(i,i);
-            newCov += cv(BTF::kXPos+i+1,BTF::kXPos+i+1);
-        }
-
-        if (oldCov < 1E-6 || newCov < 1E-6) {
-            CaptNamedError("BFL", "Fit failed");
-            return CP::THandle<CP::TReconTrack>();
-        }
-
-        // Save the forward filtering position, direction and variances.
-        TVector3 posF(trackState->GetPosition().Vect());
-        TVector3 vPosF(trackState->GetPositionVariance().Vect());
-        TVector3 dirF(trackState->GetDirection());
-        double vDirF = 0.0;
-        for (int i=0; i<3; ++i) {
-            vDirF += trackState->GetDirectionCovariance(i,i);
-            // Turn the variance into a sigma, and make sure that zeros have
-            // no weight.
-            vPosF[i] = std::sqrt(vPosF[i]);
-            if (vPosF[i] < 0.001*unit::mm) vPosF[i] = 1000*unit::meter;
-        }
-
-        // Save the backward filtering position, direction and variances
-        TVector3 posB(ev[BTF::kXPos],ev[BTF::kYPos],ev[BTF::kZPos]);
-        TVector3 vPosB(cv(BTF::kXPos+1, BTF::kXPos+1),
-                       cv(BTF::kYPos+1, BTF::kYPos+1),
-                       cv(BTF::kZPos+1, BTF::kZPos+1));
-        TVector3 dirB(ev[BTF::kXDir],ev[BTF::kYDir],ev[BTF::kZDir]);
-        double vDirB = 0.0;
-        for (int i=0; i<3; ++i) {
-            vDirB += cv(BTF::kXDir+i+1, BTF::kXDir+i+1);
-            // Turn the variance into a sigma, and make sure that zeros have
-            // no weight.
-            vPosB[i] = std::sqrt(vPosB[i]);
-            if (vPosB[i] < 0.001*unit::mm) vPosB[i] = 1000*unit::meter;
-        }
-
-        // This is near the beginning of the fit, so give it a large variance
-        // to reduce the weight of the prior in the final answer.  This
-        // matters when combining with the backward filtering (below).
-        double posVarianceIncrease = 0.0;
-        double dirVarianceIncrease = 0.0;
-        if (step >= (int) nodes.size()-(int) excludePrior) {
-            posVarianceIncrease = 10.0*unit::cm;
-            posVarianceIncrease *= (excludePrior-(nodes.size()-step-1));
-            posVarianceIncrease /= excludePrior;
-            posVarianceIncrease = posVarianceIncrease*posVarianceIncrease;
-            dirVarianceIncrease
-                = 1.0*(excludePrior-(nodes.size()-step-1))/excludePrior;
-            dirVarianceIncrease = dirVarianceIncrease*dirVarianceIncrease;
-            for (int i=0; i<3; ++i) {
-                double p = vPosB[i];
-                p += posVarianceIncrease;
-                vPosB[i] = p;
-            }
-            double d = vDirB;
-            d += dirVarianceIncrease;
-            vDirB = d;
-        }
-
-        // Find the average position.
-        double xx = posF.X()/vPosF.X() + posB.X()/vPosB.X();
-        xx = xx/(1.0/vPosF.X() + 1.0/vPosB.X());
-        double yy = posF.Y()/vPosF.Y() + posB.Y()/vPosB.Y();
-        yy = yy/(1.0/vPosF.Y() + 1.0/vPosB.Y());
-        double zz = posF.Z()/vPosF.Z() + posB.Z()/vPosB.Z();
-        zz = zz/(1.0/vPosF.Z() + 1.0/vPosB.Z());
-        
-        // Find the average direction.
-        TVector3 dir = (1.0/vDirF)*dirF + (1.0/vDirB)*dirB;
-        dir = dir.Unit();
-
-        // Set the final state.
-        trackState->SetPosition(xx, yy, zz, cluster->GetPosition().T());
-        trackState->SetDirection(dir.X(), dir.Y(), dir.Z());
-
-        TMatrixD pcov1(3,3);
-        for (int i=0; i<3; ++i) {
-            for (int j=0; j<3; ++j) {
-                pcov1(i,j) = trackState->GetPositionCovariance(i,j);
-            }
-        }
-        pcov1.InvertFast();
-
-        TMatrixD dcov1(3,3);
-        for (int i=0; i<3; ++i) {
-            for (int j=0; j<3; ++j) {
-                dcov1(i,j) = trackState->GetDirectionCovariance(i,j);
-            }
-        }
-        dcov1.InvertFast();
-
-        TMatrixD pcov2(3,3);
-        for (int i=0; i<3; ++i) {
-            for (int j=0; j<3; ++j) {
-                pcov2(i,j) = cv(BTF::kXPos+i+1, BTF::kXPos+j+1);
-                // Override the variance.  This adds the effect of excluding
-                // the prior (note this isn't done, here, for the forward
-                // filtering since this factor was added to the track
-                // covariance when it is filled with temporary values as part
-                // of forward filtering).
-                if (i == j) pcov2(i,i) = vPosB[i];
-            }
-        }
-        pcov2.InvertFast();
-
-        TMatrixD dcov2(3,3);
-        for (int i=0; i<3; ++i) {
-            for (int j=0; j<3; ++j) {
-                dcov2(i,j) = cv(BTF::kXDir+i+1, BTF::kXDir+j+1);
-                if (i == j) {
-                    dcov2(i,i) += dirVarianceIncrease;
-                }
-            }
-        }
-        dcov2.InvertFast();
-
-        double positionResolution = 1*unit::mm;
-        while (pcov2.Determinant() < 0.0) {
-            for (int i=0; i<3; ++i) {
-                for (int j=0; j<3; ++j) {
-                    if (i == j) {
-                        pcov2(i,i) += 9.0*positionResolution*positionResolution;
-                    }
-                    else {
-                        pcov2(i,j) = 0.7*pcov2(i,j);
-                    }
-                }
-            }
-        }
-
-        // Find the combined position covariance, including the effect of the
-        // fit values not being at the same location.
-        TMatrixD pcov(3,3);
-        pcov = pcov1 + pcov2;
-        pcov.InvertFast();
-        for (int i=0; i<3; ++i) {
-            double a = (posF[i]-trackState->GetPosition()[i]);
-            double b = (posB[i]-trackState->GetPosition()[i]);
-            double v = a*a/vPosF[i] + b*b/vPosB[i];
-            v /= (1.0/vPosF[i] + 1/vPosB[i]);
-            pcov(i,i) += v;
-        }
-
-        // Never let the variance be smaller than our resolution.
-        for (int i=0; i<3; ++i) {
-            pcov(i,i) += positionResolution*positionResolution;
-        }
-
-        while (pcov.Determinant() < 0.0) {
-            for (int i=0; i<3; ++i) {
-                for (int j=0; j<3; ++j) {
-                    if (i == j) {
-                        pcov(i,i) += 9.0*positionResolution*positionResolution;
-                    }
-                    else {
-                        pcov(i,j) = 0.7*pcov(i,j);
-                    }
-                }
-            }
-        }
-
-        // Find the combined direction covariance, including the effect of the
-        // fit values not being the same.
-        TMatrixD dcov(3,3);
-        dcov = dcov1 + dcov2;
-        dcov.InvertFast();
-
-        double incF = (dirF-dir).Mag();
-        double incB = (dirB-dir).Mag();
-        double incDir = incF*incF/vDirF + incB*incB/vDirB;
-        incDir /= (1.0/vDirF + 1/vDirB);
-        for (int i=0; i<3; ++i)  dcov(i,i) += incDir;
-
-        // Never let the variance be smaller than our resolution.
-        double directionResolution = 1*unit::degree;
-        for (int i=0; i<3; ++i) {
-            dcov(i,i) += directionResolution*directionResolution;
-        }
-
-        for (int i=0; i<3; ++i) {
-            for (int j=0; j<3; ++j) {
-                trackState->SetPositionCovariance(i,j,pcov(i,j));
-                trackState->SetDirectionCovariance(i,j,dcov(i,j));
-            }
-        }
-
-        CaptNamedVerbose("BFL","Backward " 
-                         << trackState->GetPosition().Vect()
-                         << " -> " << trackState->GetDirection()
-                         << " diff " 
-                         << (trackState->GetPosition().Vect()
-                             - cluster->GetPosition().Vect()).Mag());
-        
-        double r = measurementPDF.ProbabilityGet(
-            trackState->GetPosition().Vect());
-        r /= measurementPDF.GetConstant();
-        if (r>0) logLikelihood += std::log(r);
-    }
-
-    double energyDeposit = 0.0;
-    double energyVariance = 0.0;
-    for (TReconNodeContainer::iterator n = nodes.begin();
-         n != nodes.end(); ++n) {
-        CP::THandle<CP::TTrackState> state = (*n)->GetState();
-        energyDeposit += state->GetEDeposit();
-        energyVariance += state->GetEDepositVariance();
-    }
-
-    // Set the front state of the track.
-    CP::THandle<CP::TTrackState> frontState = input->GetFront();
-    CP::THandle<CP::TTrackState> frontNodeState = nodes.front()->GetState();
-    *frontState = *frontNodeState;
-    frontState->SetEDeposit(energyDeposit);
-    frontState->SetEDepositVariance(energyVariance);
-
-    if (!nodes.front()->GetObject()) {
-        // Make sure there is an object, and there had *better* be one or
-        // something is going horribly wrong.
-        CaptError("Missing object for the front node");
-        throw EBootstrapMissingNodeObject();
-    }
-
-    // Now move the front state upstream to the position of the first hit.
-    // Notice that the front state is not at the same location as the first
-    // node.  
-    TVector3 frontPos = frontNodeState->GetPosition().Vect();
-    TVector3 frontDir = frontNodeState->GetDirection();
-    CP::THandle<CP::THitSelection> frontHits 
-        = nodes.front()->GetObject()->GetHits();
-    if (!frontHits) {
-        // There had also better be hits!
-        CaptError("No hits in object!");
-        abort();
-    }
-    double upstream = 0.0;
-    for (CP::THitSelection::iterator h = frontHits->begin(); 
-         h != frontHits->end(); ++h) {
-        TVector3 diff = (*h)->GetPosition() - frontPos;
-        double dist = diff*frontDir;
-        TVector3 approach = (*h)->GetPosition() - frontPos - dist*frontDir;
-        if (approach.Mag() > 6*unit::mm) continue;
-        upstream = std::min(upstream, dist);
-    }
-    frontPos = frontPos + upstream*frontDir;
-    frontState->SetPosition(frontPos.X(), frontPos.Y(), frontPos.Z(),
-                            frontState->GetPosition().T());
-    TMatrixD frontCov(3,3);
-    for (int i=0; i<3; ++i) {
-        for (int j=0; j<3; ++j) {
-            double v = frontNodeState->GetPositionCovariance(i,j);
-            double d = frontNodeState->GetDirectionCovariance(i,j);
-            v += upstream*upstream*d;
-            frontState->SetPositionCovariance(i,j,v);
-            frontState->SetDirectionCovariance(i,j,d);
-        }
-    }
-    
-    // Set the back state of the track.
-    CP::THandle<CP::TTrackState> backState = input->GetBack();
-    CP::THandle<CP::TTrackState> backNodeState = nodes.back()->GetState();
-    *backState = *backNodeState;
-    backState->SetEDeposit(0.0);
-    backState->SetEDepositVariance(0.0);
-
-    if (!nodes.back()->GetObject()) {
-        // Make sure there is an object, and there had *better* be one or
-        // something is going horribly wrong.
-        CaptError("Missing object for the front node");
-        throw EBootstrapMissingNodeObject();
-    }
-
-    // Now move the back state downstream to the position of the last hit.
-    // See the comments for "frontState".
-    TVector3 backPos = backState->GetPosition().Vect();
-    TVector3 backDir = backState->GetDirection();
-    CP::THandle<CP::THitSelection> backHits 
-        = nodes.back()->GetObject()->GetHits();
-    if (!backHits) {
-        // There had also better be hits!
-        CaptError("No hits in object!");
-        abort();
-    }
-    double downstream = 0.0;
-    for (CP::THitSelection::iterator h = backHits->begin(); 
-         h != backHits->end(); ++h) {
-        TVector3 diff = (*h)->GetPosition() - backPos;
-        double dist = diff*backDir;
-        TVector3 approach = (*h)->GetPosition() - backPos - dist*backDir;
-        if (approach.Mag() > 6*unit::mm) continue;
-        downstream = std::max(downstream, diff*backDir);
-    }
-    backPos = backPos + downstream*backDir;
-    backState->SetPosition(backPos.X(), backPos.Y(), backPos.Z(),
-                           backState->GetPosition().T());
-    for (int i=0; i<3; ++i) {
-        for (int j=0; j<3; ++j) {
-            double v = backNodeState->GetPositionCovariance(i,j);
-            double d = backNodeState->GetDirectionCovariance(i,j);
-            v += downstream*downstream*d;
-            backState->SetPositionCovariance(i,j,v);
-            backState->SetDirectionCovariance(i,j,d);
-        }
-    }
-   
-    int trackDOF = 3*nodes.size() - 6;
-    input->SetStatus(TReconBase::kSuccess);
-    input->SetStatus(TReconBase::kRan);
-    input->SetStatus(TReconBase::kStocasticFit);
-    input->SetAlgorithmName("TBootstrapTrackFit");
-    input->SetQuality(-logLikelihood);
-    input->SetNDOF(trackDOF);
-
-    CaptLog("Bootstrap finished " << input->GetUniqueID() 
-            << " w/ " << nodes.size() << " nodes");
-    CaptLog("   Front " << frontState->GetPosition().Vect()
-            << " --> " << frontState->GetDirection());
-    CaptLog("   Back " << backState->GetPosition().Vect()
-            << " --> " << backState->GetDirection());
-
-    return input;
-}
 
 bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
                                  int method, void* args) const {
@@ -1187,3 +516,747 @@ void BTF::GeneratePrior(std::vector< BFL::Sample<BTF::ColumnVector> >& samples,
     }
 
 };
+
+///////////////////////////////////////////////////////////////////////
+/// The forward backward filtering class.
+///////////////////////////////////////////////////////////////////////
+
+CP::TBootstrapTrackFit::TBootstrapTrackFit(int trials) : fTrials(trials) { }
+CP::TBootstrapTrackFit::~TBootstrapTrackFit() {}
+
+CP::THandle<CP::TReconTrack>
+CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
+    TReconNodeContainer& nodes = input->GetNodes();
+    if (nodes.size() < 2) {
+        CaptError("Not enough nodes to fit.");
+        return CP::THandle<CP::TReconTrack>();
+    }
+
+    double logLikelihood = 0.0;
+    CP::TForwardBootstrapTrackFit forwardBootstrap(fTrials);
+
+    CP::THandle<CP::TReconTrack> forwardTrack(new TReconTrack(*input));
+    forwardTrack = forwardBootstrap.Apply(forwardTrack);
+
+    // Backward filter the track by making a reversed copy and then forward
+    // filtering.  This will put the nodes into reverse order.
+    CP::THandle<CP::TReconTrack> backwardTrack(new TReconTrack(*input));
+    backwardTrack->ReverseTrack();
+    backwardTrack = forwardBootstrap.Apply(backwardTrack);
+    
+    std::unique_ptr<CP::TReconObjectContainer> filtered(
+        new TReconObjectContainer("filtered"));
+    filtered->push_back(forwardTrack);
+    filtered->push_back(backwardTrack);
+    
+    TReconNodeContainer& forwardNodes = forwardTrack->GetNodes();
+    TReconNodeContainer& backwardNodes = backwardTrack->GetNodes();
+    for (std::size_t step = 0; step < nodes.size(); ++step) {
+        CP::THandle<CP::TTrackState> trackState = nodes[step]->GetState();
+        CP::THandle<CP::TReconCluster> trackCluster = nodes[step]->GetObject();
+
+        CP::THandle<CP::TReconNode> forwardNode = forwardNodes[step];
+        CP::THandle<CP::TTrackState> forwardState = forwardNode->GetState();
+
+        BTF::TMeasurementPDF measurementPDF;
+        measurementPDF.SetMeasurement(trackCluster);
+
+        // Start the track state as a copy of the forward state to make sure
+        // everything has a plausible default.
+        *trackState = *forwardState;
+        
+        CP::THandle<CP::TReconNode> backwardNode
+            = backwardNodes[nodes.size() - step - 1];
+        CP::THandle<CP::TTrackState> backwardState = backwardNode->GetState();
+
+        // Now combine the forward and backward filtered tracks.
+        
+        // Save the forward filtering position, direction and variances.
+        TVector3 posF(forwardState->GetPosition().Vect());
+        TVector3 vPosF(forwardState->GetPositionVariance().Vect());
+        TVector3 dirF(forwardState->GetDirection());
+        double vDirF = 0.0;
+        for (int i=0; i<3; ++i) {
+            vDirF += forwardState->GetDirectionCovariance(i,i);
+            // Turn the variance into a sigma, and make sure that zeros have
+            // no weight.
+            vPosF[i] = std::sqrt(vPosF[i]);
+            if (vPosF[i] < 0.001*unit::mm) vPosF[i] = 1000*unit::meter;
+        }
+
+        TMatrixD pCovF(3,3);
+        for (int i=0; i<3; ++i) {
+            for (int j=0; j<3; ++j) {
+                pCovF(i,j) = forwardState->GetPositionCovariance(i,j);
+            }
+        }
+        pCovF.InvertFast();
+
+        TMatrixD dCovF(3,3);
+        for (int i=0; i<3; ++i) {
+            for (int j=0; j<3; ++j) {
+                dCovF(i,j) = forwardState->GetDirectionCovariance(i,j);
+            }
+        }
+        dCovF.InvertFast();
+
+        // Save the backward filtering position, direction and variances.
+        TVector3 posB(backwardState->GetPosition().Vect());
+        TVector3 vPosB(backwardState->GetPositionVariance().Vect());
+        TVector3 dirB(backwardState->GetDirection());
+        dirB = - dirB;
+        double vDirB = 0.0;
+        for (int i=0; i<3; ++i) {
+            vDirB += backwardState->GetDirectionCovariance(i,i);
+            // Turn the variance into a sigma, and make sure that zeros have
+            // no weight.
+            vPosB[i] = std::sqrt(vPosB[i]);
+            if (vPosB[i] < 0.001*unit::mm) vPosB[i] = 1000*unit::meter;
+        }
+
+        TMatrixD pCovB(3,3);
+        for (int i=0; i<3; ++i) {
+            for (int j=0; j<3; ++j) {
+                pCovB(i,j) = backwardState->GetPositionCovariance(i,j);
+            }
+        }
+        pCovB.InvertFast();
+
+        TMatrixD dCovB(3,3);
+        for (int i=0; i<3; ++i) {
+            for (int j=0; j<3; ++j) {
+                dCovB(i,j) = backwardState->GetDirectionCovariance(i,j);
+            }
+        }
+        dCovB.InvertFast();
+
+        // Find the average position.
+        double xx = posF.X()/vPosF.X() + posB.X()/vPosB.X();
+        xx = xx/(1.0/vPosF.X() + 1.0/vPosB.X());
+        double yy = posF.Y()/vPosF.Y() + posB.Y()/vPosB.Y();
+        yy = yy/(1.0/vPosF.Y() + 1.0/vPosB.Y());
+        double zz = posF.Z()/vPosF.Z() + posB.Z()/vPosB.Z();
+        zz = zz/(1.0/vPosF.Z() + 1.0/vPosB.Z());
+        
+        // Find the average direction.
+        TVector3 dir = (1.0/vDirF)*dirF + (1.0/vDirB)*dirB;
+        dir = dir.Unit();
+
+        // Set the final state.
+        trackState->SetPosition(xx, yy, zz, trackCluster->GetPosition().T());
+        trackState->SetDirection(dir.X(), dir.Y(), dir.Z());
+
+        // Find the combined position covariance, including the effect of the
+        // fit values not being at the same location.
+        TMatrixD pcov(3,3);
+        pcov = pCovF + pCovB;
+        pcov.InvertFast();
+        for (int i=0; i<3; ++i) {
+            double a = (posF[i]-trackState->GetPosition()[i]);
+            double b = (posB[i]-trackState->GetPosition()[i]);
+            double v = a*a/vPosF[i] + b*b/vPosB[i];
+            v /= (1.0/vPosF[i] + 1/vPosB[i]);
+            pcov(i,i) += v;
+        }
+
+        // Never let the variance be smaller than our resolution.
+        double positionResolution = 1*unit::mm;
+        for (int i=0; i<3; ++i) {
+            pcov(i,i) += positionResolution*positionResolution;
+        }
+
+        while (pcov.Determinant() < 0.0) {
+            for (int i=0; i<3; ++i) {
+                for (int j=0; j<3; ++j) {
+                    if (i == j) {
+                        pcov(i,i) += 9.0*positionResolution*positionResolution;
+                    }
+                    else {
+                        pcov(i,j) = 0.7*pcov(i,j);
+                    }
+                }
+            }
+        }
+
+        // Find the combined direction covariance, including the effect of the
+        // fit values not being the same.
+        TMatrixD dcov(3,3);
+        dcov = dCovF + dCovB;
+        dcov.InvertFast();
+
+        double incF = (dirF-dir).Mag();
+        double incB = (dirB-dir).Mag();
+        double incDir = incF*incF/vDirF + incB*incB/vDirB;
+        incDir /= (1.0/vDirF + 1/vDirB);
+        for (int i=0; i<3; ++i)  dcov(i,i) += incDir;
+
+        // Never let the variance be smaller than our resolution.
+        double directionResolution = 1*unit::degree;
+        for (int i=0; i<3; ++i) {
+            dcov(i,i) += directionResolution*directionResolution;
+        }
+
+        for (int i=0; i<3; ++i) {
+            for (int j=0; j<3; ++j) {
+                trackState->SetPositionCovariance(i,j,pcov(i,j));
+                trackState->SetDirectionCovariance(i,j,dcov(i,j));
+            }
+        }
+
+        // Set the energy deposit
+        double v
+            = forwardState->GetEDeposit()/forwardState->GetEDepositVariance();
+        v += backwardState->GetEDeposit()/backwardState->GetEDepositVariance();
+        double w = 1.0/forwardState->GetEDepositVariance();
+        w += 1.0/backwardState->GetEDepositVariance();
+        trackState->SetEDeposit(v/w);
+        trackState->SetEDepositVariance(0.5/w);
+
+        double r = measurementPDF.ProbabilityGet(
+            trackState->GetPosition().Vect());
+        r /= measurementPDF.GetConstant();
+        if (r>0) {
+            nodes[step]->SetQuality(-std::log(r));
+            logLikelihood += std::log(r);
+        }
+    }
+
+    double energyDeposit = 0.0;
+    double energyVariance = 0.0;
+    for (TReconNodeContainer::iterator n = nodes.begin();
+         n != nodes.end(); ++n) {
+        CP::THandle<CP::TTrackState> state = (*n)->GetState();
+        energyDeposit += state->GetEDeposit();
+        energyVariance += state->GetEDepositVariance();
+    }
+
+    // Set the front state of the track.
+    CP::THandle<CP::TTrackState> frontState = input->GetFront();
+    CP::THandle<CP::TTrackState> frontNodeState = nodes.front()->GetState();
+    *frontState = *frontNodeState;
+    frontState->SetEDeposit(energyDeposit);
+    frontState->SetEDepositVariance(energyVariance);
+
+    if (!nodes.front()->GetObject()) {
+        // Make sure there is an object, and there had *better* be one or
+        // something is going horribly wrong.
+        CaptError("Missing object for the front node");
+        throw EBootstrapMissingNodeObject();
+    }
+
+    // Now move the front state upstream to the position of the first hit.
+    // Notice that the front state is not at the same location as the first
+    // node.  
+    TVector3 frontPos = frontNodeState->GetPosition().Vect();
+    TVector3 frontDir = frontNodeState->GetDirection();
+    CP::THandle<CP::THitSelection> frontHits 
+        = nodes.front()->GetObject()->GetHits();
+    if (!frontHits) {
+        // There had also better be hits!
+        CaptError("No hits in object!");
+        abort();
+    }
+    double upstream = 0.0;
+    for (CP::THitSelection::iterator h = frontHits->begin(); 
+         h != frontHits->end(); ++h) {
+        TVector3 diff = (*h)->GetPosition() - frontPos;
+        double dist = diff*frontDir;
+        TVector3 approach = (*h)->GetPosition() - frontPos - dist*frontDir;
+        if (approach.Mag() > 6*unit::mm) continue;
+        upstream = std::min(upstream, dist);
+    }
+    frontPos = frontPos + upstream*frontDir;
+    frontState->SetPosition(frontPos.X(), frontPos.Y(), frontPos.Z(),
+                            frontState->GetPosition().T());
+    TMatrixD frontCov(3,3);
+    for (int i=0; i<3; ++i) {
+        for (int j=0; j<3; ++j) {
+            double v = frontNodeState->GetPositionCovariance(i,j);
+            double d = frontNodeState->GetDirectionCovariance(i,j);
+            v += upstream*upstream*d;
+            frontState->SetPositionCovariance(i,j,v);
+            frontState->SetDirectionCovariance(i,j,d);
+        }
+    }
+    
+    // Set the back state of the track.
+    CP::THandle<CP::TTrackState> backState = input->GetBack();
+    CP::THandle<CP::TTrackState> backNodeState = nodes.back()->GetState();
+    *backState = *backNodeState;
+    backState->SetEDeposit(0.0);
+    backState->SetEDepositVariance(0.0);
+
+    if (!nodes.back()->GetObject()) {
+        // Make sure there is an object, and there had *better* be one or
+        // something is going horribly wrong.
+        CaptError("Missing object for the front node");
+        throw EBootstrapMissingNodeObject();
+    }
+
+    // Now move the back state downstream to the position of the last hit.
+    // See the comments for "frontState".
+    TVector3 backPos = backState->GetPosition().Vect();
+    TVector3 backDir = backState->GetDirection();
+    CP::THandle<CP::THitSelection> backHits 
+        = nodes.back()->GetObject()->GetHits();
+    if (!backHits) {
+        // There had also better be hits!
+        CaptError("No hits in object!");
+        abort();
+    }
+    double downstream = 0.0;
+    for (CP::THitSelection::iterator h = backHits->begin(); 
+         h != backHits->end(); ++h) {
+        TVector3 diff = (*h)->GetPosition() - backPos;
+        double dist = diff*backDir;
+        TVector3 approach = (*h)->GetPosition() - backPos - dist*backDir;
+        if (approach.Mag() > 6*unit::mm) continue;
+        downstream = std::max(downstream, diff*backDir);
+    }
+    backPos = backPos + downstream*backDir;
+    backState->SetPosition(backPos.X(), backPos.Y(), backPos.Z(),
+                           backState->GetPosition().T());
+    for (int i=0; i<3; ++i) {
+        for (int j=0; j<3; ++j) {
+            double v = backNodeState->GetPositionCovariance(i,j);
+            double d = backNodeState->GetDirectionCovariance(i,j);
+            v += downstream*downstream*d;
+            backState->SetPositionCovariance(i,j,v);
+            backState->SetDirectionCovariance(i,j,d);
+        }
+    }
+   
+    int trackDOF = 3*nodes.size() - 6;
+    input->SetStatus(TReconBase::kSuccess);
+    input->SetStatus(TReconBase::kRan);
+    input->SetStatus(TReconBase::kStocasticFit);
+    input->SetAlgorithmName("TBootstrapTrackFit");
+    input->SetQuality(-logLikelihood);
+    input->SetNDOF(trackDOF);
+
+    CaptLog("Bootstrap " << input->GetUniqueID() 
+            << " w/ " << nodes.size() << " nodes"
+            << " Chi2 " << -logLikelihood << "/" << trackDOF << " d.o.f.");
+    CaptLog("   Front " << frontState->GetPosition().Vect()
+            << " --> " << frontState->GetDirection());
+    CaptLog("   Back " << backState->GetPosition().Vect()
+            << " --> " << backState->GetDirection());
+
+    input->AddDatum(filtered.release());
+    
+    return input;
+}
+
+///////////////////////////////////////////////////////////////////////
+/// The forward only filtering class.
+///////////////////////////////////////////////////////////////////////
+
+CP::TForwardBootstrapTrackFit::TForwardBootstrapTrackFit(int trials)
+    : fTrials(trials) { }
+CP::TForwardBootstrapTrackFit::~TForwardBootstrapTrackFit() {}
+
+double
+CP::TForwardBootstrapTrackFit::EstimateRange(
+    const CP::TReconNodeContainer& nodes) { 
+    CP::THandle<CP::TReconCluster> lastCluster;
+    double range = 0.0;
+    for (CP::TReconNodeContainer::const_iterator n = nodes.begin();
+         n != nodes.end(); ++n) { 
+        CP::THandle<CP::TReconCluster> cluster = (*n)->GetObject();
+        if (!cluster) {
+            throw EBootstrapMissingNodeObject();
+        }
+        if (lastCluster) {
+            range += (lastCluster->GetPosition().Vect() 
+                      - cluster->GetPosition().Vect()).Mag();
+        }
+        lastCluster = cluster;
+    }
+    return range;
+}
+
+double
+CP::TForwardBootstrapTrackFit::EstimateMomentum(
+    const CP::TReconNodeContainer& nodes) {
+    double range = EstimateRange(nodes);
+    double dEdX = 0.2*unit::MeV/unit::mm;
+    double offset = 40*unit::MeV;
+    double mass = 105*unit::MeV;
+    double energy = range*dEdX + offset + mass;
+    double momentum = std::sqrt(energy*energy - mass*mass);
+    return momentum;
+}
+
+TMatrixD
+CP::TForwardBootstrapTrackFit::EstimateScatter(
+    const CP::TReconNodeContainer& nodes) { 
+    TPrincipal pca(3,"");
+    if (nodes.size()<3) return TMatrixD(3,3);
+    double range = EstimateRange(nodes);
+    CP::TReconNodeContainer::const_iterator last = nodes.begin();
+    for (CP::TReconNodeContainer::const_iterator n = last+1;
+         n != nodes.end(); ++n) { 
+        CP::THandle<CP::TReconCluster> cluster = (*n)->GetObject();
+        CP::THandle<CP::TReconCluster> lastCluster = (*last)->GetObject();
+        while ((cluster->GetPosition().Vect()
+                -lastCluster->GetPosition().Vect()).Mag() > 10*unit::mm
+               && last+1 < n) {
+            ++last;
+            lastCluster = (*last)->GetObject();
+        }
+        if (!cluster) {
+            throw EBootstrapMissingNodeObject();
+        }
+        if (lastCluster) {
+            TVector3 dir = (lastCluster->GetPosition().Vect() 
+                            - cluster->GetPosition().Vect()).Unit();
+            double row[3] = {dir.X(),dir.Y(),dir.Z()};
+            pca.AddRow(row);
+        }
+    }
+    pca.MakePrincipals();
+    double x0[3], p0[3] = {0,0,0};
+    pca.P2X(p0,x0,3);
+    TVector3 v0(x0);
+    double x1[3], p1[3] = {1,0,0};
+    pca.P2X(p1,x1,3);
+    TVector3 v1(x1);
+    v1 = v1 - v0;
+    double x2[3], p2[3] = {0,1,0};
+    pca.P2X(p2,x2,3);
+    TVector3 v2(x2);
+    v2 = v2 - v0;
+    double x3[3], p3[3] = {0,0,1};
+    pca.P2X(p3,x3,3);
+    TVector3 v3(x3);
+    v3 = v3 - v0;
+    
+    TMatrixD scatterMatrix(3,3);
+    for (int r=0; r<3; ++r) {
+        scatterMatrix(r,0) = (((*pca.GetSigmas())(0)/std::sqrt(range))*v1)[r];
+        scatterMatrix(r,1) = (((*pca.GetSigmas())(1)/std::sqrt(range))*v2)[r];
+        scatterMatrix(r,2) = (((*pca.GetSigmas())(2)/std::sqrt(range))*v3)[r];
+    }
+    return scatterMatrix;
+}
+
+CP::THandle<CP::TReconTrack>
+CP::TForwardBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
+
+    TReconNodeContainer& nodes = input->GetNodes();
+    if (nodes.size() < 2) {
+        CaptError("Not enough nodes to fit.");
+        return CP::THandle<CP::TReconTrack>();
+    }
+
+    double range = EstimateRange(nodes);
+    double momentum = EstimateMomentum(nodes);
+    TMatrixD scatterMatrix = EstimateScatter(nodes);
+    
+    CaptLog("Forward Bootstrap " << input->GetUniqueID() 
+            << " w/ " << nodes.size() << " nodes"
+            << " Range: " << unit::AsString(range,"length")
+            << " Momentum: " << unit::AsString(momentum,"momentum"));
+    {
+        TVector3 a1, a2, a3;
+        for (int c=0; c<3; ++c) {
+            a1(c) = scatterMatrix(0,c);
+            a2(c) = scatterMatrix(1,c);
+            a3(c) = scatterMatrix(2,c);
+        }
+        CaptLog("    Scatter"
+                << " " << unit::AsString(a1.Mag(), "angle") << "/sqrt(mm)"
+                << " " << unit::AsString(a2.Mag(), "angle") << "/sqrt(mm)"
+                << " " << unit::AsString(a3.Mag(), "angle") << "/sqrt(mm)");
+    }
+
+    // Define the number of states to use in the particle filter.
+    const int numSamples = fTrials;
+
+    // Define the size of the state.
+    const int stateSize = BTF::kStateSize;
+
+#ifdef EXCLUDE_PRIOR
+    // Exclude the effect of the prior near the ends of the fit.  This is done
+    // by giving it a large variance to reduce the weight of the prior in the
+    // final answer.  This matters when combining the forward and backward
+    // filtering (below).  The prior is estimated from the positions of the
+    // first two nodes in the filtering.
+    const std::size_t excludePrior = 1;
+#else
+    // The prior isn't excluded since it's estimated from the first two nodes
+    // of the filtering.
+    const std::size_t excludePrior = 0;
+#endif
+    
+    // Define the measurement model.  The main purpose of the measurement
+    // model is to calculte the probability of a state (updated as a
+    // prediction for the next measurement) relative to the actual
+    // measurement.
+    BTF::TMeasurementPDF measurementPDF;
+    BFL::MeasurementModel<BTF::ColumnVector, BTF::ColumnVector> 
+        measurementModel(&measurementPDF);
+    BTF::ColumnVector measurement(1);
+
+    // Define the system model.  The system model contains the current PDF for
+    // the track fit parameters that will be updated with new measurement
+    // information.  The system model is initialized using forwardPrior (which
+    // is filled using GeneratePrior) and then is iteratively updated with new
+    // measurement information.
+    BTF::TSystemPDF systemPDF(measurementPDF, momentum, scatterMatrix);
+    BFL::SystemModel<BTF::ColumnVector> systemModel(&systemPDF);
+
+    /////////////////////////////////////////////////////////////////////
+    // Forward filtering.
+    /////////////////////////////////////////////////////////////////////
+    systemPDF.SetBackwardUpdate(false);
+
+    // Calculate the goodness of fit during the filtering.
+    double logLikelihood = 0.0;
+
+    /////////////////////////////////////////////////////////////////////
+    // Generate the prior samples that are used to start the filter.  The
+    // prior samples are based on two nodes and are positioned so that the
+    // firstNode is "upstream" of the otherNode.  Rather than use the first
+    // two nodes in the track, this tries to find a node that is well
+    // separated from the first node so that it gets a better estimate of the
+    // track direction.
+    /////////////////////////////////////////////////////////////////////
+    CP::THandle<CP::TReconNode> firstNode = nodes[0];
+    CP::THandle<CP::TReconNode> otherNode = nodes[1];
+    for (std::size_t i=1; i<nodes.size()/3; ++i) {
+        CP::THandle<CP::TReconCluster> cluster1 = firstNode->GetObject();
+        CP::THandle<CP::TReconCluster> cluster2 = nodes[i]->GetObject();
+        double diff = (cluster1->GetPosition().Vect() 
+                       - cluster2->GetPosition().Vect()).Mag();
+        if (diff > 2*unit::cm) break;
+        otherNode = nodes[i];
+    }
+    std::vector< BFL::Sample<BTF::ColumnVector> > priorSamples(numSamples);
+    BTF::GeneratePrior(priorSamples, firstNode, otherNode);
+    BFL::MCPdf<BTF::ColumnVector> forwardPrior(numSamples,stateSize);
+    forwardPrior.ListOfSamplesSet(priorSamples);
+
+    BFL::BootstrapFilter<BTF::ColumnVector, BTF::ColumnVector> 
+        forwardFilter(&forwardPrior, 0, numSamples/4.0);
+
+    /////////////////////////////////////////////////////////////////////
+    /// Estimate the state at each node.  The temporary values are filled
+    /// directly into the track nodes and will be used later during backward
+    /// filtering
+    /////////////////////////////////////////////////////////////////////
+    for (std::size_t step = 0; step < nodes.size(); ++step) {
+        measurement[0] = step;
+        CP::THandle<CP::TReconNode> node = nodes[step];
+
+        // Get the measurement from the node.
+        CP::THandle<CP::TTrackState> trackState = node->GetState();
+        CP::THandle<CP::TReconCluster> cluster = node->GetObject();
+        measurementPDF.SetMeasurement(cluster);
+
+        // Update the filter
+        forwardFilter.Update(&systemModel, &measurementModel, measurement);
+        
+        // Get the updated state and it's covariance.  
+        BFL::MCPdf<BTF::ColumnVector>* posterior = forwardFilter.PostGet(); 
+
+        // Use the current expectation value and covariance to give temporary
+        // values to the track nodes.
+        BTF::ColumnVector ev = posterior->ExpectedValueGet();
+        MatrixWrapper::SymmetricMatrix cv = posterior->CovarianceGet();
+
+        // Set the values and covariances.
+        trackState->SetEDeposit(cluster->GetEDeposit());
+        trackState->SetEDepositVariance(cluster->GetEDepositVariance());
+        trackState->SetPosition(ev[BTF::kXPos],ev[BTF::kYPos],ev[BTF::kZPos],
+                                cluster->GetPosition().T());
+        trackState->SetDirection(ev[BTF::kXDir],ev[BTF::kYDir],ev[BTF::kZDir]);
+
+        TMatrixD pcov(3,3);
+        for (int i=0; i<3; ++i) {
+            for (int j=0; j<3; ++j) {
+                double v = cv(BTF::kXPos+i+1, BTF::kXPos+j+1);
+                pcov(i,j) = v;
+                v = cv(BTF::kXDir+i+1, BTF::kXDir+j+1);
+                trackState->SetDirectionCovariance(i,j,v);
+            }
+        }
+
+        // Never let the variance be smaller than our resolution.
+        double positionResolution = 1*unit::mm;
+        for (int i=0; i<3; ++i) {
+            pcov(i,i) += positionResolution*positionResolution;
+        }
+
+        while (pcov.Determinant() < 0.0) {
+            double positionResolution = 1*unit::mm;
+            for (int i=0; i<3; ++i) {
+                for (int j=0; j<3; ++j) {
+                    if (i==j) {
+                        pcov(i,i) += 9.0*positionResolution*positionResolution;
+                    }
+                    else {
+                        pcov(i,j) = 0.7*pcov(i,j);
+                    }
+                }
+            }
+        }
+
+        for (int i=0; i<3; ++i) {
+            for (int j=0; j<3; ++j) {
+                trackState->SetPositionCovariance(i,j,pcov(i,j));
+            }
+        }
+        
+        if (step < excludePrior && excludePrior > 0) {
+            double posVariance = 10*unit::cm*(excludePrior-step)/excludePrior;
+            posVariance = posVariance*posVariance;
+            double dirVariance = 1.0*(excludePrior-step)/excludePrior;
+            dirVariance = dirVariance*dirVariance;
+            for (int i=0; i<3; ++i) {
+                double p = trackState->GetPositionCovariance(i,i);
+                p += posVariance;
+                trackState->SetPositionCovariance(i,i,p);
+                double d = trackState->GetDirectionCovariance(i,i);
+                d += dirVariance;
+                trackState->SetDirectionCovariance(i,i,d);
+            }
+        }
+
+        CaptNamedVerbose("BFL","Forward " 
+                         << trackState->GetPosition().Vect()
+                         << " -> " << trackState->GetDirection()
+                         << " diff " 
+                         << (trackState->GetPosition().Vect()
+                             - cluster->GetPosition().Vect()).Mag());
+        
+        double r = measurementPDF.ProbabilityGet(
+            trackState->GetPosition().Vect());
+        r /= measurementPDF.GetConstant();
+        if (r>0) {
+            node->SetQuality(-std::log(r));
+            logLikelihood += std::log(r);
+        }
+    }
+
+    double energyDeposit = 0.0;
+    double energyVariance = 0.0;
+    for (TReconNodeContainer::iterator n = nodes.begin();
+         n != nodes.end(); ++n) {
+        CP::THandle<CP::TTrackState> state = (*n)->GetState();
+        energyDeposit += state->GetEDeposit();
+        energyVariance += state->GetEDepositVariance();
+    }
+
+    // Set the front state of the track.
+    CP::THandle<CP::TTrackState> frontState = input->GetFront();
+    CP::THandle<CP::TTrackState> frontNodeState = nodes.front()->GetState();
+    *frontState = *frontNodeState;
+    frontState->SetEDeposit(energyDeposit);
+    frontState->SetEDepositVariance(energyVariance);
+
+    if (!nodes.front()->GetObject()) {
+        // Make sure there is an object, and there had *better* be one or
+        // something is going horribly wrong.
+        CaptError("Missing object for the front node");
+        throw EBootstrapMissingNodeObject();
+    }
+
+    // Now move the front state upstream to the position of the first hit.
+    // Notice that the front state is not at the same location as the first
+    // node.  
+    TVector3 frontPos = frontNodeState->GetPosition().Vect();
+    TVector3 frontDir = frontNodeState->GetDirection();
+    CP::THandle<CP::THitSelection> frontHits 
+        = nodes.front()->GetObject()->GetHits();
+    if (!frontHits) {
+        // There had also better be hits!
+        CaptError("No hits in object!");
+        abort();
+    }
+    double upstream = 0.0;
+    for (CP::THitSelection::iterator h = frontHits->begin(); 
+         h != frontHits->end(); ++h) {
+        TVector3 diff = (*h)->GetPosition() - frontPos;
+        double dist = diff*frontDir;
+        TVector3 approach = (*h)->GetPosition() - frontPos - dist*frontDir;
+        if (approach.Mag() > 6*unit::mm) continue;
+        upstream = std::min(upstream, dist);
+    }
+    frontPos = frontPos + upstream*frontDir;
+    frontState->SetPosition(frontPos.X(), frontPos.Y(), frontPos.Z(),
+                            frontState->GetPosition().T());
+    TMatrixD frontCov(3,3);
+    for (int i=0; i<3; ++i) {
+        for (int j=0; j<3; ++j) {
+            double v = frontNodeState->GetPositionCovariance(i,j);
+            double d = frontNodeState->GetDirectionCovariance(i,j);
+            v += upstream*upstream*d;
+            frontState->SetPositionCovariance(i,j,v);
+            frontState->SetDirectionCovariance(i,j,d);
+        }
+    }
+    
+    // Set the back state of the track.
+    CP::THandle<CP::TTrackState> backState = input->GetBack();
+    CP::THandle<CP::TTrackState> backNodeState = nodes.back()->GetState();
+    *backState = *backNodeState;
+    backState->SetEDeposit(energyDeposit);
+    backState->SetEDepositVariance(energyVariance);
+
+    if (!nodes.back()->GetObject()) {
+        // Make sure there is an object, and there had *better* be one or
+        // something is going horribly wrong.
+        CaptError("Missing object for the front node");
+        throw EBootstrapMissingNodeObject();
+    }
+
+    // Now move the back state downstream to the position of the last hit.
+    // See the comments for "frontState".
+    TVector3 backPos = backState->GetPosition().Vect();
+    TVector3 backDir = backState->GetDirection();
+    CP::THandle<CP::THitSelection> backHits 
+        = nodes.back()->GetObject()->GetHits();
+    if (!backHits) {
+        // There had also better be hits!
+        CaptError("No hits in object!");
+        abort();
+    }
+    double downstream = 0.0;
+    for (CP::THitSelection::iterator h = backHits->begin(); 
+         h != backHits->end(); ++h) {
+        TVector3 diff = (*h)->GetPosition() - backPos;
+        double dist = diff*backDir;
+        TVector3 approach = (*h)->GetPosition() - backPos - dist*backDir;
+        if (approach.Mag() > 6*unit::mm) continue;
+        downstream = std::max(downstream, diff*backDir);
+    }
+    backPos = backPos + downstream*backDir;
+    backState->SetPosition(backPos.X(), backPos.Y(), backPos.Z(),
+                           backState->GetPosition().T());
+    for (int i=0; i<3; ++i) {
+        for (int j=0; j<3; ++j) {
+            double v = backNodeState->GetPositionCovariance(i,j);
+            double d = backNodeState->GetDirectionCovariance(i,j);
+            v += downstream*downstream*d;
+            backState->SetPositionCovariance(i,j,v);
+            backState->SetDirectionCovariance(i,j,d);
+        }
+    }
+   
+    int trackDOF = 3*nodes.size() - 6;
+    input->SetStatus(TReconBase::kSuccess);
+    input->SetStatus(TReconBase::kRan);
+    input->SetStatus(TReconBase::kStocasticFit);
+    input->SetAlgorithmName("TForwardBootstrapTrackFit");
+    input->SetQuality(-logLikelihood);
+    input->SetNDOF(trackDOF);
+
+    CaptLog("Forward " << input->GetUniqueID() 
+            << " w/ " << nodes.size() << " nodes"
+            << " Chi2 " << -logLikelihood << "/" << trackDOF << " d.o.f.");
+    CaptLog("   Back " << backState->GetPosition().Vect()
+            << " --> " << backState->GetDirection());
+
+    return input;
+}

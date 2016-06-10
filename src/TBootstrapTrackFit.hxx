@@ -20,19 +20,46 @@ namespace CP {
     EXCEPTION(EBootstrapMissingNodeObject,EBootstrapTrackFit);
 
     class TBootstrapTrackFit;
+    class TForwardBootstrapTrackFit;
 };
 
-/// Fit a track using the BFL Bootstrap particle filter algorithm.  This takes
-/// an input track where all of the nodes are filled with objects, and the
-/// nodes are in the correct order.  See the CP::TTrackFitBase class for more
-/// detailed API documentation.  The constructor takes a single argument which
-/// is the number of trials for each iteration.  It has a default value.
+/// Fit a track using the BFL Bootstrap particle filter algorithm with forward
+/// backward filtering.  This uses TForwardBootstrapTrackFit to do the heavy
+/// lifting and then combines a forward filtered track with a backward
+/// filtered track.  This takes an input track where all of the nodes are
+/// filled with objects, and the nodes are in the correct order.  See the
+/// CP::TTrackFitBase class for more detailed API documentation.  The
+/// constructor takes a single argument which is the number of trials for each
+/// iteration.  It has a default value.
 class CP::TBootstrapTrackFit : public CP::TTrackFitBase {
 public:
 
     /// The argument is the number of trials at each iteration.
     explicit TBootstrapTrackFit(int trials=500);
     virtual ~TBootstrapTrackFit();
+
+    /// Fit the skeleton of a track using a bootstrap particle filter.  This
+    /// is strictly speaking a "smoother" since it will using forward/backward
+    /// smoothing.
+    virtual CP::THandle<CP::TReconTrack>
+    Apply(CP::THandle<CP::TReconTrack>& input);
+
+    /// The number of trials for each iteration of the fitter.
+    int fTrials;
+};
+
+/// Fit a track using the BFL Bootstrap particle filter algorithm in the
+/// forward direction. This takes an input track where all of the nodes are
+/// filled with objects, and the nodes are in the correct order.  See the
+/// CP::TTrackFitBase class for more detailed API documentation.  The
+/// constructor takes a single argument which is the number of trials for each
+/// iteration.  It has a default value.
+class CP::TForwardBootstrapTrackFit : public CP::TTrackFitBase {
+public:
+
+    /// The argument is the number of trials at each iteration.
+    explicit TForwardBootstrapTrackFit(int trials=500);
+    virtual ~TForwardBootstrapTrackFit();
 
     /// Fit the skeleton of a track using a bootstrap particle filter.  This
     /// is strictly speaking a "smoother" since it will using forward/backward
