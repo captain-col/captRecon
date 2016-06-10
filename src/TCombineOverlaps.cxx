@@ -96,6 +96,10 @@ CP::TCombineOverlaps::Process(const CP::TAlgorithmResult& input,
     CP::THandle<CP::TAlgorithmResult> result = CreateResult();
     std::unique_ptr<CP::TReconObjectContainer> 
         final(new CP::TReconObjectContainer("final"));
+    std::unique_ptr<CP::TReconObjectContainer> 
+        forward(new CP::TReconObjectContainer("forward"));
+    std::unique_ptr<CP::TReconObjectContainer> 
+        backward(new CP::TReconObjectContainer("backward"));
 
     // Create a list to keep objects.  When the list is empty, all the objects
     // that need to be merge have been merge.  This is a pseudo stack where
@@ -262,9 +266,20 @@ CP::TCombineOverlaps::Process(const CP::TAlgorithmResult& input,
 
             final->push_back(object1);
         }
-
     }
 
+    for (CP::TReconObjectContainer::iterator o = final->begin();
+         o != final->end(); ++o) {
+        CP::THandle<CP::TReconObjectContainer> filtered
+            = (*o)->Get<CP::TReconObjectContainer>("filtered");
+        if (!filtered) continue;
+        if (filtered->size() != 2) continue;
+        forward->push_back(filtered->front());
+        backward->push_back(filtered->back());
+    }
+ 
+    result->AddResultsContainer(forward.release());
+    result->AddResultsContainer(backward.release());
     result->AddResultsContainer(final.release());
 
     return result;
