@@ -111,7 +111,9 @@ CP::TClusterMerge::Process(const CP::TAlgorithmResult& input,
                                  work->GetHits()->end(),
                                  axis,
                                  minLength,maxLength,
-                                 minSize, maxSize);
+                                 minSize, maxSize,
+                                 false);
+            
             if (clusters) {
                 for (CP::TReconObjectContainer::iterator o = clusters->begin();
                      o != clusters->end(); ++o) {

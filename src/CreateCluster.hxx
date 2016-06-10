@@ -39,7 +39,7 @@ namespace CP {
     template<typename hitIterator>
     CP::THandle<CP::TReconCluster> 
     CreateCluster(const char* name, hitIterator begin, hitIterator end,
-                  bool recalculateUncertainty = true);
+                  bool recalculateUncertainty = false);
 };
 
 //////////////////////////////////////////////////////////////////
@@ -150,15 +150,12 @@ CP::CreateCluster(const char* name, hitIterator begin, hitIterator end,
         << " U: " << unit::AsString(uCharge, 
                                     std::sqrt(uVariance), "charge"));
 #endif
-    
+
     if (recalculateUncertainty) {
         // Adjust the position covariance to say that the position uncertainty
         // is not the weighted average position of the hits, but the moments
-        // of the charge distribution.  Empirically, this seems to not give
-        // the right chi-squared values for track fits, but gives a better
-        // estimate in a shower where the clusters are not done by time
-        // sliced.  The default value is set above in the declaration of the
-        // CreateCluster template.
+        // of the charge distribution.  The default value is set above in the
+        // declaration of the CreateCluster template.
         const CP::TReconCluster::MomentMatrix& moments 
             = cluster->GetMoments();
         CP::THandle<CP::TClusterState> covState = cluster->GetState();

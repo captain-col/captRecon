@@ -29,7 +29,8 @@ namespace CP {
     CreateClusters(const char* name, hitIterator begin, hitIterator end,
                    const TVector3& approxDir,
                    double minLength, double maxLength,
-                   double minSize, double maxSize);
+                   double minSize, double maxSize,
+                   bool recalculate);
 
     /// Create a CP::THandle<TReconObjectContainer> that contains clusters
     /// created from the input hits optimized for a shower.
@@ -91,7 +92,8 @@ CP::THandle<CP::TReconObjectContainer>
 CP::CreateClusters(const char* name, hitIterator begin, hitIterator end,
                    const TVector3& approxDir,
                    const double minLength, const double maxLength, 
-                   const int minSize, const int maxSize) {
+                   const int minSize, const int maxSize,
+                   bool recalculate) {
     
     TVector3 dir = approxDir;
     dir = dir.Unit();
@@ -234,7 +236,7 @@ CP::CreateClusters(const char* name, hitIterator begin, hitIterator end,
     sBegin = splits.begin();
     sEnd = sBegin; ++sEnd;
     while (sEnd != splits.end()) {
-        output->push_back(CreateCluster(name,*sBegin,*sEnd,true));
+        output->push_back(CreateCluster(name,*sBegin,*sEnd, recalculate));
         sBegin = sEnd++;
     }
 
@@ -252,7 +254,7 @@ CP::CreateShowerClusters(const char* name, hitIterator begin, hitIterator end,
     int maxSize = (end-begin)/5 + 1;
     return CreateClusters(name,begin,end,approxDir,
                           minLength,maxLength,
-                          minSize, maxSize);
+                          minSize, maxSize, true);
 }
 
 
@@ -274,7 +276,7 @@ CP::CreateTrackClusters(const char* name, hitIterator begin, hitIterator end,
     
     return CreateClusters(name,begin,end,approxDir,
                           minLength,maxLength,
-                          minSize, maxSize);
+                          minSize, maxSize, false);
 }
 
 
