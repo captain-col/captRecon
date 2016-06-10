@@ -22,6 +22,9 @@
 #include <TDecompChol.h>
 #include <TPrincipal.h>
 
+#include <map>
+#include <memory>
+
 /// A "local" name space for the Bootstrap Track Fitter (BTF).  This is the
 /// name space for all of the user classes needed to interface to the BFL.
 /// These classes are only used in the TBootstrapTrackFit.cxx file.  This
@@ -825,8 +828,29 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
             backState->SetDirectionCovariance(i,j,d);
         }
     }
-   
-    int trackDOF = 3*nodes.size() - 6;
+
+    /// Estimate the number of degrees of freedom.
+    typedef std::map< CP::THandle<CP::THit>, double > ContribMap;
+    ContribMap contrib;
+    for (CP::TReconNodeContainer::iterator n = nodes.begin();
+         n != nodes.end(); ++n) {
+        CP::THandle<CP::TReconBase> object = (*n)->GetObject();
+        for (CP::THitSelection::iterator h = object->GetHits()->begin();
+             h != object->GetHits()->end(); ++h) {
+            for (int c = 0; c < (*h)->GetConstituentCount(); ++c) {
+                contrib[(*h)->GetConstituent(c)] += 1.0;
+            }
+        }
+    }
+    double oversample = 0.0;
+    double sample = 0.0;
+    for (ContribMap::iterator c = contrib.begin(); c != contrib.end(); ++c) {
+        sample += 1.0;
+        oversample += c->second;
+    }
+    oversample /= sample;
+    double trackDOF = std::max((3*nodes.size())/oversample - 6.0, 0.0);
+    
     input->SetStatus(TReconBase::kSuccess);
     input->SetStatus(TReconBase::kRan);
     input->SetStatus(TReconBase::kStocasticFit);
@@ -1244,7 +1268,28 @@ CP::TForwardBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         }
     }
    
-    int trackDOF = 3*nodes.size() - 6;
+    /// Estimate the number of degrees of freedom.
+    typedef std::map< CP::THandle<CP::THit>, double > ContribMap;
+    ContribMap contrib;
+    for (CP::TReconNodeContainer::iterator n = nodes.begin();
+         n != nodes.end(); ++n) {
+        CP::THandle<CP::TReconBase> object = (*n)->GetObject();
+        for (CP::THitSelection::iterator h = object->GetHits()->begin();
+             h != object->GetHits()->end(); ++h) {
+            for (int c = 0; c < (*h)->GetConstituentCount(); ++c) {
+                contrib[(*h)->GetConstituent(c)] += 1.0;
+            }
+        }
+    }
+    double oversample = 0.0;
+    double sample = 0.0;
+    for (ContribMap::iterator c = contrib.begin(); c != contrib.end(); ++c) {
+        sample += 1.0;
+        oversample += c->second;
+    }
+    oversample /= sample;
+    double trackDOF = std::max((3*nodes.size())/oversample - 6.0, 0.0);
+
     input->SetStatus(TReconBase::kSuccess);
     input->SetStatus(TReconBase::kRan);
     input->SetStatus(TReconBase::kStocasticFit);
