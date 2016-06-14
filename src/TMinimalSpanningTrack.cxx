@@ -92,6 +92,8 @@ namespace MST {
 CP::TMinimalSpanningTrack::TMinimalSpanningTrack()
     : TAlgorithm("TMinimalSpanningTrack", 
                  "Find Tracks Using on a Minimal Spanning Tree") {
+    fDistCut = 300*unit::mm;
+    fHitDistCut = 100*unit::mm;
 }
 
 CP::TMinimalSpanningTrack::~TMinimalSpanningTrack() { }
@@ -158,8 +160,6 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
         // total number of edges.  The hit distance cut is the actual closest
         // approach between the hits in the clusters.  These should be made
         // into parameters.
-        double fDistCut = 300*unit::mm;
-        double fHitDistCut = 100*unit::mm;
         for (boost::tie(vi,vi_end) = boost::vertices(g); vi != vi_end; ++vi) {
             MST::vertex_iterator_t vj, vj_end;
             for (vj = vi+1; vj != vi_end; ++vj) {
@@ -169,6 +169,8 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
                 double hitDist = CP::ClusterVicinity(*g[*vi].cluster,
                                                      *g[*vj].cluster);
                 if (hitDist > fHitDistCut) continue;
+                // The edge is going to be included, so do the (slow) cluster
+                // distance calculation.
                 hitDist = CP::ClusterDistance(*g[*vi].cluster,
                                               *g[*vj].cluster);
                 MST::edge_t edge = boost::add_edge(*vi, *vj, g).first;
@@ -188,7 +190,7 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
         // vertices.  When there are to many vertices, use a randomly chosen
         // vertex (assuming it will be relatively central to the position
         // distribution).  The actual choice of "most central" is not
-        // critical.
+        // critical, but there will be a track split at the root.
         std::size_t mostCentral = gRandom->Integer(boost::num_vertices(g));
         double maxCentrality = -1;
         if (boost::num_vertices(g)*boost::num_edges(g) < 1E+7) {
@@ -203,8 +205,9 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
         }
         bestRoot = mostCentral;
 #else
-        // Find the most extreme vertex.  This is a vertex that will almost
-        // certainly be at the end of one or another track.
+        // Find the most extreme vertexto be used as the root of the tree.
+        // This is a vertex that will almost certainly be at the end of one or
+        // another track.
         std::size_t extremeVertex = 0;
         CP::THandle<CP::TReconCluster> extremeCluster;
         for (boost::tie(vi,vi_end) = boost::vertices(g); vi != vi_end; ++vi) {
@@ -264,7 +267,7 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
         std::sort(terminals.begin(), terminals.end());
 
         // Build tracks starting from the terminal vertex furthest from the
-        // root.
+        // root. 
         for (std::vector<termDist>::reverse_iterator t = terminals.rbegin();
              t != terminals.rend(); ++t) {
             std::vector< CP::THandle<CP::TReconBase> > nodes;
@@ -291,7 +294,6 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
                                   nodes.begin(), nodes.end());
                 final->push_back(track);
             }
-
         }
 
         // Move any remaining vertices out of the graph into
