@@ -3,6 +3,10 @@
 
 #include <CGAL/Search_traits.h>
 #include <CGAL/Orthogonal_incremental_neighbor_search.h>
+
+#include <TMatrixD.h>
+#include <TVector3.h>
+
 namespace CP {
     template<typename ValueType> class TIterativeNeighbors;
 }
@@ -154,15 +158,38 @@ public:
 
     /// Create an empty set of points that will be filled using the AddPoint()
     /// method.
-    TIterativeNeighbors() : fNeighbors(NULL) {}
+    TIterativeNeighbors() : fNeighbors(NULL), fMetric(3,3) {
+        for (int i=0; i<3; ++i) {
+            for (int j=0; j<3; ++j) {
+                fMetric(i,j) = (i==j) ? 1.0: 0.0;
+            }
+        }
+    }
 
+    /// Create an empty set of points that will be filled using the AddPoint()
+    /// method.
+    TIterativeNeighbors(const TVector3& e1,
+                        const TVector3& e2,                        
+                        const TVector3& e3)
+        : fNeighbors(NULL), fMetric(3,3) {
+        for (int i=0; i<3; ++i) {
+            fMetric(0,i) = e1(i);
+            fMetric(1,i) = e2(i);
+            fMetric(2,i) = e3(i);
+        }
+        fMetric.Invert();
+    }
+    
     /// Add a new point to the neighbor search.  The first argument is the
     /// value associated with the point, and the remaining three are the
     /// cartesian coordinates of the point.  The cartesian coordinates are
     /// used to define the neighbors of this point.
     virtual void AddPoint(const ValueType& v, 
                           double x, double y, double z) {
-        fNeighborTree.insert(Point(v,x,y,z));
+        double xp = fMetric(0,0)*x + fMetric(0,1)*y + fMetric(0,2)*z;
+        double yp = fMetric(1,0)*x + fMetric(1,1)*y + fMetric(1,2)*z;
+        double zp = fMetric(2,0)*x + fMetric(2,1)*y + fMetric(2,2)*z;
+        fNeighborTree.insert(Point(v,xp,yp,zp));
     }
 
     /// Get the neighbors.  This returns the neighbors in order of closest to
@@ -185,7 +212,10 @@ public:
     /// \endcode
     virtual iterator begin(double x, double y, double z) {
         if (fNeighbors) delete fNeighbors;
-        fNeighbors = new Neighbors(fNeighborTree, Point(x,y,z));
+        double xp = fMetric(0,0)*x + fMetric(0,1)*y + fMetric(0,2)*z;
+        double yp = fMetric(1,0)*x + fMetric(1,1)*y + fMetric(1,2)*z;
+        double zp = fMetric(2,0)*x + fMetric(2,1)*y + fMetric(2,2)*z;
+        fNeighbors = new Neighbors(fNeighborTree, Point(xp,yp,zp));
         iterator it(fNeighbors->begin());
         fCurrentEnd = iterator(fNeighbors->end());
         return it;
@@ -218,5 +248,11 @@ private:
     /// The current end of the neighbor points.  This is actually one past the
     /// furthest point.  This is set by the Neighbors method.
     iterator fCurrentEnd;
+
+    /// A matrix to transform from the external coordinate system to an
+    /// internal coordinate system that is used to calculate the distance
+    /// between points.  The distance is euclidean in the transformed
+    /// coordinate system.
+    TMatrixD fMetric;
 };
 #endif

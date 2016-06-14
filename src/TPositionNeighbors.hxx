@@ -44,6 +44,20 @@ public:
         }
     }
 
+    /// A templated constructor to take iterators to the PositionHandle
+    /// and add them the neighbor tree.
+    template<typename HandleIterator>
+    TPositionNeighbors(HandleIterator begin, HandleIterator end,
+                       const TVector3& e1,
+                       const TVector3& e2,
+                       const TVector3& e3)
+        : CP::TIterativeNeighbors< PositionHandle >(e1,e2,e3) {
+        while (begin != end) {
+            AddHandle(*begin);
+            ++begin;
+        }
+    }
+
     /// Add a specialization of TIterativeNeighbors::AddPoint() to make it
     /// easy to add a handle.  The handle will usually be a THandle<THit>, or
     /// a THandle<TReconCluster>

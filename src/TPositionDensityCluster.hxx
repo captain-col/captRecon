@@ -5,6 +5,8 @@
 
 #include "TCaptLog.hxx"
 
+#include <TVector3.h>
+
 #include <vector>
 #include <list>
 #include <functional>
@@ -69,6 +71,13 @@ public:
     const Points& GetCluster(std::size_t i) const {
         if (fClusters.size() <= i) return fRemaining;
         return fClusters.at(i); 
+    }
+    
+    /// Set the basis for this clustering.
+    void SetBasis(const TVector3& e1, const TVector3& e2, const TVector3& e3) {
+        fE1 = e1;
+        fE2 = e2;
+        fE3 = e3;
     }
     
 protected:
@@ -158,6 +167,11 @@ private:
             return lhs.size() > rhs.size();
         }
     };
+
+    // The basis vectors for the clustering.
+    TVector3 fE1;
+    TVector3 fE2;
+    TVector3 fE3;
 };
 
 ////////////////////////////////////////////////////////////////
@@ -167,7 +181,8 @@ private:
 template <class PositionHandle>
 CP::TPositionDensityCluster<PositionHandle>::TPositionDensityCluster(
     std::size_t MinPts, double maxDist)  
-   : fMinPoints(MinPts), fMaxDist(maxDist) { }
+    : fMinPoints(MinPts), fMaxDist(maxDist),
+      fE1(1,0,0), fE2(0,1,0), fE3(0,0,1) { }
 
 template <class PositionHandle>
 void CP::TPositionDensityCluster<PositionHandle>::MakeGreyBlack() {
@@ -194,7 +209,8 @@ void CP::TPositionDensityCluster<PositionHandle>::Cluster(
     fClusters.clear();
 
     // Insert the input into the tree.
-    Neighbors neighborTree;
+    Neighbors neighborTree(fE1,fE2,fE3);
+    
     int index = 0;
     for (InputIterator handle = begin; handle != end; ++handle) {
         fEntries.push_back(NeighborEntry(index++,*handle));
