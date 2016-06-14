@@ -9,7 +9,8 @@ namespace CP {
 
 /// This takes a algorithm result with 3D hits and then splits the hits into
 /// clusters in "Z".  This means that 3D hits which are part of the same XY
-/// plane confusion region are all in the same cluster.  This simplifies the
+/// plane confusion region are all in the same cluster.  The hits in the "Z"
+/// slice are then clustered using the dbscan algorithm.  This simplifies the
 /// infirmation that needs to be looked at for tracking.
 class CP::TClusterSlice
     : public CP::TAlgorithm {
@@ -31,37 +32,38 @@ private:
     CP::THandle<CP::TReconObjectContainer> 
     MakeSlices(CP::THandle<CP::THitSelection> input);
 
-    /// The minimum number of neighbors within the maximum distance of the
-    /// current point to consider the current point to be in a high density
-    /// region.
-    int fMinPoints;
-
-    /// The radius over which points are counted to determine if a point is in
-    /// a high density region.
-    int fMaxDist;
-
-    /// The minimum number of hits before a cluster is broken up.  This keeps
-    /// "micro" clusters from being split up since they will be best handled
-    /// using the cluster directly.
+    /// The minimum number of hits in the input in the input object for the
+    /// hits to be sliced into clusters.  This keeps "micro" events from
+    /// being split up since they will be best handled using the cluster
+    /// directly.  This is set using captRecon.clusterSlice.minHits.
     unsigned int fMinHits;
 
+    /// The minimum number hits in any given slice and the extent of the slice
+    /// will continue to grow until this criteria is met.  This is set using
+    /// captRecon.clusterSlice.minPoints
+    int fMinPoints;
+
     /// A minimum distance to be made into a slice.  This prevents
-    /// ridiculously small slices in a very big event.
+    /// ridiculously small slices in a very big event.  It is set using
+    /// captRecon.clusterSlice.minStep.
     double fMinStep;
 
-    /// The splitting distance in Z.
+    /// The target thickness in Z for the slices.  The actual thickness is
+    /// then calculated to have an integer number of slices.  This is set
+    /// using captRecon.clusterSlice.clusterStep.
     double fClusterStep;
 
     /// The splitting distance in X/Y.  This is used to define the DBScan
-    /// metric.
+    /// metric used to separate a slice into localized clusters.  This is set
+    /// captRecon.clusterSlice.clusterExtent.
     double fClusterExtent;
 
-    /// The required amount of charge to be in any cluster.  This prevents
-    /// really small clusters from being formed.
-    double fClusterCharge;
-    
     /// The scaling factor for the cluster growth.
     double fClusterGrowth;
     
+    /// The required amount of charge to be in any cluster.  This prevents
+    /// really small clusters from being formed.  This is not parameterized,
+    /// since it sets a very low floor on the cluster size.
+    double fClusterCharge;
 };
 #endif

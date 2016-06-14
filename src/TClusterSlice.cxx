@@ -78,10 +78,15 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
     typedef CP::TPositionDensityCluster<CP::THandle<CP::THit> > 
         ClusterAlgorithm;
 
+// #define USE_SLICE_MINSIZE
+#ifdef USE_SLICE_MINSIZE
     double eventScale = std::log(1.0*hits->size()+1.0)/std::log(fClusterGrowth);
     int minSize = eventScale;
     minSize = std::max(1,minSize);
-        
+#else
+    int minSize = 1;
+#endif
+    
     int trials = 0;
     CP::THitSelection::iterator curr = hits->begin();
     CP::THitSelection::iterator end = hits->end();
@@ -133,15 +138,9 @@ CP::TClusterSlice::MakeSlices(CP::THandle<CP::THitSelection> inputHits) {
         // The hits between first and curr should be run through the density
         // cluster again since it's very likely that the hits are disjoint in
         // the Z slice.
-// #define USE_SLICE_MINSIZE
-#ifdef USE_SLICE_MINSIZE
         std::unique_ptr<ClusterAlgorithm> 
-            clusterAlgorithm(new ClusterAlgorithm((int) minSize,
+            clusterAlgorithm(new ClusterAlgorithm(minSize,
                                                   fClusterExtent));
-#else
-        std::unique_ptr<ClusterAlgorithm> 
-            clusterAlgorithm(new ClusterAlgorithm(1,fClusterExtent));
-#endif
         clusterAlgorithm->Cluster(first,curr);
         int nClusters = clusterAlgorithm->GetClusterCount();
         CaptNamedInfo("TClusterSlice",
