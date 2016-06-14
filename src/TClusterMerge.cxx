@@ -2,7 +2,6 @@
 #include "CreateCluster.hxx"
 #include "CreateClusters.hxx"
 #include "ClusterDistance.hxx"
-#include "TPositionNeighbors.hxx"
 #include "TPositionDensityCluster.hxx"
 
 #include <THandle.hxx>
@@ -20,6 +19,13 @@
 CP::TClusterMerge::TClusterMerge()
     : TAlgorithm("TClusterMerge", 
                  "Merge clusters that are incorrectly split") {
+    fMinimumClusterSize = 15;
+    fClusterSizeFactor = 2.0;
+    fClusterOverlap = 0.1;
+    fMaximumWidthFraction = 0.25;
+    fMinimumLength = 25*unit::mm;
+    fClusterExtent = 15*unit::mm;
+    fTimeMetric = 0.3;
 }
 
 CP::TClusterMerge::~TClusterMerge() { }
@@ -93,10 +99,14 @@ CP::TClusterMerge::Process(const CP::TAlgorithmResult& input,
         // Check if the merged cluster should be split along the long axis.
         // If it should, the split and save the clusters, otherwise, just save
         // the cluster in final.
-        TVector3 axis = work->GetLongAxis();
+        TVector3 axis = 2.0*work->GetLongAxis();
         double width = work->GetMajorAxis().Mag();
-        if (width < 0.5*axis.Mag() && axis.Mag() > 15*unit::mm) {
+        if (width < fMaximumWidthFraction*axis.Mag()
+            && axis.Mag() > fMinimumLength) {
+            // Split the cluster into sub clusters with at least minLength
+            // along the long axis.
             double minLength = width;
+            // Split with no more than maxLength along the long axis.
             double maxLength = axis.Mag();
             maxLength = std::max(2.0*minLength,maxLength/100.0);
             
@@ -122,17 +132,17 @@ CP::TClusterMerge::Process(const CP::TAlgorithmResult& input,
                         continue;
                     }
                     // Before saving the new split clusters, we need to see if
-                    // they should be resplit.  This handles some "odd" V
-                    // topologies where two branches can be merged, but are
-                    // clearly split away from the "V".
+                    // they should be resplit.  This handles V topologies
+                    // where two branches are be merged, but are clearly split
+                    // away from the "V".
                     typedef CP::TPositionDensityCluster<CP::THandle<CP::THit> > 
                         ClusterAlgorithm;
-                    // The hits between first and curr should be run through
-                    // the density cluster again since it's very likely that
-                    // the hits are disjoint in the Z slice.
                     std::unique_ptr<ClusterAlgorithm> 
-                        clusterAlgorithm(new ClusterAlgorithm(1,
-                                                              7*unit::mm));
+                        clusterAlgorithm(
+                            new ClusterAlgorithm(1,fClusterExtent));
+                    clusterAlgorithm->SetBasis(TVector3(1,0,0),
+                                               TVector3(0,1,0),
+                                               TVector3(0,0,fTimeMetric));
                     clusterAlgorithm->Cluster((*o)->GetHits()->begin(),
                                               (*o)->GetHits()->end());
                     int nClusters = clusterAlgorithm->GetClusterCount();
@@ -180,42 +190,60 @@ bool CP::TClusterMerge::OverlappingClusters(
     CP::TClusterMerge::Neighbors& neighbors,
     const CP::THandle<CP::TReconCluster>& cluster1,
     const CP::THandle<CP::TReconCluster>& cluster2) {
+
+    // Check if the clusters are close together in Z.
     double dZ = cluster1->GetPosition().Z() - cluster2->GetPosition().Z();
     const double vicinity = 100*unit::mm;
-    // Check if the clusters are close together.
     if (std::abs(dZ) > vicinity) return false;
+
     // Check that at least one of the clusters is large.
-    const std::size_t minSize = 15; 
-    if (cluster1->GetHits()->size()<minSize
-        && cluster2->GetHits()->size()<minSize) {
+    if (cluster1->GetHits()->size() < (std::size_t) fMinimumClusterSize
+        && cluster2->GetHits()->size() < (std::size_t) fMinimumClusterSize) {
         return false;
     }
-    double overlaps = 0;
 
+    double overlaps = 0;
     for (CP::THitSelection::iterator c2 = cluster2->GetHits()->begin();
          c2 != cluster2->GetHits()->end(); ++c2) {
+
+        // Find the closest neighbor in the other cluster.
         Neighbors::iterator neighbor = neighbors.begin((*c2));
         if (neighbor == neighbors.end()) continue;
+
+        // Only look at hits on same triplet of wires.
         double dX = std::abs((*c2)->GetPosition().X()
                      -neighbor->first->GetPosition().X());
-        if (dX > 1*unit::mm) continue;
+        if (dX > 1*unit::mm) continue; 
         double dY = std::abs((*c2)->GetPosition().Y()
                      -neighbor->first->GetPosition().Y());
         if (dY > 1*unit::mm) continue;
-        double dZ = std::abs((*c2)->GetPosition().Z()
-                            -neighbor->first->GetPosition().Z());
+
+        // Find the sizes of the two hits.  If the separating is less than
+        // this, they are overlapping.
         double v2 = (*c2)->GetUncertainty().Z();
         double v1 = neighbor->first->GetUncertainty().Z();
-        const double zOverlap = 2.0;
-        double v = std::max(zOverlap*std::abs(v1)+zOverlap*std::abs(v2),3.0);
+        double v = fClusterSizeFactor*(std::abs(v1)+std::abs(v2));
+
+        // The hit size is always bigger than 1.5*mm (total of 3 mm for two
+        // hits) since that the resolution scale of our detectors.
+        v = std::max(v,3.0*unit::mm);
+
+        // Find the distance between the hits in the Z direction.
+        double dZ = std::abs((*c2)->GetPosition().Z()
+                            -neighbor->first->GetPosition().Z());
         if (dZ > v) continue;
+        
+        // We have an overlap.
         overlaps += 1.0;
+
+        // If we have more than 30 overlaps, then the two clusters should be
+        // combined.  This speeds things up.
         if (overlaps > 30) return true;
+
         double r1 = overlaps/cluster1->GetHits()->size();
         double r2 = overlaps/cluster2->GetHits()->size();
-        const double minOverlap = 0.1;
-        if (r1 > minOverlap) return true;
-        if (r2 > minOverlap) return true;
+        if (r1 > fClusterOverlap) return true;
+        if (r2 > fClusterOverlap) return true;
     }
     
     return false;
