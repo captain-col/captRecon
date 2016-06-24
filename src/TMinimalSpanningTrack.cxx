@@ -36,8 +36,12 @@ namespace MST {
         int parent;
         /// This will be filled with the distance to the parent.
         double distance;
-        /// The total distance to the root.
+        /// The total distance along the tree back to the root.
         double rootDistance;
+        /// The charge for the vertex.
+        double charge;
+        /// The total charge pass through along the tree back to the root.
+        double rootCharge;
         /// This is the number of steps from the root.
         int steps;
         /// This is the number of children for this vertex.
@@ -147,10 +151,13 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
         for (boost::tie(vi,vi_end) = boost::vertices(g); 
              vi != vi_end; ++vi) {
             std::size_t index = *vi;
-            g[*vi].cluster = remainingClusters[index];
+            CP::THandle<CP::TReconCluster> cluster = remainingClusters[index];
+            g[*vi].cluster = cluster;
             g[*vi].parent = -1;
             g[*vi].distance = 0;
             g[*vi].rootDistance = 0;
+            g[*vi].charge = cluster->GetEDeposit();
+            g[*vi].rootCharge = 0;
             g[*vi].steps = 0;
             g[*vi].children = 0;
             g[*vi].marked = false;
@@ -240,19 +247,19 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
 
         // Find the number of children, the number of steps to the root, the
         // distance to root, and the parent for each vertex.
-        double maxDistance = 0.0;
         for (std::size_t i = 0; i != p.size(); ++i) {
             if (p[i] == i && g[i].distance>0) continue;
             g[i].parent = p[i];
             ++g[p[i]].children;
             g[i].rootDistance = g[i].distance;
+            g[i].rootCharge = g[i].charge;
             std::size_t j = i;
             while (j != p[j]) {
                 g[i].rootDistance += g[p[j]].distance;
+                g[i].rootCharge += g[p[j]].charge;
                 ++g[i].steps;
                 j = p[j];
             }
-            maxDistance = std::max(maxDistance, g[i].rootDistance);
         }
 
         // Find the terminal vertices
@@ -262,7 +269,18 @@ CP::TMinimalSpanningTrack::Process(const CP::TAlgorithmResult& input,
         for (boost::tie(vi,vi_end) = boost::vertices(g); vi != vi_end; ++vi) {
             if (g[*vi].parent < 0) continue;
             if (g[*vi].children != 0) continue;
-            terminals.push_back(std::make_pair(g[*vi].rootDistance, *vi));
+#define USE_DISTANCE
+#ifdef USE_DISTANCE
+            double distance = (g[bestRoot].cluster->GetPosition().Vect()
+                - g[*vi].cluster->GetPosition().Vect()).Mag();
+#else
+#ifdef USE_ROOTDISTANCE
+            double distance = g[*vi].rootDistance;
+#else
+            double distance = g[*vi].rootCharge;
+#endif
+#endif
+            terminals.push_back(std::make_pair(distance, *vi));
         }
         std::sort(terminals.begin(), terminals.end());
 
