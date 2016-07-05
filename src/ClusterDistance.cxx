@@ -14,11 +14,10 @@ double CP::ClusterDistance(const CP::TReconBase& a,
                            const int nDists) {
     CP::THandle<CP::THitSelection> aHits = a.GetHits();
     CP::THandle<CP::THitSelection> bHits = b.GetHits();
-    double closeDistances[nDists] = {1000*unit::kilometer,
-                                        1000*unit::kilometer,
-                                        1000*unit::kilometer,
-                                        1000*unit::kilometer,
-                                        1000*unit::kilometer};
+    double closeDistances[nDists];
+
+    for (int i=0; i<nDists; ++i) closeDistances[i] = 1000*unit::kilometer;
+    
     for (CP::THitSelection::iterator j = aHits->begin(); 
          j != aHits->end(); ++j) {
         for (CP::THitSelection::iterator k = bHits->begin(); 
