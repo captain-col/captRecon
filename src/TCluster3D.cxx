@@ -918,7 +918,7 @@ CP::TCluster3D::Process(const CP::TAlgorithmResult& wires,
         }
     }
 
-    int iterations = 15 + 100000/writableHits.size();
+    int iterations = 15 + 100000/(writableHits.size()+1);
     iterations = std::min(iterations,5000);
     CaptNamedLog("Cluster","Distribute charge with " <<
                  iterations <<" iterations");
