@@ -179,6 +179,7 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
     TVector3 pos(state[BTF::kXPos], state[BTF::kYPos], state[BTF::kZPos]);
     TVector3 dir(state[BTF::kXDir], state[BTF::kYDir], state[BTF::kZDir]);
     TVector3 origPos = pos;
+    TVector3 measPos = fMeasurement.GetMeasurement()->GetPosition().Vect();
     
     for (int i=0; i<3; ++i) {
         if (!std::isfinite(pos[i])) {
@@ -201,7 +202,7 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
     
     // Make a guess at the distance to the closest approach to the next
     // measurement.  This is used to calculate the scattering.
-    TVector3 diff1 = fMeasurement.GetMeasurement()->GetPosition().Vect() - pos;
+    TVector3 diff1 = measPos - pos;
     double dist1 = std::abs(diff1*dir);
 
     // Find the amount of scattering. This can be found based on the
@@ -265,7 +266,7 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
     // Find the distance to the closest approach to the next measurement after
     // the scattering has been taken into account.  This is used to update the
     // final position.
-    TVector3 diff2 = fMeasurement.GetMeasurement()->GetPosition().Vect() - pos;
+    TVector3 diff2 = measPos - pos;
     double dist2 = diff2*dir;
 
     // If the direction is reversed (i.e. a backward step), keep stepping in
@@ -275,7 +276,7 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
         || (dist2 > 0 && fBackwardUpdate)) {
         CaptWarn("Reversed @ " 
                 << " " << pos
-                << "-->" <<fMeasurement.GetMeasurement()->GetPosition().Vect());
+                << "-->" << measPos);
         // Update the copy of the old state with the new sample state (saves
         // creating a new copy).
         const double stepDist = 1*unit::mm;
@@ -313,7 +314,8 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
     /// kinkProbability fraction of the samples will be adjusted to be inside
     /// the cluster.
     double prob = fMeasurement.ProbabilityGet(pos);
-    prob /= fMeasurement.GetConstant();
+    double probNorm = fMeasurement.ProbabilityGet(measPos);
+    prob /= probNorm;
     // No big fluctuations...  This should be set according to the number of
     // samples at each step.  The default is a few hundred, so set this based
     // on that assumption.  This is set so that about 0.5% of the time, a
@@ -324,10 +326,9 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
     // fraction of the points with low probability.
     const double kinkProbability = 0.2;
     if (prob < probThreshold && gRandom->Uniform() < kinkProbability) {
-        TVector3 meas = fMeasurement.GetMeasurement()->GetPosition().Vect();
         int throttle = 100;
         while (prob < probThreshold && 0 < throttle--) {
-            pos = meas;
+            pos = measPos;
             for (int i=0; i<3; ++i) {
                 double s
                     = fMeasurement.GetMeasurement()->GetPositionVariance()[i];
@@ -336,11 +337,11 @@ bool BTF::TSystemPDF::SampleFrom(BFL::Sample<ColumnVector>& oneSample,
                 pos[i] += gRandom->Gaus(0.0, s);
             }
             prob = fMeasurement.ProbabilityGet(pos);
-            prob /= fMeasurement.GetConstant();
+            prob /= probNorm;
         }
         dir = (pos-origPos).Unit();
         if (fBackwardUpdate) dir = -dir;
-        diff2 = fMeasurement.GetMeasurement()->GetPosition().Vect() - pos;
+        diff2 = measPos - pos;
         dist2 = diff2*dir;
         pos = pos + dist2*dir;
     }
@@ -521,7 +522,7 @@ void BTF::GeneratePrior(std::vector< BFL::Sample<BTF::ColumnVector> >& samples,
 };
 
 ///////////////////////////////////////////////////////////////////////
-/// The forward backward filtering class.
+/// The forward/backward filtering class.
 ///////////////////////////////////////////////////////////////////////
 
 CP::TBootstrapTrackFit::TBootstrapTrackFit(int trials) : fTrials(trials) { }
@@ -535,23 +536,30 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
         return CP::THandle<CP::TReconTrack>();
     }
 
-    double logLikelihood = 0.0;
     CP::TForwardBootstrapTrackFit forwardBootstrap(fTrials);
 
+    // Forward filter the track.  This makes a copy so it can be saved, and
+    // then applies forward filtering.
     CP::THandle<CP::TReconTrack> forwardTrack(new TReconTrack(*input));
     forwardTrack = forwardBootstrap.Apply(forwardTrack);
 
     // Backward filter the track by making a reversed copy and then forward
-    // filtering.  This will put the nodes into reverse order.
+    // filtering.  This will put the nodes into reverse order, and it must be
+    // handled with the forward and reversed filtered tracks are combined.
     CP::THandle<CP::TReconTrack> backwardTrack(new TReconTrack(*input));
     backwardTrack->ReverseTrack();
     backwardTrack = forwardBootstrap.Apply(backwardTrack);
-    
+
+    // Save the forward and reversed filtered tracks.
     std::unique_ptr<CP::TReconObjectContainer> filtered(
         new TReconObjectContainer("filtered"));
     filtered->push_back(forwardTrack);
     filtered->push_back(backwardTrack);
-    
+
+    // Combine the forward and reverse filtering results into the final
+    // result.  By convention, the final result is in the same direction as
+    // the forward filtering.
+    double logLikelihood = 0.0;
     TReconNodeContainer& forwardNodes = forwardTrack->GetNodes();
     TReconNodeContainer& backwardNodes = backwardTrack->GetNodes();
     for (std::size_t step = 0; step < nodes.size(); ++step) {
@@ -717,8 +725,11 @@ CP::TBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
 
         double r = measurementPDF.ProbabilityGet(
             trackState->GetPosition().Vect());
-        r /= measurementPDF.GetConstant();
         if (r>0) {
+            // r /= measurementPDF.GetConstant();
+            double c = measurementPDF.ProbabilityGet(
+                trackCluster->GetPosition().Vect());
+            r /= c;
             nodes[step]->SetQuality(-std::log(r));
             logLikelihood += std::log(r);
         }
@@ -969,7 +980,7 @@ CP::TForwardBootstrapTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
 
     TReconNodeContainer& nodes = input->GetNodes();
     if (nodes.size() < 2) {
-        CaptError("Not enough nodes to fit.");
+        CaptWarn("Not enough nodes to fit.");
         return CP::THandle<CP::TReconTrack>();
     }
 
