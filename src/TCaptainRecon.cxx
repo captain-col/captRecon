@@ -9,6 +9,9 @@
 #include "TMergeTracks.hxx"
 #include "TDisassociateHits.hxx"
 #include "TCombineOverlaps.hxx"
+#include "TDestroyShortTracks.hxx"
+#include "TClusterUnusedHits.hxx"
+
 
 #include "HitUtilities.hxx"
 
@@ -62,6 +65,7 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
     ///////////////////////////////////////////////////////////
     do {
         // Find the time zero and the 3D hits.
+
         CP::THandle<CP::TAlgorithmResult> cluster3DResult;
         if (pmts) {
             cluster3DResult = Run<CP::TCluster3D>(*wires,*pmts);
@@ -75,6 +79,7 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         result->AddDatum(currentResult);
 
 // Not usually applied because it is replaced by TClusterSlice.
+
 #ifdef Apply_TDensityCluster
         // Cluster the 3D hits by position to find object candidates. 
         CP::THandle<CP::TAlgorithmResult> densityClusterResult
@@ -83,7 +88,7 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         currentResult = densityClusterResult;
         result->AddDatum(currentResult);
 #endif
-
+	
 #define Apply_TClusterSlice
 #ifdef Apply_TClusterSlice
         // Cluster the 3D hits by position to find object candidates. 
@@ -154,13 +159,34 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         result->AddDatum(currentResult);
 #endif
 
+#define Destroy_Short_Tracks
+#ifdef Destroy_Short_Tracks
+	//Destroy tracks with reconstructed length l < 15mm
+        CP::THandle<CP::TAlgorithmResult> destroyShortTracks
+            = Run<CP::TDestroyShortTracks>(*currentResult);
+        if (!destroyShortTracks) break;
+        currentResult = destroyShortTracks;
+        result->AddDatum(currentResult);	
+#endif
+
+#define Cluster_Unused_Hits
+#ifdef Cluster_Unused_Hits
+ // Cluster unused by this time 3D hits by position. 
+        CP::THandle<CP::TAlgorithmResult> clusterUnusedHits
+	= Run<CP::TClusterUnusedHits>(*currentResult,*allHits);
+        if (!clusterUnusedHits) break;
+        currentResult = clusterUnusedHits;
+        result->AddDatum(currentResult);	
+#endif
+
+
     } while (false);
     
     if (!currentResult) {
         CaptError("Reconstruct failed");
         return result;
     }
-    
+
     std::unique_ptr<CP::TReconObjectContainer> 
         finalObjects(new CP::TReconObjectContainer("final"));
 
@@ -172,14 +198,15 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         std::copy(currentObjects->begin(), currentObjects->end(),
                   std::back_inserter(*finalObjects));
     }
-
     // Save the hits, but only if there aren't to many.
     if (allHits && allHits->size() < 10000) {
+
+     
+
         std::unique_ptr<CP::THitSelection> 
             used(new CP::THitSelection("used"));
         std::unique_ptr<CP::THitSelection> 
             unused(new CP::THitSelection("unused"));
-        
         // Get all of the hits in the final object and add them to used.
         CaptLog("Fill the used hits");
         CP::THandle<CP::THitSelection> hits 
@@ -193,9 +220,9 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         std::copy(allHits->begin(), allHits->end(), 
                   std::back_inserter(*unused));
         CP::hits::Subtract(*unused,*used);
-    
         result->AddHits(unused.release());
         result->AddHits(used.release());
+ 
     }
 
     CaptLog("Save the results");
