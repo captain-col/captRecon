@@ -57,3 +57,12 @@ Define the parameters associated with combining objects that are
 representing the same sets of hits.
 
 < captRecon.combineOverlaps.overlap = 0.66 >
+
+The parameter defining the mininum length for the reconstructed track. Tracks with smaller length will be destroyed. 
+
+< captRecon.destroyShortTracks.minLength = 15 mm >
+
+The parameters defining properties of the cluster for ClusteringUnusedHits algorithm. They defining the minimum number of 3D hits in the cluster and the maximum spread of these hits for one cluster. 
+
+< captRecon.clusterUnusedHits.minPoints = 5 >
+< captRecon.clusterUnusedHits.maxDist = 20 mm >
