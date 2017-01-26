@@ -16,9 +16,13 @@
 CP::TDestroyShortTracks::TDestroyShortTracks()
     : TAlgorithm("TDestroyShortTracks", 
                  "Break up short tracks into separate hits") {
+
+  fminLength=CP::TRuntimeParameters::Get().GetParameterD("captRecon.destroyShortTracks.minLength");
+
+  
 }
 
-CP::TDestroyShortTracks::~TDestroyShortTracks() { }
+CP::TDestroyShortTracks::~TDestroyShortTracks() {}
 
 CP::THandle<CP::TAlgorithmResult>
 CP::TDestroyShortTracks::Process(const CP::TAlgorithmResult& input,
@@ -40,20 +44,19 @@ CP::TDestroyShortTracks::Process(const CP::TAlgorithmResult& input,
     std::unique_ptr<CP::TReconObjectContainer> 
         final(new CP::TReconObjectContainer("final"));
 
-    // Divide into objects to save and objects to disintegrate.
+
+    // Save Tracks with length > fminLength
     for (CP::TReconObjectContainer::iterator it = inputObjects->begin();
          it != inputObjects->end(); ++it) {
         CP::THandle<CP::TReconTrack> track = *it;
         if (track) {
-            	double minLength=15*unit::mm;
 		    double length = (track->GetFront()->GetPosition().Vect()-track->GetBack()->GetPosition().Vect()).Mag();
-		    if(length > minLength )
+		    if(length > fminLength )
 		      {
 		        final->push_back(*it);	
 		      }  
 		  }
         }
-    
 
   
     result->AddResultsContainer(final.release());

@@ -11,11 +11,11 @@ namespace CP {
     class TReconCluster;
 };
 
-/// This takes a algorithm result with a TReconObjectContainer of with objects
-/// and disassociates selected objects into their individual hits.  The
-/// individual hits are then density clustered for further processing.  Any
-/// object that is not broken into its constiuent hits is passed through to
-/// the output.
+/// This takes a algorithm result as a TReconObjectContainer and find
+/// and destroy reconstructed tracks with length less than fminLength
+/// (now 15mm) into 3D Hits.The 3D hits are returned in allHits
+/// container for later use.
+
 class CP::TDestroyShortTracks
     : public CP::TAlgorithm {
 public:
@@ -29,7 +29,13 @@ public:
             const CP::TAlgorithmResult& input2 = CP::TAlgorithmResult::Empty);
 
 private:
+  
+  // Reconstracted tracks with length less than fminLength will not pass this algorihm. Defined in parameters as captRecon.destroyShortTracks.minLength
+  
+  double fminLength;
+  
 };
+
 #endif
 
 
