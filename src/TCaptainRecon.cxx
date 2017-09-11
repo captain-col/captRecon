@@ -12,6 +12,11 @@
 #include "TDestroyShortTracks.hxx"
 #include "TClusterUnusedHits.hxx"
 
+#include "THitTransfer.hxx"
+#include "TClustering2D.hxx"
+#include "TTracking2D.hxx"
+#include "TTracking3D.hxx"
+
 
 #include "HitUtilities.hxx"
 
@@ -65,7 +70,7 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
     ///////////////////////////////////////////////////////////
     do {
         // Find the time zero and the 3D hits.
-
+#ifdef Hits_3D
         CP::THandle<CP::TAlgorithmResult> cluster3DResult;
         if (pmts) {
             cluster3DResult = Run<CP::TCluster3D>(*wires,*pmts);
@@ -105,6 +110,60 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         currentResult = clusterMergeResult;
         result->AddDatum(currentResult);
 #endif
+#endif
+
+	#define Hits_2D
+	#ifdef Hits_2D
+
+	 // Find the time zero and transform the 2D hits in pseudo3D.
+        CP::THandle<CP::TAlgorithmResult> hitTransferResult;
+
+		if (pmts) {
+	   hitTransferResult = Run<CP::THitTransfer>(*wires,*pmts);
+	 }
+	 else {
+
+            hitTransferResult = Run<CP::THitTransfer>(*wires);
+
+	    }
+        if (!hitTransferResult) break;
+        currentResult = hitTransferResult;
+        allHits = currentResult->GetHits();
+        result->AddDatum(currentResult);
+
+
+	#define Apply_TClustering_2D
+#ifdef Apply_TClustering_2D
+        // Cluster the pseudo_3D hits by position for each plane. 
+        CP::THandle<CP::TAlgorithmResult> cluster2DResult;
+	cluster2DResult  = Run<CP::TClustering2D>(*currentResult);
+        if (!cluster2DResult) break;
+        currentResult = cluster2DResult;
+        result->AddDatum(currentResult);
+	#endif
+
+	#define Apply_TTracking_2D
+#ifdef Apply_TTracking_2D
+        // Create 2D tracks from 2D clusters 
+        CP::THandle<CP::TAlgorithmResult> track2DResult;
+	track2DResult  = Run<CP::TTracking2D>(*currentResult);
+        if (!track2DResult) break;
+        currentResult = track2DResult;
+        result->AddDatum(currentResult);
+	#endif
+
+		#define Apply_TTracking_3D
+#ifdef Apply_TTracking_3D
+        // Creat 3D tracks from 2D tracks 
+        CP::THandle<CP::TAlgorithmResult> track3DResult;
+	track3DResult  = Run<CP::TTracking3D>(*currentResult);
+        if (!track3DResult) break;
+        currentResult = track3DResult;
+        result->AddDatum(currentResult);
+	#endif
+	#endif
+
+
 
 #define Apply_TMinimalSpanningTrack
 #ifdef Apply_TMinimalSpanningTrack
