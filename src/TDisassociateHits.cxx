@@ -113,7 +113,7 @@ CP::TDisassociateHits::Process(const CP::TAlgorithmResult& input,
     typedef CP::TPositionDensityCluster< CP::THandle<THit> > ClusterAlgorithm;
 
     // Find the big clusters.
-    ClusterAlgorithm bigClusters(10,20*unit::mm);
+    ClusterAlgorithm bigClusters(12,8*unit::mm);
     bigClusters.Cluster(hits.begin(), hits.end());
     
     int nClusters = bigClusters.GetClusterCount();
@@ -129,7 +129,7 @@ CP::TDisassociateHits::Process(const CP::TAlgorithmResult& input,
     }
     
     // Find the medium clusters.
-    ClusterAlgorithm mediumClusters(5,8*unit::mm);
+    ClusterAlgorithm mediumClusters(6,8*unit::mm);
     mediumClusters.Cluster(bigClusters.GetCluster(nClusters).begin(), 
                            bigClusters.GetCluster(nClusters).end());
     

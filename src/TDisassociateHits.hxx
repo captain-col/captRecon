@@ -10,11 +10,15 @@ namespace CP {
     class TReconCluster;
 };
 
-/// This takes a algorithm result with a TReconObjectContainer of with objects
-/// and disassociates selected objects into their individual hits.  The
-/// individual hits are then density clustered for further processing.  Any
-/// object that is not broken into its constiuent hits is passed through to
-/// the output.
+/// Save the "big" tracks and then cluster the remaining hits to summarize
+/// un-tracked charge distributions.  This takes an algorithm result with a
+/// TReconObjectContainer of tracks, showers and clusters.  The goal here is
+/// to find groupings of hits that are not consistent with the track
+/// hypothesis used in the rest of the reconctruction and then to summarin
+/// them as either clusters or showers.  selected objects into their
+/// individual hits.  The individual hits are then density clustered for
+/// further processing.  Any object that is not broken into its constiuent
+/// hits is passed through to the output.
 class CP::TDisassociateHits
     : public CP::TAlgorithm {
 public:

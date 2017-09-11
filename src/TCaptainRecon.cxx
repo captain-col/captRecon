@@ -81,7 +81,6 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
 // Not usually applied because it is replaced by TClusterSlice.
 
 #ifdef Apply_TDensityCluster
-        // Cluster the 3D hits by position to find object candidates. 
         CP::THandle<CP::TAlgorithmResult> densityClusterResult
             = Run<CP::TDensityCluster>(*currentResult);
         if (!densityClusterResult) break;
@@ -91,7 +90,6 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
 	
 #define Apply_TClusterSlice
 #ifdef Apply_TClusterSlice
-        // Cluster the 3D hits by position to find object candidates. 
         CP::THandle<CP::TAlgorithmResult> clusterSliceResult
             = Run<CP::TClusterSlice>(*currentResult);
         if (!clusterSliceResult) break;
@@ -101,7 +99,6 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
 
 #define Apply_TClusterMerge
 #ifdef Apply_TClusterMerge
-        // Cluster the 3D hits by position to find object candidates. 
         CP::THandle<CP::TAlgorithmResult> clusterMergeResult
             = Run<CP::TClusterMerge>(*currentResult);
         if (!clusterMergeResult) break;
@@ -111,7 +108,6 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
 
 #define Apply_TMinimalSpanningTrack
 #ifdef Apply_TMinimalSpanningTrack
-        // Cluster the 3D hits by position to find object candidates. 
         CP::THandle<CP::TAlgorithmResult> minimalSpanningResult
             = Run<CP::TMinimalSpanningTrack>(*currentResult);
         if (!minimalSpanningResult) break;
@@ -121,7 +117,6 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
 
 #define Apply_TSplitTracks
 #ifdef Apply_TSplitTracks
-        // Cluster the 3D hits by position to find object candidates. 
         CP::THandle<CP::TAlgorithmResult> splitTracksResult
             = Run<CP::TSplitTracks>(*currentResult);
         if (!splitTracksResult) break;
@@ -131,7 +126,6 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
 
 #define Apply_TMergeTracks
 #ifdef Apply_TMergeTracks
-        // Cluster the 3D hits by position to find object candidates. 
         CP::THandle<CP::TAlgorithmResult> mergeTracksResult
             = Run<CP::TMergeTracks>(*currentResult);
         if (!mergeTracksResult) break;
@@ -139,9 +133,8 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         result->AddDatum(currentResult);
 #endif
 
-#define Apply_TDisassociateHits
+//#define Apply_TDisassociateHits
 #ifdef Apply_TDisassociateHits
-        // Cluster the 3D hits by position to find object candidates. 
         CP::THandle<CP::TAlgorithmResult> disassociateHitsResult
             = Run<CP::TDisassociateHits>(*currentResult);
         if (!disassociateHitsResult) break;
@@ -151,7 +144,6 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
 
 #define Apply_TCombineOverlaps
 #ifdef Apply_TCombineOverlaps
-        // Cluster the 3D hits by position to find object candidates. 
         CP::THandle<CP::TAlgorithmResult> combineOverlapsResult
             = Run<CP::TCombineOverlaps>(*currentResult);
         if (!combineOverlapsResult) break;
