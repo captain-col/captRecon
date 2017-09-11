@@ -70,6 +70,7 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
     ///////////////////////////////////////////////////////////
     do {
         // Find the time zero and the 3D hits.
+      #define Hits_3D
 #ifdef Hits_3D
         CP::THandle<CP::TAlgorithmResult> cluster3DResult;
         if (pmts) {
@@ -112,7 +113,7 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
 #endif
 #endif
 
-	#define Hits_2D
+	//	#define Hits_2D
 	#ifdef Hits_2D
 
 	 // Find the time zero and transform the 2D hits in pseudo3D.
