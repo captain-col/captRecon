@@ -62,7 +62,12 @@ The parameter defining the mininum length for the reconstructed track. Tracks wi
 
 < captRecon.destroyShortTracks.minLength = 15 mm >
 
-The parameters defining properties of the cluster for ClusteringUnusedHits algorithm. They defining the minimum number of 3D hits in the cluster and the maximum spread of these hits for one cluster. 
+The parameters defining properties of the cluster for ClusteringUnusedHits which is 5 and 20 . They defining the minimum number of 3D hits in the cluster and the maximum spread of these hits for one cluster. 
 
 < captRecon.clusterUnusedHits.minPoints = 5 >
 < captRecon.clusterUnusedHits.maxDist = 20 mm >
+
+TClustering 2D algotithm parameters
+
+< captRecon.clustering2D.minPoints = 5 >
+< captRecon.clustering2D.maxDist = 18 mm >

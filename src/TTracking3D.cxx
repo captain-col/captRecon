@@ -48,6 +48,8 @@ bool CheckPosition(TVector3 s, TVector3 f, TVector3 posX){
   return false;
 }
 
+
+
 TVector3 Intersection(TVector3 pos1S,TVector3 pos1F,TVector3 pos2S,TVector3 pos2F){
 
   TVector3 intersect;
@@ -69,7 +71,6 @@ TVector3 Intersection(TVector3 pos1S,TVector3 pos1F,TVector3 pos2S,TVector3 pos2
 
   a1=(pos1S.Y()-pos1F.Y())/(pos1S.X()-pos1F.X());
   a2=(pos2S.Y()-pos2F.Y())/(pos2S.X()-pos2F.X());
-  std::cout<<"a1="<<a1<<"; a2="<<a2<<std::endl;
 
   //define ortogonal lines through 1st given point
 
@@ -82,8 +83,6 @@ TVector3 Intersection(TVector3 pos1S,TVector3 pos1F,TVector3 pos2S,TVector3 pos2
   c1=pos1S.Y()+m1*pos1S.X();
   m2=-1/a2;
   c2=pos2S.Y()+m2*pos2S.X();
-  std::cout<<"m1="<<m1<<"; m2="<<m2<<std::endl;
-    std::cout<<"c1="<<c1<<"; c2="<<c2<<std::endl;
   //find intersection
 
   intersect.SetX((c2-c1)/(m1-m2));
@@ -118,6 +117,20 @@ double MinZ(CP::THandle<CP::TReconTrack> track){
   }
   return minZ;
 }
+
+struct CompTracks{
+
+  CompTracks(double maxZX, double minZX){this->maxZX=maxZX;this->minZX=minZX;}
+
+  bool operator()(const CP::THandle<CP::TReconTrack>& lhs, const CP::THandle<CP::TReconTrack>& rhs)
+	      {
+		double l=abs(MaxZ(lhs)-maxZX)+abs(MinZ(lhs)-minZX);
+		double r=abs(MaxZ(rhs)-maxZX)+abs(MinZ(rhs)-minZX);
+		return l<r;}
+  
+  double maxZX;
+  double minZX;
+};
 
 bool Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReconTrack> trackU, CP::THandle<CP::TReconTrack> trackV,CP::TReconObjectContainer& match3){
   CP::THandle<CP::THitSelection> hitX = trackX->GetHits();
@@ -266,6 +279,8 @@ bool Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReco
 
 bool Assemble2DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReconTrack> trackU,CP::TReconObjectContainer& match2){
 
+  std::cout<<"ENTER2DTrack"<<std::endl;
+
   CP::THandle<CP::THitSelection> hitX = trackX->GetHits();
   CP::THandle<CP::THitSelection> hitU = trackU->GetHits();
 
@@ -281,7 +296,7 @@ bool Assemble2DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReco
   TVector3 backU = (*hitU).back()->GetPosition();
 
 
-   if(((frontX.X()-backX.X())==0) || ((frontX.Y()-backX.Y())==0) || ((frontU.X()-backU.X())==0) || ((frontU.Y()-backU.Y())==0)) return false;
+  // if(((frontX.X()-backX.X())==0) || ((frontX.Y()-backX.Y())==0) || ((frontU.X()-backU.X())==0) || ((frontU.Y()-backU.Y())==0)) return false;
 
  TVector3 interXU_begin=Intersection(frontX,backX,frontU,backU);
   TVector3 interXU_end=Intersection(backX,frontX,backU,frontU);
@@ -291,16 +306,16 @@ bool Assemble2DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReco
   
     startPoint.SetX(interXU_begin.X());
     startPoint.SetY(interXU_begin.Y());
-    startPoint.SetZ((*(*hitX).begin())->GetPosition().Z());
+    startPoint.SetZ(frontX.Z());
     endPoint.SetX(interXU_end.X());
     endPoint.SetY(interXU_end.Y());
-    endPoint.SetZ((*(*hitX).end())->GetPosition().Z());
+    endPoint.SetZ(backX.Z());
 
   
   double tLength = (startPoint-endPoint).Mag();
   int nparts = (int)tLength/3;
-  if(nparts > 20) nparts/=2;
-  if(nparts > 50) nparts/=5;
+  if(nparts > 20 && nparts<50) nparts/=2;
+  if(nparts > 50 && nparts<100) nparts/=5;
   if(nparts > 100) nparts/=10;
   TVector3 stepVect((endPoint.X()-startPoint.X())/nparts,(endPoint.Y()-startPoint.Y())/nparts,(endPoint.Z()-startPoint.Z())/nparts);
 
@@ -373,21 +388,34 @@ void FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP::TReconObjectCont
     CP::THandle<CP::TReconTrack> trackX = *trX;
     double maxZX=MaxZ(trackX);
     double minZX=MinZ(trackX);
+    int ntracks=0;
+    double xuDiff=0;
+    double xvDiff=0;
+    double uvDiff=0;
+    if(tracksU.size()>0){
+      /* std::sort(tracksU.begin(),tracksU.end(),[maxZX,minZX](const CP::THandle<CP::TReconTrack>& lhs, const CP::THandle<CP::TReconTrack>& rhs)
+	      {
+		double l=abs(MaxZ(lhs)-maxZX)+abs(MinZ(lhs)-minZX);
+		double r=abs(MaxZ(rhs)-maxZX)+abs(MinZ(rhs)-minZX);
+		return l<r;});*/
+      std::sort(tracksU.begin(),tracksU.end(),CompTracks(maxZX,minZX));
+    ntracks++;
+     xuDiff=abs(maxZX-MaxZ(tracksU[0]))+abs(minZX-MinZ(tracksU[0]));
+    }
+    if(tracksV.size()>0){
+      /* std::sort(tracksV.begin(),tracksV.end(),[maxZX,minZX](const CP::THandle<CP::TReconTrack>& lhs, const CP::THandle<CP::TReconTrack>& rhs)
+	      {
+		double l=abs(MaxZ(lhs)-maxZX)+abs(MinZ(lhs)-minZX);
+		double r=abs(MaxZ(rhs)-maxZX)+abs(MinZ(rhs)-minZX);
+		return l<r;});*/
+       std::sort(tracksV.begin(),tracksV.end(),CompTracks(maxZX,minZX));
+    xvDiff=abs(maxZX-MaxZ(tracksV[0]))+abs(minZX-MinZ(tracksV[0]));
+    ntracks++;
+    }
 
-    std::sort(tracksU.begin(),tracksU.end(),[maxZX,minZX](const CP::THandle<CP::TReconTrack>& lhs, const CP::THandle<CP::TReconTrack>& rhs)
-	      {
-		double l=abs(MaxZ(lhs)-maxZX)+abs(MinZ(lhs)-minZX);
-		double r=abs(MaxZ(rhs)-maxZX)+abs(MinZ(rhs)-minZX);
-		return l<r;});
-    std::sort(tracksV.begin(),tracksV.end(),[maxZX,minZX](const CP::THandle<CP::TReconTrack>& lhs, const CP::THandle<CP::TReconTrack>& rhs)
-	      {
-		double l=abs(MaxZ(lhs)-maxZX)+abs(MinZ(lhs)-minZX);
-		double r=abs(MaxZ(rhs)-maxZX)+abs(MinZ(rhs)-minZX);
-		return l<r;});
+    if(ntracks==2){
     double uvDiff=abs(MaxZ(tracksV[0])-MaxZ(tracksU[0]))+abs(MinZ(tracksV[0])-MinZ(tracksU[0]));
-    double xuDiff=abs(maxZX-MaxZ(tracksU[0]))+abs(minZX-MinZ(tracksU[0]));
-    double xvDiff=abs(maxZX-MaxZ(tracksV[0]))+abs(minZX-MinZ(tracksV[0]));
-    std::cout<<"uvDiff="<<uvDiff<<"; xuDiff="<<xuDiff<<"; xvDiff="<<xvDiff<<std::endl;
+        std::cout<<"uvDiff="<<uvDiff<<"; xuDiff="<<xuDiff<<"; xvDiff="<<xvDiff<<std::endl;
     if(uvDiff<100 && xuDiff<100 && xvDiff<100)
       {
 	if(Assemble3DTrack(trackX,tracksU[0],tracksV[0],match3)){
@@ -397,7 +425,28 @@ void FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP::TReconObjectCont
 	  tracksV.erase(tracksV.begin());
 	}else ++trX;
 	}else ++trX;
-
+    }
+    if(ntracks==1 && xvDiff==0){
+      std::cout<<"xuDiff="<<xuDiff<<std::endl;
+       if(xuDiff<70 )
+      {
+	if(Assemble2DTrack(trackX,tracksU[0],match2)){ 
+	tracksX.erase(trX);
+	tracksU.erase(tracksU.begin());
+	}else ++trX;
+      }else ++trX;
+    }
+    if(ntracks==1 && xuDiff==0){
+      std::cout<<"xvDiff="<<xvDiff<<std::endl;
+       if(xvDiff<70 )
+      {
+	if(Assemble2DTrack(trackX,tracksV[0],match2)){ 
+	tracksX.erase(trX);
+	tracksU.erase(tracksU.begin());
+	}else ++trX;
+      }else ++trX;
+    }
+    if(ntracks==0)++trX;   
   }
   }
   if(tracksX.size()>0 && tracksU.size()>0 && tracksV.size()==0) {
@@ -406,13 +455,16 @@ void FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP::TReconObjectCont
     CP::THandle<CP::TReconTrack> trackX = *trX;
     double maxZX=MaxZ(trackX);
     double minZX=MinZ(trackX);
-    
-    std::sort(tracksU.begin(),tracksU.end(),[maxZX,minZX](const CP::THandle<CP::TReconTrack>& lhs, const CP::THandle<CP::TReconTrack>& rhs)
+    double xuDiff=0;
+
+    if(tracksU.size()>0){
+      /* std::sort(tracksU.begin(),tracksU.end(),[maxZX,minZX](const CP::THandle<CP::TReconTrack>& lhs, const CP::THandle<CP::TReconTrack>& rhs)
 	      {
 		double l=abs(MaxZ(lhs)-maxZX)+abs(MinZ(lhs)-minZX);
 		double r=abs(MaxZ(rhs)-maxZX)+abs(MinZ(rhs)-minZX);
-		return l<r;});
-    double xuDiff=abs(maxZX-MaxZ(tracksU[0]))+abs(minZX-MinZ(tracksU[0]));
+		return l<r;});*/
+       std::sort(tracksU.begin(),tracksU.end(),CompTracks(maxZX,minZX));
+    xuDiff=abs(maxZX-MaxZ(tracksU[0]))+abs(minZX-MinZ(tracksU[0]));
  
     if(xuDiff<70 )
       {
@@ -421,7 +473,7 @@ void FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP::TReconObjectCont
 	tracksU.erase(tracksU.begin());
 	}else ++trX;
       }else ++trX;
-      
+    }else ++trX; 
   }
   }
   if(tracksX.size()>0 && tracksV.size()>0 && tracksU.size()==0) {
@@ -430,12 +482,14 @@ void FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP::TReconObjectCont
     CP::THandle<CP::TReconTrack> trackX = *trX;
     double maxZX=MaxZ(trackX);
     double minZX=MinZ(trackX);
-    
-    std::sort(tracksV.begin(),tracksV.end(),[maxZX,minZX](const CP::THandle<CP::TReconTrack>& lhs, const CP::THandle<CP::TReconTrack>& rhs)
+    double xvDiff=0;
+    if(tracksV.size()>0){
+      /* std::sort(tracksV.begin(),tracksV.end(),[maxZX,minZX](const CP::THandle<CP::TReconTrack>& lhs, const CP::THandle<CP::TReconTrack>& rhs)
 	      {
 		double l=abs(MaxZ(lhs)-maxZX)+abs(MinZ(lhs)-minZX);
 		double r=abs(MaxZ(rhs)-maxZX)+abs(MinZ(rhs)-minZX);
-		return l<r;});
+		return l<r;});*/
+       std::sort(tracksV.begin(),tracksV.end(),CompTracks(maxZX,minZX));
     double xvDiff=abs(maxZX-MaxZ(tracksV[0]))+abs(minZX-MinZ(tracksV[0]));
  
     if(xvDiff<70)
@@ -445,6 +499,7 @@ void FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP::TReconObjectCont
 	tracksV.erase(tracksV.begin());
 	}else++trX;
       }else++trX;
+    }else ++trX;
   }
   }
   
@@ -514,6 +569,7 @@ CP::TTracking3D::Process(const CP::TAlgorithmResult& input,
      CP::TReconObjectContainer used_clusters;
      FindTrackCandidates(tracksX,tracksU,tracksV,match3,match2);
      std::cout<<"MATCH3.size()="<<match3.size()<<std::endl;
+     std::cout<<"MATCH2.size()="<<match2.size()<<std::endl;
      std::unique_ptr<CP::TReconObjectContainer> 
         match3Tr(new CP::TReconObjectContainer("match3Tr"));
      std::unique_ptr<CP::TReconObjectContainer> 

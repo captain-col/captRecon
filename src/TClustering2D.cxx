@@ -20,8 +20,9 @@ CP::TClustering2D::TClustering2D()
     : TAlgorithm("TClustering2D", 
                  "Break up objects into separate hits") {
 
-  fminPoints = CP::TRuntimeParameters::Get().GetParameterD("captRecon.clusterUnusedHits.minPoints");
-  fmaxDist = CP::TRuntimeParameters::Get().GetParameterD("captRecon.clusterUnusedHits.maxDist");
+  fminPoints = CP::TRuntimeParameters::Get().GetParameterD("captRecon.clustering2D.minPoints");
+  fmaxDist = CP::TRuntimeParameters::Get().GetParameterD("captRecon.clustering2D.maxDist");
+  
  
 }
 
