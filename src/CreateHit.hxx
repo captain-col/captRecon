@@ -127,7 +127,7 @@ const TVector3 CP::PositionXY(const CP::THandle<CP::THit>& hit1,
     double dx2 = hit2->GetYAxis().X();
     double dy2 = hit2->GetYAxis().Y();
 
- 
+   
 
     // Solve 
     //      x1 + s1*dx1 = x2 + s2*dx2;
@@ -139,7 +139,7 @@ const TVector3 CP::PositionXY(const CP::THandle<CP::THit>& hit1,
     double s1 = -(dx2*(y1-y2)+dy2*x2-dy2*x1)/(dx2*dy1-dx1*dy2);
     // double s2 = -(dx1*(y1-y2)+dy1*x2-dy1*x1)/(dx2*dy1-dx1*dy2);
 
-
+    //std::cout<<"x1="<<x1<<"; y1="<<y1<<"; dx1="<<dx1<<"; dy1="<<dy1<<"; x2="<<x2<<"; y2="<<y2<<"; dx2="<<dx1<<"; dy2="<<dy2<<"; s1="<<s1<<std::endl;
     
     return TVector3( (x1+s1*dx1), (y1+s1*dy1), 0.0);
 }
@@ -225,8 +225,20 @@ CP::CreateHit(CP::THitSelection& writableHits,
                              const CP::THandle<CP::THit>& hit1,
                              const CP::THandle<CP::THit>& hit2,
                              const CP::THandle<CP::THit>& hit3) {
-
-
+  #ifdef DEBUG
+  if(hit1){
+     std::cout<<"hit1"<<"; X="<<hit1->GetPosition().X()<<"; Y="<<hit1->GetPosition().Y()<<"; Z="<<hit1->GetPosition().Z()<<"; StartTime="<<hit1->GetTimeLowerBound()<<"; StopTime="<<hit1->GetTimeUpperBound()<<std::endl;
+     std::cout<<"Wire1#"<<CP::GeomId::Captain::GetWireNumber(hit1->GetGeomId())<<std::endl;
+  }
+  if(hit2){
+     std::cout<<"hit2"<<"; X="<<hit2->GetPosition().X()<<"; Y="<<hit2->GetPosition().Y()<<"; Z="<<hit2->GetPosition().Z()<<"; StartTime="<<hit2->GetTimeLowerBound()<<"; StopTime="<<hit2->GetTimeUpperBound()<<std::endl;
+     std::cout<<"Wire2#"<<CP::GeomId::Captain::GetWireNumber(hit2->GetGeomId())<<std::endl;
+  }
+  if(hit3){
+    std::cout<<"hit3"<<"; X="<<hit3->GetPosition().X()<<"; Y="<<hit3->GetPosition().Y()<<"; Z="<<hit3->GetPosition().Z()<<"; StartTime="<<hit3->GetTimeLowerBound()<<"; StopTime="<<hit3->GetTimeUpperBound()<<std::endl;
+    std::cout<<"Wire3#"<<CP::GeomId::Captain::GetWireNumber(hit3->GetGeomId())<<std::endl;
+  }
+  #endif
   /* double fMaxDrift
         = CP::TRuntimeParameters::Get().GetParameterD(
             "captRecon.cluster3d.maxDrift");
@@ -252,22 +264,24 @@ CP::CreateHit(CP::THitSelection& writableHits,
     // double fMinSeparation = fDigitStep;
 
   
- 
-    
+
+        CP::TDriftPosition drift;
  double startTime = 9E+30;
     double stopTime = -9E+30;
     double expectedCharge = 9E+30;
+
+    bool overlaped=true;
     
     if (hit1 && hit2) {
         if (CP::GeomId::Captain::GetWirePlane(hit1->GetGeomId())
             == CP::GeomId::Captain::GetWirePlane(hit2->GetGeomId())) {
             return false;
         }
-        if (hit1->GetTimeStart() > hit2->GetTimeStop()) {
-            return false;
+        if (hit1->GetTimeLowerBound() > hit2->GetTimeUpperBound()) {
+            overlaped= false;
         }
-        if (hit1->GetTimeStop() < hit2->GetTimeStart()) {
-            return false;
+        if (hit1->GetTimeUpperBound() < hit2->GetTimeLowerBound()) {
+            overlaped= false;
         }
     }
 
@@ -276,12 +290,13 @@ CP::CreateHit(CP::THitSelection& writableHits,
             == CP::GeomId::Captain::GetWirePlane(hit3->GetGeomId())) {
             return false;
         }
-        if (hit1->GetTimeStart() > hit3->GetTimeStop()) {
-            return false;
+	 if (hit1->GetTimeLowerBound() > hit3->GetTimeUpperBound()) {
+            overlaped= false;
         }
-        if (hit1->GetTimeStop() < hit3->GetTimeStart()) {
-            return false;
+        if (hit1->GetTimeUpperBound() < hit3->GetTimeLowerBound()) {
+            overlaped= false;
         }
+
     }
 
     if (hit2 && hit3) {
@@ -289,32 +304,34 @@ CP::CreateHit(CP::THitSelection& writableHits,
             == CP::GeomId::Captain::GetWirePlane(hit3->GetGeomId())) {
             return false;
         }
-        if (hit2->GetTimeStart() > hit3->GetTimeStop()) {
-            return false;
+        if (hit2->GetTimeLowerBound() > hit3->GetTimeUpperBound()) {
+            overlaped= false;
         }
-        if (hit2->GetTimeStop() < hit3->GetTimeStart()) {
-            return false;
+        if (hit2->GetTimeUpperBound() < hit3->GetTimeLowerBound()) {
+            overlaped= false;
         }
-    }
- 
+        }
+	
+if(overlaped){
+  //  std::cout<<"PassedTImeCheck"<<std::endl;
     // Find the full range of time covered by this hit.
     if (hit1) {
-        startTime = std::min(startTime, hit1->GetTimeStart());
-        stopTime = std::max(stopTime, hit1->GetTimeStop());
+        startTime = std::min(startTime, hit1->GetTimeLowerBound());
+        stopTime = std::max(stopTime, hit1->GetTimeUpperBound());
         expectedCharge = std::min(expectedCharge, hit1->GetCharge());
 
     }
 
     if (hit2) {
-        startTime = std::min(startTime, hit2->GetTimeStart());
-        stopTime = std::max(stopTime, hit2->GetTimeStop());
+      startTime = std::min(startTime, hit2->GetTimeLowerBound());
+        stopTime = std::max(stopTime, hit2->GetTimeUpperBound());
         expectedCharge = std::min(expectedCharge, hit2->GetCharge());
 
     }
 
     if (hit3) {
-        startTime = std::min(startTime, hit3->GetTimeStart());
-        stopTime = std::max(stopTime, hit3->GetTimeStop());
+       startTime = std::min(startTime, hit3->GetTimeLowerBound());
+        stopTime = std::max(stopTime, hit3->GetTimeUpperBound());
         expectedCharge = std::min(expectedCharge, hit3->GetCharge());
 
     }
@@ -323,23 +340,27 @@ CP::CreateHit(CP::THitSelection& writableHits,
     startTime -= 15*unit::microsecond;
     stopTime += 15*unit::microsecond;
     
-    CP::TDriftPosition drift;
+
 
     // Build an "overlap charge distribution"
     int bins = (stopTime-startTime)/fDigitStep + 1;
+    // std::cout<<"bins="<<bins<<std::endl;
     std::vector<double> overlap(bins);
   
     if (hit1) {
         double hitStart = drift.GetTime(*hit1);
-        hitStart += hit1->GetTimeStart()-hit1->GetTime();
+        hitStart += hit1->GetTimeLowerBound()-hit1->GetTime();
         if (hit1->GetTimeSamples() > 1) {
             int ibin = (hitStart - startTime)/fDigitStep;
-            for (int i = 0; i<hit1->GetTimeSamples(); ++i) {
+          int low =(hit1->GetTimeLowerBound()-hit1->GetTimeStart())/fDigitStep;
+	    int up = (hit1->GetTimeUpperBound()-hit1->GetTimeStart())/fDigitStep;
+	    // std::cout<<"low1="<<low<<"; up="<<up<<std::endl;
+	    int bcount=0;
+            for (int i = low; i<up; ++i) {
                 // The first hit must exist so just assign it.
 	     
-                overlap[i+ibin] = std::max(0.0,hit1->GetTimeSample(i));
-		//	std::cout<<"CreateOverlap?="<<overlap[i+ibin]<<std::endl;
-		//	std::cout<<"TimeSample?="<<hit1->GetTimeSample(i)<<std::endl;
+                overlap[bcount+ibin] = std::max(0.0,hit1->GetTimeSample(i));
+		bcount++;
 
             }
         }
@@ -347,16 +368,21 @@ CP::CreateHit(CP::THitSelection& writableHits,
 
     if (hit2) {
         double hitStart = drift.GetTime(*hit2);
-        hitStart += hit2->GetTimeStart()-hit2->GetTime();
+        hitStart += hit2->GetTimeLowerBound()-hit2->GetTime();
         if (hit2->GetTimeSamples() > 1) {
             int ibin = (hitStart - startTime)/fDigitStep;
+	    
             for (int i=0; i<ibin; ++i) overlap[i] = 0.0;
-            for (int i = 0; i<hit2->GetTimeSamples(); ++i) {
-                overlap[i+ibin] = std::max(0.0,
-                                           std::min(overlap[i+ibin],
+
+	     int low =(hit2->GetTimeLowerBound()-hit2->GetTimeStart())/fDigitStep;
+	    int up = (hit2->GetTimeUpperBound()-hit2->GetTimeStart())/fDigitStep;
+	    //std::cout<<"low2="<<low<<"; up="<<up<<std::endl;
+	    int bcount=0;
+            for (int i = low; i<up; ++i) {
+                overlap[bcount+ibin] = std::max(0.0,
+                                           std::min(overlap[bcount+ibin],
                                                     hit2->GetTimeSample(i)));
-		//	std::cout<<"CreateOverlap2?="<<overlap[i+ibin]<<std::endl;
-		//	std::cout<<"TimeSample2?="<<hit2->GetTimeSample(i)<<std::endl;
+		bcount++;
 
             }
             for (std::size_t i=ibin+hit2->GetTimeSamples();
@@ -368,16 +394,19 @@ CP::CreateHit(CP::THitSelection& writableHits,
 
     if (hit3) {
         double hitStart = drift.GetTime(*hit3);
-        hitStart += hit3->GetTimeStart()-hit3->GetTime();
+        hitStart += hit3->GetTimeLowerBound()-hit3->GetTime();
         if (hit3->GetTimeSamples() > 1) {
             int ibin = (hitStart - startTime)/fDigitStep;
             for (int i=0; i<ibin; ++i) overlap[i] = 0.0;
-            for (int i = 0; i<hit3->GetTimeSamples(); ++i) {
-                overlap[i+ibin] = std::max(0.0,
-                                           std::min(overlap[i+ibin],
+	     int low =(hit3->GetTimeLowerBound()-hit3->GetTimeStart())/fDigitStep;
+	    int up = (hit3->GetTimeUpperBound()-hit3->GetTimeStart())/fDigitStep;
+	    //std::cout<<"low3="<<low<<"; up="<<up<<std::endl;
+	    int bcount=0;
+            for (int i = low; i<up; ++i) {
+                overlap[bcount+ibin] = std::max(0.0,
+                                           std::min(overlap[bcount+ibin],
                                                     hit3->GetTimeSample(i)));
-		//	std::cout<<"CreateOverlap?="<<overlap[i+ibin]<<std::endl;
-		//	std::cout<<"TimeSample3?="<<hit3->GetTimeSample(i)<<std::endl;
+		bcount++;
 
             }
             for (std::size_t i=ibin+hit3->GetTimeSamples();
@@ -386,7 +415,7 @@ CP::CreateHit(CP::THitSelection& writableHits,
             }
         }
     }
-  
+
     // Find the time of the hit based on the overlaps between the wire hits.
     double hitTime = 0.0;
     double hitTimeRMS = 0.0;
@@ -403,7 +432,7 @@ CP::CreateHit(CP::THitSelection& writableHits,
     }
     
     // Make sure the hits overlapped by a reasonable amount.
-      if (hitCharge < fMinimumOverlap*expectedCharge) {
+    /*  if (hitCharge < fMinimumOverlap*expectedCharge) {
         CaptNamedInfo("Cluster","Insufficient overlap: "
                      << hitCharge << "/" << expectedCharge
                      << " from "
@@ -452,9 +481,9 @@ CP::CreateHit(CP::THitSelection& writableHits,
         }
         CP::TCaptLog::DecreaseIndentation();
         return false;
-    }
+    }*/
 
-
+    //  std::cout<<"passedOverlapCheck"<<std::endl;
     // Figure out where the charge overlap should be split.  The initial guess
     // is the beginning and the end (i.e. no spliting at all).
     std::vector<int> splits;
@@ -493,6 +522,7 @@ CP::CreateHit(CP::THitSelection& writableHits,
             splitCharge += overlap[i];
 	  
         }
+	//	std::cout<<"here"<<std::endl;
 	//	std::cout<<"SplitTimeProblem?="<<splitTime<<"; SplitCharge?="<<splitCharge<<std::endl;
         splitTime /= splitCharge;
         splitTimeRMS /= splitCharge;
@@ -510,6 +540,98 @@ CP::CreateHit(CP::THitSelection& writableHits,
         hit->SetTimeUncertainty(splitTimeRMS/sqrt(3.0));
         hit->SetTimeRMS(splitTimeRMS);
         hit->SetCharge(splitCharge);
+	//std::cout<<"here1"<<std::endl;
+        // Estimate the charge uncertainty.
+        double splitChargeUnc = 0.0;
+        if (hit1) {
+            double w = hit1->GetChargeUncertainty();
+            splitChargeUnc += 1.0/(w*w);
+        }
+        
+        if (hit2) {
+            double w = hit2->GetChargeUncertainty();
+            splitChargeUnc += 1.0/(w*w);
+        }
+        
+        if (hit3) {
+            double w = hit3->GetChargeUncertainty();
+            splitChargeUnc += 1.0/(w*w);
+        }
+        
+        if (splitChargeUnc > 0.0) {
+            hit->SetChargeUncertainty(std::sqrt(1.0/splitChargeUnc));
+        }
+	//    std::cout<<"here2"<<std::endl;
+        // Find the xyRMS and xyUncertainty.  This is not being done
+        // correctly, but this should be an acceptable approximation.  The
+        // approximation is that the X rms of the three 2D hits is
+        // perpendicular to the wire is an estimate of the hit size.  The Z
+        // RMS is calculated based on the time RMS of the wire hits.  The XY
+        // rms then has the overlap spacing added in to account for lack of
+        // perfect overlaps (this is the constant 2mm squared).
+        double xyRMS = 0.0;
+        if (hit1) xyRMS += hit1->GetRMS().X()*hit1->GetRMS().X();
+        if (hit2) xyRMS += hit2->GetRMS().X()*hit2->GetRMS().X();
+        if (hit3) xyRMS += hit3->GetRMS().X()*hit3->GetRMS().X();
+        xyRMS /= 3.0;
+        xyRMS += xyRMS + 4*unit::mm*unit::mm;
+        xyRMS = std::sqrt(xyRMS);
+        hit->SetRMS(
+            TVector3(xyRMS,xyRMS,drift.GetAverageVelocity()*hit->GetTimeRMS()));
+	//  std::cout<<"here3"<<std::endl;
+        // For the XY uncertainty, assume a uniform position distribution.
+        // For the Z uncertainty, just use the time uncertainty.
+        hit->SetUncertainty(
+            TVector3(2.0*xyRMS/std::sqrt(12.),2.0*xyRMS/std::sqrt(12.),
+                     drift.GetAverageVelocity()*hit->GetTimeUncertainty()));
+
+	 CP::THandle<CP::TReconHit> newHit(new CP::TReconHit(*hit));
+	 // std::cout<<"Z="<<newHit->GetPosition().Z()<<std::endl;
+	  double ht=(newHit->GetConstituent()->GetTime()+1.6*unit::ms)/(500*unit::ns);
+	  // std::cout<<"YesOverlaped"<<"ActualTime="<<ht<<"; X="<<newHit->GetPosition().X()<<"; Y="<<newHit->GetPosition().Y()<<"; Z="<<newHit->GetPosition().Z()<<std::endl;
+	 if(!std::isnan(newHit->GetPosition().Z())){
+	   writableHits.push_back(newHit);}
+	//	std::cout<<"here4"<<std::endl;
+        begin = end; ++end;
+    }
+ }else{
+  // std::cout<<"NotOverlaped"<<std::endl;
+  double newTime=0;
+  double newCharge=0;
+  int hitCount=0;
+  if(hit1){
+    newTime+=hit1->GetTime();
+    newCharge+=hit1->GetCharge();
+    ++hitCount;
+  }
+   if(hit2){
+    newTime+=hit2->GetTime();
+    newCharge+=hit2->GetCharge();
+    ++hitCount;
+  }
+    if(hit3){
+    newTime+=hit3->GetTime();
+    newCharge+=hit3->GetCharge();
+    ++hitCount;
+  }
+    
+    //newTime = hit1->GetTime();
+     newTime/=hitCount*1.0;
+    newCharge/=hitCount*1.0;
+
+   
+  
+        CP::THandle<CP::TWritableReconHit> hit(new CP::TWritableReconHit(hit1,hit2,hit3));
+        hit->SetPosition(hitPosition);
+        hit->SetTime(newTime);
+
+        // Correct for the time zero.
+	 hit->SetPosition(drift.GetPosition(*hit,t0).Vect());
+
+        hit->SetTime(t0);
+        hit->SetTimeUncertainty(hit1->GetTimeUncertainty());
+        hit->SetTimeRMS(hit1->GetTimeRMS());
+        hit->SetCharge(newCharge);
 
         // Estimate the charge uncertainty.
         double splitChargeUnc = 0.0;
@@ -531,14 +653,6 @@ CP::CreateHit(CP::THitSelection& writableHits,
         if (splitChargeUnc > 0.0) {
             hit->SetChargeUncertainty(std::sqrt(1.0/splitChargeUnc));
         }
-        
-        // Find the xyRMS and xyUncertainty.  This is not being done
-        // correctly, but this should be an acceptable approximation.  The
-        // approximation is that the X rms of the three 2D hits is
-        // perpendicular to the wire is an estimate of the hit size.  The Z
-        // RMS is calculated based on the time RMS of the wire hits.  The XY
-        // rms then has the overlap spacing added in to account for lack of
-        // perfect overlaps (this is the constant 2mm squared).
         double xyRMS = 0.0;
         if (hit1) xyRMS += hit1->GetRMS().X()*hit1->GetRMS().X();
         if (hit2) xyRMS += hit2->GetRMS().X()*hit2->GetRMS().X();
@@ -548,7 +662,7 @@ CP::CreateHit(CP::THitSelection& writableHits,
         xyRMS = std::sqrt(xyRMS);
         hit->SetRMS(
             TVector3(xyRMS,xyRMS,drift.GetAverageVelocity()*hit->GetTimeRMS()));
-        
+	//  std::cout<<"here3"<<std::endl;
         // For the XY uncertainty, assume a uniform position distribution.
         // For the Z uncertainty, just use the time uncertainty.
         hit->SetUncertainty(
@@ -556,10 +670,16 @@ CP::CreateHit(CP::THitSelection& writableHits,
                      drift.GetAverageVelocity()*hit->GetTimeUncertainty()));
 
 	 CP::THandle<CP::TReconHit> newHit(new CP::TReconHit(*hit));
-        writableHits.push_back(newHit);
-        begin = end; ++end;
-    }
+	  double ht=(newHit->GetConstituent()->GetTime()+1.6*unit::ms)/(500*unit::ns);
+	  // std::cout<<"NotOverlaped"<<"ActualTime="<<ht<<"; X="<<newHit->GetPosition().X()<<"; Y="<<newHit->GetPosition().Y()<<"; Z="<<newHit->GetPosition().Z()<<std::endl;
+	 //	 std::cout<<"Z="<<newHit->GetPosition().Z()<<std::endl;
+	 if(!std::isnan(newHit->GetPosition().Z())){
+	
+	      writableHits.push_back(newHit);
+	 }
 
+ }
+// std::cout<<"Hit"<<std::endl;
     return true;
  
 }
