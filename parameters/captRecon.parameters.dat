@@ -70,4 +70,4 @@ The parameters defining properties of the cluster for ClusteringUnusedHits which
 TClustering 2D algotithm parameters
 
 < captRecon.clustering2D.minPoints = 5 >
-< captRecon.clustering2D.maxDist = 18 mm >
+< captRecon.clustering2D.maxDist = 25 mm >
