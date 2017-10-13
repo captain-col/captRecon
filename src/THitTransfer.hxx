@@ -7,35 +7,14 @@ namespace CP {
     class THitTransfer;
 };
 
-/// Take a hit selection (in the form of a CP::TAlgorithmResult), and group
-/// the 2D wire hits into 3D hits that are returned as a THitSelection (in the
-/// output TAlgorithm Result.  The 3D hits form a hit cloud representing the
-/// best knowledge of the spacial distribution of drifting electrons.  If
-/// there is an input PMT hit selection present, the hits will be placed at a
-/// Z associated with the T0 from the PMTs.  If there is no PMT, T0 will be
-/// taken to be zero.
+/// Modifide Cluster3D pakage, so it takes all 2D hits for each plane and convert tham in to pseudo 3D hits
 class CP::THitTransfer
     : public CP::TAlgorithm {
 public:
     THitTransfer();
     virtual ~THitTransfer();
 
-    /// Take a TAlgorithmResult handle containing 2D wire hits, and group them
-    /// into 3D XYZT hits.  Since a THitSelection can be converted into a
-    /// TAlgorithmResult this can also be called with a THandle to a
-    /// THitSelection.  The output TAlgorithmResult will contain:
-    ///
-    ///   * used -- A THitSelection of all of the wire hits that were combined
-    ///             into 3D hits.
-    /// 
-    ///   * unused -- A THitSelection of any wire hits that were not used in
-    ///               3D hits.
-    ///
-    ///   * clustered -- The hit selection containing the 3D TReconHit from
-    ///                  this algorithm.  This is the last THitSelection
-    ///                  added.
-    ///
-    /// The second and third parameters are ignored by this algorithm.
+
     CP::THandle<CP::TAlgorithmResult> 
     Process(const CP::TAlgorithmResult& input,
             const CP::TAlgorithmResult& input1 = CP::TAlgorithmResult::Empty,

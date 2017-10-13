@@ -152,12 +152,13 @@ bool CP::THitTransfer::MakeHit(CP::THitSelection& writableHits,
     double startTime = 9E+30;
     double stopTime = -9E+30;
     double expectedCharge = 9E+30;
-    
 
+    
+    // std::cout<<"HITTIMEUNS="<<hit1->GetTimeUncertainty()<<std::endl;
     // Find the full range of time covered by this hit.
     if (hit1) {
-        startTime = std::min(startTime, hit1->GetTimeStart());
-        stopTime = std::max(stopTime, hit1->GetTimeStop());
+        startTime = std::min(startTime, hit1->GetTimeLowerBound());
+        stopTime = std::max(stopTime, hit1->GetTimeUpperBound());
         expectedCharge = std::min(expectedCharge, hit1->GetCharge());
     }
 
@@ -169,17 +170,27 @@ bool CP::THitTransfer::MakeHit(CP::THitSelection& writableHits,
     CP::TDriftPosition drift;
 
     // Build an "overlap charge distribution"
-    int bins = (stopTime-startTime)/fDigitStep + 1;
+    int bins = (stopTime-startTime)/fDigitStep + 2;
+
     std::vector<double> overlap(bins);
 
     if (hit1) {
+  
         double hitStart = drift.GetTime(*hit1);
-        hitStart += hit1->GetTimeStart()-hit1->GetTime();
+
+        hitStart += hit1->GetTimeLowerBound()-hit1->GetTime();
+
         if (hit1->GetTimeSamples() > 1) {
+
             int ibin = (hitStart - startTime)/fDigitStep;
-            for (int i = 0; i<hit1->GetTimeSamples(); ++i) {
+	    int low =(hit1->GetTimeLowerBound()-hit1->GetTimeStart())/fDigitStep;
+	    int up = (hit1->GetTimeUpperBound()-hit1->GetTimeStart())/fDigitStep;
+
+	    int bcount=0;
+            for (int i = low; i<up; ++i) {
                 // The first hit must exist so just assign it.
-                overlap[i+ibin] = std::max(0.0,hit1->GetTimeSample(i));
+	       overlap[bcount+ibin] = std::max(0.0,hit1->GetTimeSample(i));
+	       bcount++;
             }
         }
     }
@@ -196,42 +207,19 @@ bool CP::THitTransfer::MakeHit(CP::THitSelection& writableHits,
         hitTime += t*overlap[i];
         hitTimeRMS += t*t*overlap[i];
         hitCharge += overlap[i];
+
         if (i < hitStart && overlap[i] > 1) hitStart = i;
         if (i > hitStop && overlap[i] > 1) hitStop = i;
     }
     
-    // Make sure the hits overlapped by a reasonable amount.
-    if (hitCharge < fMinimumOverlap*expectedCharge) {
-        CaptNamedInfo("Cluster","Insufficient overlap: "
-                     << hitCharge << "/" << expectedCharge
-                     << " from "
-                     << unit::AsString(startTime+hitStart*fDigitStep, "time")
-                     << " to " 
-                     << unit::AsString(startTime+hitStop*fDigitStep, "time"));
-        CP::TCaptLog::IncreaseIndentation();
-        if (hit1) {
-            CaptNamedVerbose(
-                "Cluster",
-                "Hit1: ("
-                << CP::GeomId::Captain::GetWirePlane(hit1->GetGeomId())
-                << "-" << CP::GeomId::Captain::GetWireNumber(hit1->GetGeomId())
-                << ")"
-                << " " << unit::AsString(hit1->GetCharge(), "pe")
-                << " from " 
-                << unit::AsString(hit1->GetTimeStart(), "time")
-                << " to " 
-                << unit::AsString(hit1->GetTimeStop(), "time"));
-        }
-        CP::TCaptLog::DecreaseIndentation();
-        return false;
-    }
-
     // Figure out where the charge overlap should be split.  The initial guess
     // is the beginning and the end (i.e. no spliting at all).
     std::vector<int> splits;
+ 
     splits.push_back(hitStart);
+    
     splits.push_back(hitStop+1);
-
+  
     // Update the original guess at where to divide the current overlapping
     // charge distribution by finding the internal partition points.
     double hitSpread = fDigitStep*(hitStop-hitStart);
@@ -245,7 +233,6 @@ bool CP::THitTransfer::MakeHit(CP::THitSelection& writableHits,
             splits.push_back((int) (s+0.5) );
         }
     }
-
     // Make sure that the split points are in order.
     std::sort(splits.begin(), splits.end());
 
@@ -272,12 +259,19 @@ bool CP::THitTransfer::MakeHit(CP::THitSelection& writableHits,
             new CP::TWritableReconHit(hit1));
         hit->SetPosition(hitPosition);
         hit->SetTime(splitTime);
+
         // Correct for the time zero.
         hit->SetPosition(drift.GetPosition(*hit,t0).Vect());
         hit->SetTime(t0);
-        hit->SetTimeUncertainty(splitTimeRMS/sqrt(3.0));
-        hit->SetTimeRMS(splitTimeRMS);
-        hit->SetCharge(splitCharge);
+        
+	       hit->SetTimeUncertainty(splitTimeRMS/sqrt(3.0));
+	 hit->SetTimeRMS(splitTimeRMS);
+	 hit->SetCharge(splitCharge);
+        
+	   hit->SetTimeUncertainty(hit1->GetTimeUncertainty());
+	   hit->SetTimeRMS(hit1->GetTimeRMS());
+	   // hit->SetCharge(0.1);
+	   
         
         // Estimate the charge uncertainty.
         double splitChargeUnc = 0.0;
@@ -314,7 +308,7 @@ bool CP::THitTransfer::MakeHit(CP::THitSelection& writableHits,
         writableHits.push_back(hit);
         begin = end; ++end;
     }
-
+    
     return true;
 }
 
@@ -331,7 +325,41 @@ CP::THitTransfer::Process(const CP::TAlgorithmResult& wires,
         return CP::THandle<CP::TAlgorithmResult>();
     }
 
-#define CHECK_FOR_OVERLAPPED_HITS
+    CP::THitSelection xHits;
+    CP::THitSelection vHits;
+    CP::THitSelection uHits;
+    for (CP::THitSelection::iterator h = wireHits->begin(); 
+         h != wireHits->end(); ++h) {
+        int plane = CP::GeomId::Captain::GetWirePlane((*h)->GetGeomId());
+        if (plane == CP::GeomId::Captain::kXPlane) {
+	   xHits.push_back(*h);
+        }
+        else if (plane == CP::GeomId::Captain::kVPlane) {
+	  vHits.push_back(*h);
+        }
+        else if (plane == CP::GeomId::Captain::kUPlane) {
+	  uHits.push_back(*h);
+        }
+    }
+    for(std::size_t i=0;i<xHits.size();++i){
+      // std::cout<<"HitTransferX"<<"; X="<<xHits[i]->GetPosition().X()<<"; Y="<<xHits[i]->GetPosition().Y()<<"; Z="<<xHits[i]->GetPosition().Z()<<"; StartTime="<<xHits[i]->GetTimeStart()<<"; StopTime="<<xHits[i]->GetTimeStop()<<std::endl;
+      //std::cout<<"Wire#"<<CP::GeomId::Captain::GetWireNumber(xHits[i]->GetGeomId())<<std::endl;
+    }
+        for(std::size_t i=0;i<uHits.size();++i){
+	  // std::cout<<"HitTransferU"<<"; X="<<uHits[i]->GetPosition().X()<<"; Y="<<uHits[i]->GetPosition().Y()<<"; Z="<<uHits[i]->GetPosition().Z()<<"; StartTime="<<uHits[i]->GetTimeStart()<<"; StopTime="<<uHits[i]->GetTimeStop()<<std::endl;
+	  // std::cout<<"Wire#"<<CP::GeomId::Captain::GetWireNumber(uHits[i]->GetGeomId())<<std::endl;
+    }
+	    for(std::size_t i=0;i<vHits.size();++i){
+	      // std::cout<<"HitTransferV"<<"; X="<<vHits[i]->GetPosition().X()<<"; Y="<<vHits[i]->GetPosition().Y()<<"; Z="<<vHits[i]->GetPosition().Z()<<"; StartTime="<<vHits[i]->GetTimeStart()<<"; StopTime="<<vHits[i]->GetTimeStop()<<std::endl;
+	      //std::cout<<"Wire#"<<CP::GeomId::Captain::GetWireNumber(vHits[i]->GetGeomId())<<std::endl;
+    }
+
+
+
+
+    
+
+    //#define CHECK_FOR_OVERLAPPED_HITS
 #ifdef  CHECK_FOR_OVERLAPPED_HITS
     for (CP::THitSelection::iterator h = wireHits->begin();
          h != wireHits->end(); ++h) {
