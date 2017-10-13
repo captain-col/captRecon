@@ -15,6 +15,11 @@
 #include <set>
 #include <cmath>
 
+#include "TH1F.h"
+#include "TH2F.h"
+#include "TCanvas.h"
+#include "TPad.h"
+
   int CheckObjectPlane(const CP::THandle<CP::TReconBase>& obj){
     
  
@@ -78,7 +83,7 @@ CP::TTracking2D::TTracking2D()
     : TAlgorithm("TTracking2D", 
                  "Break up objects into separate hits") {
 
-  fXZRatio=0.4;
+  fXZRatio=9999;
  
 }
 
@@ -128,7 +133,7 @@ CP::TTracking2D::Process(const CP::TAlgorithmResult& input,
         }
 	int plane = CheckObjectPlane(cluster);
 	if(plane==1){
-	  std::cout<<"SEPARATING X"<<std::endl;
+	  //  std::cout<<"SEPARATING X"<<std::endl;
 	  clustersX.push_back(*cl);}
 	else if(plane==2){
 	  clustersU.push_back(*cl);}
@@ -157,14 +162,17 @@ CP::TTracking2D::Process(const CP::TAlgorithmResult& input,
 		if(useAxis[0]==1){
 	      track = CreateTrackFromHits("TTracking2D",
 					  (*hft).begin(), (*hft).end(),cluster->GetLongAxis());
+	      // std::cout<<"clXTrack"<<"; X="<<track->GetPosition().X()<<"; Y="<<track->GetPosition().Y()<<"; Z="<<track->GetPosition().Z()<<std::endl;
 		}
 		if(useAxis[0]==2){
 	      track = CreateTrackFromHits("TTracking2D",
 					  (*hft).begin(), (*hft).end(),cluster->GetMajorAxis());
+	      // std::cout<<"clXTrack"<<"; X="<<track->GetPosition().X()<<"; Y="<<track->GetPosition().Y()<<"; Z="<<track->GetPosition().Z()<<std::endl;
 		}
 		if(useAxis[0]==3){
 	      track = CreateTrackFromHits("TTracking2D",
 					  (*hft).begin(), (*hft).end(),cluster->GetMinorAxis());
+	      // std::cout<<"clXTrack"<<"; X="<<track->GetPosition().X()<<"; Y="<<track->GetPosition().Y()<<"; Z="<<track->GetPosition().Z()<<std::endl;
 		}
 		if(track){
                 final->push_back(track);
@@ -200,14 +208,17 @@ CP::TTracking2D::Process(const CP::TAlgorithmResult& input,
 		if(useAxis[0]==1){
 	      track = CreateTrackFromHits("TTracking2D",
 					  (*hft).begin(), (*hft).end(),cluster->GetLongAxis());
+	      //  std::cout<<"clUTrack"<<"; X="<<track->GetPosition().X()<<"; Y="<<track->GetPosition().Y()<<"; Z="<<track->GetPosition().Z()<<std::endl;
 		}
 		if(useAxis[0]==2){
 	      track = CreateTrackFromHits("TTracking2D",
 					  (*hft).begin(), (*hft).end(),cluster->GetMajorAxis());
+	      //  std::cout<<"clUTrack"<<"; X="<<track->GetPosition().X()<<"; Y="<<track->GetPosition().Y()<<"; Z="<<track->GetPosition().Z()<<std::endl;
 		}
 		if(useAxis[0]==3){
 	      track = CreateTrackFromHits("TTracking2D",
 					  (*hft).begin(), (*hft).end(),cluster->GetMinorAxis());
+	      // std::cout<<"clUTrack"<<"; X="<<track->GetPosition().X()<<"; Y="<<track->GetPosition().Y()<<"; Z="<<track->GetPosition().Z()<<std::endl;
 		}
 		if(track){
                 final->push_back(track);
@@ -242,14 +253,19 @@ CP::TTracking2D::Process(const CP::TAlgorithmResult& input,
 		if(useAxis[0]==1){
 	      track = CreateTrackFromHits("TTracking2D",
 					  (*hft).begin(), (*hft).end(),cluster->GetLongAxis());
+	    
+		// std::cout<<"clVTrack"<<"; X="<<track->GetPosition().X()<<"; Y="<<track->GetPosition().Y()<<"; Z="<<track->GetPosition().Z()<<std::endl;
 		}
 		if(useAxis[0]==2){
 	      track = CreateTrackFromHits("TTracking2D",
 					  (*hft).begin(), (*hft).end(),cluster->GetMajorAxis());
+	    
+	      // std::cout<<"clVTrack"<<"; X="<<track->GetPosition().X()<<"; Y="<<track->GetPosition().Y()<<"; Z="<<track->GetPosition().Z()<<std::endl;
 		}
 		if(useAxis[0]==3){
 	      track = CreateTrackFromHits("TTracking2D",
 					  (*hft).begin(), (*hft).end(),cluster->GetMinorAxis());
+	      // std::cout<<"clVTrack"<<"; X="<<track->GetPosition().X()<<"; Y="<<track->GetPosition().Y()<<"; Z="<<track->GetPosition().Z()<<std::endl;
 		}
 		if(track){
                 final->push_back(track);
@@ -258,10 +274,65 @@ CP::TTracking2D::Process(const CP::TAlgorithmResult& input,
 	      }
 	    }
 	  }
-	  }
+      }
     CaptNamedLog("TTrackingVClusters",
                  "With " << (*tracksV).size() << " tracks_vh"
                  << " from " << clustersV.size() << " v clusters");
+
+    TH2F* HitsX = new TH2F("HitsForX","HitsForX",340,0,340,9600,0,9600);
+    TH2F* HitsU = new TH2F("HitsForU","HitsForU",340,0,340,9600,0,9600);
+    TH2F* HitsV = new TH2F("HitsForV","HitsForV",340,0,340,9600,0,9600);
+    if(tracksX->size()>0){
+      for(CP::TReconObjectContainer::iterator it = tracksX->begin();it!=tracksX->end();++it){
+	CP::THandle<CP::THitSelection> hits = (*it)->GetHits();
+	if(hits){
+	  for(CP::THitSelection::iterator h = hits->begin();h!=hits->end();++h){
+	    double ht=((*h)->GetConstituent()->GetTime()+1.6*unit::ms)/(500*unit::ns);
+	    double hw=CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId());
+	    HitsX->Fill(hw,ht);
+	  }
+	}
+      }
+
+      HitsX->Draw();
+      gPad->Print("plots/XHits.C");
+    }
+
+      if(tracksU->size()>0){
+      for(CP::TReconObjectContainer::iterator it = tracksU->begin();it!=tracksU->end();++it){
+	CP::THandle<CP::THitSelection> hits = (*it)->GetHits();
+	if(hits){
+	  for(CP::THitSelection::iterator h = hits->begin();h!=hits->end();++h){
+	    double ht=((*h)->GetConstituent()->GetTime()+1.6*unit::ms)/(500*unit::ns);
+	    double hw=CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId());
+	    HitsU->Fill(hw,ht);
+
+	  }
+	}
+      }
+
+      HitsU->Draw();
+      gPad->Print("plots/UHits.C");
+    }
+
+        if(tracksV->size()>0){
+      for(CP::TReconObjectContainer::iterator it = tracksV->begin();it!=tracksV->end();++it){
+	CP::THandle<CP::THitSelection> hits = (*it)->GetHits();
+	if(hits){
+	  for(CP::THitSelection::iterator h = hits->begin();h!=hits->end();++h){
+	    double ht=((*h)->GetConstituent()->GetTime()+1.6*unit::ms)/(500*unit::ns);
+	    double hw=CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId());
+	    HitsV->Fill(hw,ht);
+
+	  }
+	}
+      }
+ 
+      HitsV->Draw();
+      gPad->Print("plots/VHits.C");
+    }
+
+    
     result->AddResultsContainer(tracksX.release());
     result->AddResultsContainer(tracksU.release());
     result->AddResultsContainer(tracksV.release());

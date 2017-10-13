@@ -9,7 +9,7 @@ namespace CP {
 };
 
 
-/// This takes a algorithm result as a TReconObjectContainer and gets all pseudo_3D hits, formed in THitTransfer algorithm. Then it cluster them using DBScan algorithm in to 2D clusters for each plane (X,U,V).
+/// This takes a algorithm result as a TReconObjectContainer and gets all formed clusters and convert tham in to tracks. It should be a cut of length/width of the cluster ratio, but apparantly it does not work, so it is skipped.
 
 class CP::TTracking2D : public CP::TAlgorithm {
 public:
