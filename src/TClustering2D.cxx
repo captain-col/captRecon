@@ -16,6 +16,11 @@
 #include <set>
 #include <cmath>
 
+#include "TH1F.h"
+#include "TH2F.h"
+#include "TCanvas.h"
+#include "TPad.h"
+
 CP::TClustering2D::TClustering2D()
     : TAlgorithm("TClustering2D", 
                  "Break up objects into separate hits") {
@@ -60,19 +65,21 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
         if (plane == CP::GeomId::Captain::kXPlane) {
 
 	   xHits.push_back(*h);
-
+	   // std::cout<<"xHit"<<"; X="<<(*h)->GetPosition().X()<<"; Y="<<(*h)->GetPosition().Y()<<"; Z="<<(*h)->GetPosition().Z()<<"; Unc.Z="<<(*h)->GetUncertainty().Z()<<std::endl;
         }
         else if (plane == CP::GeomId::Captain::kVPlane) {
 	  vHits.push_back(*h);
+	  //  std::cout<<"uHit"<<"; X="<<(*h)->GetPosition().X()<<"; Y="<<(*h)->GetPosition().Y()<<"; Z="<<(*h)->GetPosition().Z()<<"; Unc.Z="<<(*h)->GetUncertainty().Z()<<std::endl;
         }
         else if (plane == CP::GeomId::Captain::kUPlane) {
 	  uHits.push_back(*h);
+	  // std::cout<<"vHit"<<"; X="<<(*h)->GetPosition().X()<<"; Y="<<(*h)->GetPosition().Y()<<"; Z="<<(*h)->GetPosition().Z()<<"; Unc.Z="<<(*h)->GetUncertainty().Z()<<std::endl;
         }
         else {
             CaptError("Invalid wire plane");
         }
     }
-    std::cout<<"Here"<<std::endl;
+ 
     // Create the output containers.
     CP::THandle<CP::TAlgorithmResult> result = CreateResult();
     std::unique_ptr<CP::TReconObjectContainer> 
@@ -195,7 +202,60 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
         result->AddHits(vused.release());
       } 
     
-   
+    TH2F* HitsX = new TH2F("HitsForX","HitsForX",340,0,340,9600,0,9600);
+    TH2F* HitsU = new TH2F("HitsForU","HitsForU",340,0,340,9600,0,9600);
+    TH2F* HitsV = new TH2F("HitsForV","HitsForV",340,0,340,9600,0,9600);
+    if(xclusters->size()>0){
+      for(CP::TReconObjectContainer::iterator it = xclusters->begin();it!=xclusters->end();++it){
+	CP::THandle<CP::THitSelection> hits = (*it)->GetHits();
+	if(hits){
+	  for(CP::THitSelection::iterator h = hits->begin();h!=hits->end();++h){
+	    double ht=((*h)->GetConstituent()->GetTime()+1.6*unit::ms)/(500*unit::ns);
+	    double hw=CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId());
+	    HitsX->Fill(hw,ht);
+	  }
+	}
+      }
+
+      HitsX->Draw();
+      gPad->Print("plots/XHits_cl.C");
+    }
+
+      if(uclusters->size()>0){
+      for(CP::TReconObjectContainer::iterator it = uclusters->begin();it!=uclusters->end();++it){
+	CP::THandle<CP::THitSelection> hits = (*it)->GetHits();
+	if(hits){
+	  for(CP::THitSelection::iterator h = hits->begin();h!=hits->end();++h){
+	    double ht=((*h)->GetConstituent()->GetTime()+1.6*unit::ms)/(500*unit::ns);
+	    double hw=CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId());
+	    HitsU->Fill(hw,ht);
+
+	  }
+	}
+      }
+
+      HitsU->Draw();
+      gPad->Print("plots/UHits_cl.C");
+    }
+
+        if(vclusters->size()>0){
+      for(CP::TReconObjectContainer::iterator it = vclusters->begin();it!=vclusters->end();++it){
+	CP::THandle<CP::THitSelection> hits = (*it)->GetHits();
+	if(hits){
+	  for(CP::THitSelection::iterator h = hits->begin();h!=hits->end();++h){
+	    double ht=((*h)->GetConstituent()->GetTime()+1.6*unit::ms)/(500*unit::ns);
+	    double hw=CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId());
+	    HitsV->Fill(hw,ht);
+
+	  }
+	}
+      }
+ 
+      HitsV->Draw();
+      gPad->Print("plots/VHits_cl.C");
+    }
+
+     
    
 
     result->AddResultsContainer(xclusters.release());
