@@ -70,7 +70,7 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
     ///////////////////////////////////////////////////////////
     do {
         // Find the time zero and the 3D hits.
-      #define Hits_3D
+      //  #define Hits_3D
 #ifdef Hits_3D
         CP::THandle<CP::TAlgorithmResult> cluster3DResult;
         if (pmts) {
@@ -113,7 +113,7 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
 #endif
 #endif
 
-	//	#define Hits_2D
+		#define Hits_2D
 	#ifdef Hits_2D
 
 	 // Find the time zero and transform the 2D hits in pseudo3D.
@@ -143,7 +143,7 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         result->AddDatum(currentResult);
 	#endif
 
-	#define Apply_TTracking_2D
+		#define Apply_TTracking_2D
 #ifdef Apply_TTracking_2D
         // Create 2D tracks from 2D clusters 
         CP::THandle<CP::TAlgorithmResult> track2DResult;
@@ -166,7 +166,7 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
 
 
 
-#define Apply_TMinimalSpanningTrack
+	// 	#define Apply_TMinimalSpanningTrack
 #ifdef Apply_TMinimalSpanningTrack
         CP::THandle<CP::TAlgorithmResult> minimalSpanningResult
             = Run<CP::TMinimalSpanningTrack>(*currentResult);
@@ -175,7 +175,7 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         result->AddDatum(currentResult);
 #endif
 
-#define Apply_TSplitTracks
+	//	#define Apply_TSplitTracks
 #ifdef Apply_TSplitTracks
         CP::THandle<CP::TAlgorithmResult> splitTracksResult
             = Run<CP::TSplitTracks>(*currentResult);
@@ -184,7 +184,7 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         result->AddDatum(currentResult);
 #endif
 
-#define Apply_TMergeTracks
+	//	#define Apply_TMergeTracks
 #ifdef Apply_TMergeTracks
         CP::THandle<CP::TAlgorithmResult> mergeTracksResult
             = Run<CP::TMergeTracks>(*currentResult);
@@ -193,7 +193,7 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         result->AddDatum(currentResult);
 #endif
 
-//#define Apply_TDisassociateHits
+	//#define Apply_TDisassociateHits
 #ifdef Apply_TDisassociateHits
         CP::THandle<CP::TAlgorithmResult> disassociateHitsResult
             = Run<CP::TDisassociateHits>(*currentResult);
@@ -202,7 +202,7 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         result->AddDatum(currentResult);
 #endif
 
-#define Apply_TCombineOverlaps
+	//#define Apply_TCombineOverlaps
 #ifdef Apply_TCombineOverlaps
         CP::THandle<CP::TAlgorithmResult> combineOverlapsResult
             = Run<CP::TCombineOverlaps>(*currentResult);
@@ -211,7 +211,7 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         result->AddDatum(currentResult);
 #endif
 
-#define Destroy_Short_Tracks
+	//#define Destroy_Short_Tracks
 #ifdef Destroy_Short_Tracks
 	//Destroy tracks with reconstructed length l < 15mm
         CP::THandle<CP::TAlgorithmResult> destroyShortTracks
@@ -221,7 +221,7 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         result->AddDatum(currentResult);	
 #endif
 
-#define Cluster_Unused_Hits
+	//#define Cluster_Unused_Hits
 #ifdef Cluster_Unused_Hits
  // Cluster unused by this time 3D hits by position. 
         CP::THandle<CP::TAlgorithmResult> clusterUnusedHits
@@ -229,9 +229,9 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
         if (!clusterUnusedHits) break;
         currentResult = clusterUnusedHits;
         result->AddDatum(currentResult);	
-#endif
-
-
+	#endif
+	
+	
     } while (false);
     
     if (!currentResult) {
@@ -251,7 +251,7 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
                   std::back_inserter(*finalObjects));
     }
     // Save the hits, but only if there aren't to many.
-    if (allHits && allHits->size() < 10000) {
+     if (allHits && allHits->size() < 10000) {
 
      
 
