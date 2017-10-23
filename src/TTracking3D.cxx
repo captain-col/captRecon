@@ -62,13 +62,16 @@ bool CompHitsZ(const CP::THandle<CP::THit>& lhs, const CP::THandle<CP::THit>& rh
   return lhs->GetPosition().Z() < rhs->GetPosition().Z();
 }
 
+bool CompHitsT(const CP::THandle<CP::THit>& lhs, const CP::THandle<CP::THit>& rhs){
+  return lhs->GetTime() < rhs->GetTime();
+}
+
 bool CheckPosition(TVector3 s, TVector3 f, TVector3 posX){
   if(posX.Z()>s.Z() && posX.Z()<f.Z()) return true;
    if(posX.Z()<s.Z() && posX.Z()>f.Z()) return true;
   return false;
 }
 int WireDir( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReconTrack> trackU,CP::THandle<CP::TReconTrack> trackV){
-
   
   CP::THandle<CP::THitSelection> hitX = trackX->GetHits();
   CP::THandle<CP::THitSelection> hitU = trackU->GetHits();
@@ -77,13 +80,20 @@ int WireDir( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReconTrack> t
     {
       nWire.insert(CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId()));
     }
- int nWireX=nWire.size();
+int nWireX=nWire.size();
   nWire.clear();
 
-  double check = ((*hitX).size()*1.0)/(nWireX*1.0)*100.0;
+   for(CP::THitSelection::iterator h = (*hitU).begin() ; h!=(*hitU).end();++h)
+    {
+      nWire.insert(CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId()));
+    }
+ int nWireU=nWire.size();
+  nWire.clear();
+
+  if(nWireX<3 || nWireU<3)return 10;
 
     std::sort((*hitX).begin(),(*hitX).end(),CompHitsW);
-    // if(check>70)return 10;
+ 
   std::sort((*hitU).begin(),(*hitU).end(),CompHitsW);
   
   TVector3 xuFF = PositionXY((*hitX).front()->GetConstituent(),(*hitU).front()->GetConstituent());
@@ -91,6 +101,16 @@ int WireDir( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReconTrack> t
 
       if(trackV){    
   CP::THandle<CP::THitSelection> hitV = trackV->GetHits();
+
+   for(CP::THitSelection::iterator h = (*hitV).begin() ; h!=(*hitV).end();++h)
+    {
+      nWire.insert(CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId()));
+    }
+ int nWireV=nWire.size();
+  nWire.clear();
+
+  if(nWireV<3)return 10;
+  
   std::sort((*hitV).begin(),(*hitV).end(),CompHitsW);
   TVector3 xvFF = PositionXY((*hitX).front()->GetConstituent(),(*hitV).front()->GetConstituent());
   TVector3 xvFB = PositionXY((*hitX).front()->GetConstituent(),(*hitV).back()->GetConstituent());
@@ -253,9 +273,9 @@ bool Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReco
     std::sort((*hitV).begin(),(*hitV).end(),CompHitsW);
   }
   if(dir==10){
-    std::sort((*hitX).begin(),(*hitX).end(),CompHitsZ);
-     std::sort((*hitU).begin(),(*hitU).end(),CompHitsZ);
-    std::sort((*hitV).begin(),(*hitV).end(),CompHitsZ);
+    std::sort((*hitX).begin(),(*hitX).end(),CompHitsT);
+     std::sort((*hitU).begin(),(*hitU).end(),CompHitsT);
+    std::sort((*hitV).begin(),(*hitV).end(),CompHitsT);
   }
   
   //********************************************************************************
@@ -497,9 +517,9 @@ bool Assemble2DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReco
     }
 
 
-  std::sort((*hitX).begin(),(*hitX).end(),CompHitsZ);
+  std::sort((*hitX).begin(),(*hitX).end(),CompHitsT);
  
-    std::sort((*hitU).begin(),(*hitU).end(),CompHitsZ);
+    std::sort((*hitU).begin(),(*hitU).end(),CompHitsT);
 
  
  int minSepar = std::min((int)(*hitX).size(),(int)(*hitU).size());
@@ -558,13 +578,15 @@ bool Assemble2DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReco
       }           
     }
     
-#define Hit_Con_Alg
+    #define Hit_Con_Alg
 #ifdef Hit_Con_Alg
     
  writableHits = HitConnector2D(inHitsXH,inHitsUH);
 
 #endif
 
+
+ //#define All_3D_Hits
 #ifdef All_3D_Hits 
   if(inHitsX.size()>0){
    TVector3 hitPosition;
@@ -750,12 +772,12 @@ double ht=((*h)->GetConstituent()->GetTime()+1.6*unit::ms)/(500*unit::ns);
   }
 
 
-  //Not Yet tested
+  
 
   
-  /* if(tracksU.size()>0 && tracksV.size()>0) {
+   if(tracksU.size()>0 && tracksV.size()>0) {
      for (CP::TReconObjectContainer::iterator trU = tracksU.begin();
-       trX != tracksX.end(); ) {
+       trU != tracksU.end(); ) {
     CP::THandle<CP::TReconTrack> trackU = *trU;
     double maxZU=MaxZ(trackU);
     double minZU=MinZ(trackU);
@@ -765,16 +787,19 @@ double ht=((*h)->GetConstituent()->GetTime()+1.6*unit::ms)/(500*unit::ns);
     double uvDiff=abs(maxZU-MaxZ(tracksV[0]))+abs(minZU-MinZ(tracksV[0]));
   std::cout<<"uvDiff="<<uvDiff<<std::endl;
     if(uvDiff<distCut)
-      {
+      { 
 	if(Assemble2DTrack(trackU,tracksV[0],match2,trackNum)){
+	 
 	tracksU.erase(trU);
 	trackNum++;
+
 	tracksV.erase(tracksV.begin());
+
 	}else++trU;
       }else++trU;
     }else ++trU;
   }
-  }*/
+  }
   
   
 }
