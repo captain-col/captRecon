@@ -10,7 +10,9 @@ namespace CP {
 };
 
 
-/// This takes a algorithm result as a TReconObjectContainer and gets all pseudo_3D hits, formed in THitTransfer algorithm. Then it cluster them using DBScan algorithm in to 2D clusters for each plane (X,U,V).
+/// This takes a algorithm result as a TReconObjectContainer and gets all pseudo_3D hits, formed in THitTransfer algorithm.
+/// Then For each plane separately the algorithm applies position based clustering(parameters: minpoints=3,masdist=25mm)<- it is done to take away "noise". Then for all hits that where clusterd the HoughTransform where applyed.
+///Hough produce Line that might be splitted in to several lines based on gaps by applying DBScan(parameters: minpoints=2,masdist=60mm)
 
 class CP::TClustering2D : public CP::TAlgorithm {
 public:
@@ -24,6 +26,8 @@ public:
     Process(const CP::TAlgorithmResult& input,
             const CP::TAlgorithmResult& input1 = CP::TAlgorithmResult::Empty,
             const CP::TAlgorithmResult& input2 = CP::TAlgorithmResult::Empty);
+
+  CP::THitSelection ClusteredHits(CP::THitSelection& hits,bool bigest,unsigned int minPoints, double maxDist); 
 
   
 
