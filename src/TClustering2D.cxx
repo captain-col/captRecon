@@ -152,6 +152,10 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 
     if(xHits.size()>0)
       {
+	   		CP::THitSelection xHits_cl;
+
+			xHits_cl=ClusteredHits(xHits,false,5,25);
+
 	bool failHough=false;
 	typedef CP::THoughTrans< CP::THandle<THit> > HoughAlgorithm;
 
@@ -160,7 +164,7 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 
 	std::vector<std::pair<double,double>> points;
 
-	for(CP::THitSelection::iterator h=xHits.begin();h!=xHits.end();++h){
+	for(CP::THitSelection::iterator h=xHits_cl.begin();h!=xHits_cl.end();++h){
 	  double x = (*h)->GetPosition().X();
 	  points.push_back(std::make_pair(x,(*h)->GetPosition().Z()));
 	}
@@ -168,7 +172,7 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 	Hough.HoughTransform(points.begin(),points.end());
 
 	
-	std::pair<double,double> lineParam=Hough.GetLineParam(20);
+	std::pair<double,double> lineParam=Hough.GetLineParam(10);
 
 	if(lineParam.first==-9999 || lineParam.second==-9999){
 	  failHough=true;
@@ -178,15 +182,15 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 	CP::THitSelection LineHits;
 	CP::THitSelection FinalLine;
 
-	for(CP::THitSelection::iterator h=xHits.begin();h!=xHits.end();++h){
+	for(CP::THitSelection::iterator h=xHits_cl.begin();h!=xHits_cl.end();++h){
 	  double dist = GetDist((*h)->GetPosition().X(),(*h)->GetPosition().Z(),lineParam);
 
-	  if(dist<10) LineHits.push_back(*h);
+	  if(dist<15) LineHits.push_back(*h);
 	}
 
 	if(LineHits.size()>2){
 	  std::sort(LineHits.begin(),LineHits.end(),CompX);
- FinalLine=CP::TClustering2D::ClusteredHits(LineHits,true,2,60);
+	  FinalLine=CP::TClustering2D::ClusteredHits(LineHits,true,2,60);
 	  //	std::copy(LineHits.begin(),LineHits.end(),back_inserter(FinalLine));
 
 	  CP::THandle<CP::TReconCluster> cluster = CreateCluster("cluster_xh",FinalLine.begin(),FinalLine.end());
@@ -198,10 +202,10 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 	
 	if(FinalLine.size()>0){
 	  	for(CP::THitSelection::iterator h=FinalLine.begin();h!=FinalLine.end();++h){
-	  xHits.erase(std::remove(xHits.begin(),xHits.end(),*h),xHits.end());
+	  xHits_cl.erase(std::remove(xHits_cl.begin(),xHits_cl.end(),*h),xHits_cl.end());
 	}
 	}else{failHough=true;}
-if(xHits.size()<5)
+if(xHits_cl.size()<5)
 	  failHough=true;
  points.clear();
 	  
