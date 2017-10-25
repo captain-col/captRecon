@@ -455,7 +455,6 @@ bool Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReco
     if(track){
     match3.push_back(track);
     }
-
     return true;
   }
 
@@ -717,7 +716,7 @@ double ht=((*h)->GetConstituent()->GetTime()+1.6*unit::ms)/(500*unit::ns);
 	if(Assemble2DTrack(trackX,tracksV[0],match2,trackNum)){
 	tracksX.erase(trX);
 	trackNum++;
-	tracksV.erase(tracksU.begin());
+	tracksV.erase(tracksV.begin());
 	}else ++trX;
       }else ++trX;
     }
