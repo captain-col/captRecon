@@ -185,10 +185,9 @@ bool Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReco
   CP::THandle<CP::THitSelection> hitX(new CP::THitSelection);
   CP::THandle<CP::THitSelection> hitU(new CP::THitSelection);
   CP::THandle<CP::THitSelection> hitV(new CP::THitSelection);
-  TH2F* HitsX = new TH2F("HitsForX","HitsForX",340,0,340,9600,0,9600);
-  TH2F* HitsU = new TH2F("HitsForU","HitsForU",340,0,340,9600,0,9600);
-  TH2F* HitsV = new TH2F("HitsForV","HitsForV",340,0,340,9600,0,9600);
-
+  std::unique_ptr<TH2F> HitsX(new TH2F("HitsForX","HitsForX",340,0,340,9600,0,9600));
+  std::unique_ptr<TH2F> HitsU(new TH2F("HitsForU","HitsForU",340,0,340,9600,0,9600));
+  std::unique_ptr<TH2F>  HitsV(new TH2F("HitsForV","HitsForV",340,0,340,9600,0,9600));
   
   //********************************************************************************
   //Since 3D hit finding algoritm later on operates with 2D hits, we extract unique constituents from "pseudo" 3D
@@ -477,8 +476,9 @@ bool Assemble2DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReco
   CP::THandle<CP::THitSelection> hitX(new CP::THitSelection);
   CP::THandle<CP::THitSelection> hitU(new CP::THitSelection);
 
-   TH2F* HitsX = new TH2F("HitsForX","HitsForX",340,0,340,9600,0,9600);
-    TH2F* HitsU = new TH2F("HitsForU","HitsForU",340,0,340,9600,0,9600);
+  std::unique_ptr<TH2F> HitsX(new TH2F("HitsForX","HitsForX",340,0,340,9600,0,9600));
+  std::unique_ptr<TH2F> HitsU(new TH2F("HitsForU","HitsForU",340,0,340,9600,0,9600));
+
   for(CP::THitSelection::iterator h = (*hitX_t).begin() ; h!=(*hitX_t).end();++h)
     {
 
@@ -714,14 +714,14 @@ double ht=((*h)->GetConstituent()->GetTime()+1.6*unit::ms)/(500*unit::ns);
       std::cout<<"xvDiff="<<xvDiff<<std::endl;
        if(xvDiff<distCut )
       {
-	if(Assemble2DTrack(trackX,tracksV[0],match2,trackNum)){ 
+	if(Assemble2DTrack(trackX,tracksV[0],match2,trackNum)){
 	tracksX.erase(trX);
 	trackNum++;
-	tracksU.erase(tracksU.begin());
+	tracksV.erase(tracksU.begin());
 	}else ++trX;
       }else ++trX;
     }
-    if(ntracks==0)++trX;   
+    if(ntracks==0)++trX;
   }
   }
   if(tracksX.size()>0 && tracksU.size()>0) {

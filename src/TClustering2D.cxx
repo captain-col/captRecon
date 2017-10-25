@@ -185,12 +185,12 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 	for(CP::THitSelection::iterator h=xHits_cl.begin();h!=xHits_cl.end();++h){
 	  double dist = GetDist((*h)->GetPosition().X(),(*h)->GetPosition().Z(),lineParam);
 
-	  if(dist<15) LineHits.push_back(*h);
+	  if(dist<15*unit::mm) LineHits.push_back(*h);
 	}
 
 	if(LineHits.size()>2){
 	  std::sort(LineHits.begin(),LineHits.end(),CompX);
-	  FinalLine=CP::TClustering2D::ClusteredHits(LineHits,true,2,60);
+	  FinalLine=CP::TClustering2D::ClusteredHits(LineHits,true,3,60);
 	  //	std::copy(LineHits.begin(),LineHits.end(),back_inserter(FinalLine));
 
 	  CP::THandle<CP::TReconCluster> cluster = CreateCluster("cluster_xh",FinalLine.begin(),FinalLine.end());
@@ -333,7 +333,7 @@ if(uHits_cl.size()<5)
 	  if(dist<10) LineHits.push_back(*h);
 	}
 
-	CP:THitSelection FinalLine;
+	CP::THitSelection FinalLine;
 	
 	if(LineHits.size()>2){
 	  std::sort(LineHits.begin(),LineHits.end(),CompX);
@@ -365,9 +365,9 @@ if(vHits_cl.size()<5)
     
       }
     
-     TH2F* HitsX = new TH2F("HitsForX","HitsForX",340,0,340,9600,0,9600);
-    TH2F* HitsU = new TH2F("HitsForU","HitsForU",340,0,340,9600,0,9600);
-    TH2F* HitsV = new TH2F("HitsForV","HitsForV",340,0,340,9600,0,9600);
+       std::unique_ptr<TH2F> HitsX(new TH2F("HitsForX","HitsForX",340,0,340,9600,0,9600));
+       std::unique_ptr<TH2F> HitsU(new TH2F("HitsForU","HitsForU",340,0,340,9600,0,9600));
+    std::unique_ptr<TH2F>  HitsV(new TH2F("HitsForV","HitsForV",340,0,340,9600,0,9600));
     if(xclusters->size()>0){
       int coll=1;
       for(CP::TReconObjectContainer::iterator it = xclusters->begin();it!=xclusters->end();++it){

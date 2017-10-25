@@ -279,9 +279,9 @@ CP::TTracking2D::Process(const CP::TAlgorithmResult& input,
                  "With " << (*tracksV).size() << " tracks_vh"
                  << " from " << clustersV.size() << " v clusters");
 
-    TH2F* HitsX = new TH2F("HitsForX","HitsForX",340,0,340,9600,0,9600);
-    TH2F* HitsU = new TH2F("HitsForU","HitsForU",340,0,340,9600,0,9600);
-    TH2F* HitsV = new TH2F("HitsForV","HitsForV",340,0,340,9600,0,9600);
+    std::unique_ptr<TH2F> HitsX(new TH2F("HitsForX","HitsForX",340,0,340,9600,0,9600));
+    std::unique_ptr<TH2F> HitsU(new TH2F("HitsForU","HitsForU",340,0,340,9600,0,9600));
+    std::unique_ptr<TH2F>  HitsV(new TH2F("HitsForV","HitsForV",340,0,340,9600,0,9600));
     if(tracksX->size()>0){
       for(CP::TReconObjectContainer::iterator it = tracksX->begin();it!=tracksX->end();++it){
 	CP::THandle<CP::THitSelection> hits = (*it)->GetHits();
