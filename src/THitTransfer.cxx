@@ -262,7 +262,7 @@ bool CP::THitTransfer::MakeHit(CP::THitSelection& writableHits,
 
         // Correct for the time zero.
         hit->SetPosition(drift.GetPosition(*hit,t0).Vect());
-        hit->SetTime(t0);
+        //hit->SetTime(t0);
         
 	       hit->SetTimeUncertainty(splitTimeRMS/sqrt(3.0));
 	 hit->SetTimeRMS(splitTimeRMS);
