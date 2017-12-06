@@ -3,6 +3,12 @@
 
 #include <TAlgorithm.hxx>
 #include <TAlgorithmResult.hxx>
+#include <THandle.hxx>
+#include <TReconTrack.hxx>
+
+#include "TH2F.h"
+#include "TGraph.h"
+#include "TMultiGraph.h"
 
 namespace CP {
     class TTracking3D;
@@ -24,9 +30,18 @@ public:
             const CP::TAlgorithmResult& input1 = CP::TAlgorithmResult::Empty,
             const CP::TAlgorithmResult& input2 = CP::TAlgorithmResult::Empty);
 
+  bool Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReconTrack> trackU, CP::THandle<CP::TReconTrack> trackV,CP::TReconObjectContainer& match3,int trackNum);
+
+  void FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP::TReconObjectContainer& tracksU,CP::TReconObjectContainer& tracksV,CP::TReconObjectContainer& match3,CP::TReconObjectContainer& match2);
+
+  bool Assemble2DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReconTrack> trackU,CP::TReconObjectContainer& match2,int trackNum,int planeComb);
   
 
 private:
+
+  TMultiGraph* fHitsX;// = new TH2F("HitsForX","HitsForX",340,0,340,9600,0,9600);
+  TMultiGraph* fHitsU;// = new TH2F("HitsForU","HitsForU",340,0,340,9600,0,9600));
+  TMultiGraph* fHitsV;//(new TH2F("HitsForV","HitsForV",340,0,340,9600,0,9600));
 
 
 };

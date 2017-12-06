@@ -23,6 +23,9 @@
 #include "TH2F.h"
 #include "TCanvas.h"
 #include "TPad.h"
+#include "TGraph.h"
+#include "TMultiGraph.h"
+#include "TVector.h"
 
 std::string toString(int i)
 {
@@ -173,7 +176,7 @@ struct CompTracks{
   double minZX;
 };
 
-bool Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReconTrack> trackU, CP::THandle<CP::TReconTrack> trackV,CP::TReconObjectContainer& match3,int trackNum){
+bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReconTrack> trackU, CP::THandle<CP::TReconTrack> trackV,CP::TReconObjectContainer& match3,int trackNum){
 
   
   CP::THandle<CP::THitSelection> hitX_t = trackX->GetHits();
@@ -194,11 +197,21 @@ bool Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReco
   // Hits, formed for each 2D track
   //********************************************************************************
 
-  
+  TVectorD xAxisX3T;
+  TVectorD yAxisX3T;
+  TVectorD xAxisU3T;
+  TVectorD yAxisU3T;
+  TVectorD xAxisV3T;
+  TVectorD yAxisV3T;
+
+  std::vector<double> xCoordX;
+  std::vector<double> yCoordX; 
   for(CP::THitSelection::iterator h = (*hitX_t).begin() ; h!=(*hitX_t).end();++h){
   
     double ht=((*h)->GetConstituent()->GetTime()+1.6*unit::ms)/(500*unit::ns);
     double hw=CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId());
+    xCoordX.push_back(hw);
+    yCoordX.push_back(ht);
     HitsX->Fill(hw,ht);
     CP::THandle<CP::THit> ch=(*h)->GetConstituent();
     setX.insert(ch);
@@ -206,9 +219,21 @@ bool Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReco
   HitsX->Draw();
   std::string nameX="plots/XHits_3D_"+toString(trackNum)+".C";
   gPad->Print(nameX.c_str());
+
+  TVectorD xTVX(xCoordX.size(),&xCoordX[0]);
+  TVectorD yTVX(yCoordX.size(),&yCoordX[0]);
+  xAxisX3T.ResizeTo(xTVX);
+  yAxisX3T.ResizeTo(yTVX);
+  xAxisX3T = xTVX;
+  yAxisX3T = yTVX;
+  
+  std::vector<double> xCoordU;
+  std::vector<double> yCoordU; 
   for(CP::THitSelection::iterator h = (*hitU_t).begin() ; h!=(*hitU_t).end();++h){
     double ht=((*h)->GetConstituent()->GetTime()+1.6*unit::ms)/(500*unit::ns);
     double hw=CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId());
+    xCoordU.push_back(hw);
+    yCoordU.push_back(ht);
     HitsU->Fill(hw,ht);
     CP::THandle<CP::THit> ch=(*h)->GetConstituent();
     setU.insert(ch);
@@ -216,9 +241,22 @@ bool Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReco
   HitsU->Draw();
   std::string nameU="plots/UHits_3D_"+toString(trackNum)+".C";
   gPad->Print(nameU.c_str());
+
+  TVectorD xTVU(xCoordU.size(),&xCoordU[0]);
+  TVectorD yTVU(yCoordU.size(),&yCoordU[0]);
+  xAxisU3T.ResizeTo(xTVU);
+  yAxisU3T.ResizeTo(yTVU);
+  xAxisU3T = xTVU;
+  yAxisU3T = yTVU;
+
+  std::vector<double> xCoordV;
+  std::vector<double> yCoordV; 
+  
   for(CP::THitSelection::iterator h = (*hitV_t).begin() ; h!=(*hitV_t).end();++h){
     double ht=((*h)->GetConstituent()->GetTime()+1.6*unit::ms)/(500*unit::ns);
     double hw=CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId());
+    xCoordV.push_back(hw);
+    yCoordV.push_back(ht);
     HitsV->Fill(hw,ht);
     CP::THandle<CP::THit> ch=(*h)->GetConstituent();
     setV.insert(ch);
@@ -227,6 +265,35 @@ bool Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReco
   std::string nameV="plots/VHits_3D_"+toString(trackNum)+".C";
   gPad->Print(nameV.c_str());
 
+  TVectorD xTVV(xCoordV.size(),&xCoordV[0]);
+  TVectorD yTVV(yCoordV.size(),&yCoordV[0]);
+  xAxisV3T.ResizeTo(xTVV);
+  yAxisV3T.ResizeTo(yTVV);
+  xAxisV3T = xTVV;
+  yAxisV3T = yTVV;
+
+
+  std::unique_ptr<TGraph> grX3T(new TGraph(xAxisX3T,yAxisX3T));
+  	grX3T->SetMarkerColor(trackNum+2);
+	grX3T->SetMarkerStyle(4);
+	//grX3T->SetMarkerSize(1);
+  std::unique_ptr<TGraph> grU3T(new TGraph(xAxisU3T,yAxisU3T));
+    	grU3T->SetMarkerColor(trackNum+2);
+	grU3T->SetMarkerStyle(4);
+	//	grU3T->SetMarkerSize(1);
+  std::unique_ptr<TGraph> grV3T(new TGraph(xAxisV3T,yAxisV3T));
+  grV3T->SetMarkerColor(trackNum+2);
+	grV3T->SetMarkerStyle(4);
+	//	grV3T->SetMarkerSize(1);
+	
+	fHitsX->Add(grX3T.release());
+	fHitsU->Add(grU3T.release());
+	fHitsV->Add(grV3T.release());
+
+  
+
+  
+  
   for(std::set<CP::THandle<CP::THit>>::iterator it = setX.begin();it!=setX.end();++it){
  
     hitX->push_back(*it); 
@@ -462,7 +529,7 @@ bool Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReco
   
 }
 
-bool Assemble2DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReconTrack> trackU,CP::TReconObjectContainer& match2,int trackNum){
+bool CP::TTracking3D::Assemble2DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReconTrack> trackU,CP::TReconObjectContainer& match2,int trackNum, int planeComb){
 
   //********************************************************************************
   //Algorithm follows the same logic as Assemble 3D, so check the other one for more detailed comments
@@ -477,12 +544,21 @@ bool Assemble2DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReco
 
   std::unique_ptr<TH2F> HitsX(new TH2F("HitsForX","HitsForX",340,0,340,9600,0,9600));
   std::unique_ptr<TH2F> HitsU(new TH2F("HitsForU","HitsForU",340,0,340,9600,0,9600));
-  
+
+    TVectorD xAxisX2T;
+  TVectorD yAxisX2T;
+  TVectorD xAxisU2T;
+  TVectorD yAxisU2T;
+
+   std::vector<double> xCoordX;
+  std::vector<double> yCoordX;
   for(CP::THitSelection::iterator h = (*hitX_t).begin() ; h!=(*hitX_t).end();++h)
     {
 
       double ht=((*h)->GetConstituent()->GetTime()+1.6*unit::ms)/(500*unit::ns);
       double hw=CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId());
+         xCoordX.push_back(hw);
+    yCoordX.push_back(ht);
       HitsX->Fill(hw,ht);
       CP::THandle<CP::THit> ch=(*h)->GetConstituent();
       setX.insert(ch);
@@ -492,10 +568,22 @@ bool Assemble2DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReco
   std::string nameX="plots/XHits_2D_"+toString(trackNum)+".C";
   gPad->Print(nameX.c_str());
 
+    TVectorD xTVX(xCoordX.size(),&xCoordX[0]);
+  TVectorD yTVX(yCoordX.size(),&yCoordX[0]);
+  xAxisX2T.ResizeTo(xTVX);
+  yAxisX2T.ResizeTo(yTVX);
+  xAxisX2T = xTVX;
+  yAxisX2T = yTVX;
+
+   std::vector<double> xCoordU;
+  std::vector<double> yCoordU; 
+
   for(CP::THitSelection::iterator h = (*hitU_t).begin() ; h!=(*hitU_t).end();++h)
     {
       double ht=((*h)->GetConstituent()->GetTime()+1.6*unit::ms)/(500*unit::ns);
       double hw=CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId());
+      xCoordU.push_back(hw);
+      yCoordU.push_back(ht);
       HitsU->Fill(hw,ht);
       CP::THandle<CP::THit> ch=(*h)->GetConstituent();
       setU.insert(ch);
@@ -505,7 +593,39 @@ bool Assemble2DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReco
   std::string nameU="plots/UHits_2D_"+toString(trackNum)+".C";
   gPad->Print(nameU.c_str());
 
- 
+  TVectorD xTVU(xCoordU.size(),&xCoordU[0]);
+  TVectorD yTVU(yCoordU.size(),&yCoordU[0]);
+  xAxisU2T.ResizeTo(xTVU);
+  yAxisU2T.ResizeTo(yTVU);
+  xAxisU2T = xTVU;
+  yAxisU2T = yTVU;
+
+
+    std::unique_ptr<TGraph> grX2T(new TGraph(xAxisX2T,yAxisX2T));
+  	grX2T->SetMarkerColor(trackNum+2);
+	grX2T->SetMarkerStyle(4);
+	//	grX2T->SetMarkerSize(1);
+  std::unique_ptr<TGraph> grU2T(new TGraph(xAxisU2T,yAxisU2T));
+    	grU2T->SetMarkerColor(trackNum+2);
+	grU2T->SetMarkerStyle(4);
+	//	grU2T->SetMarkerSize(1);
+
+	if(planeComb==0){
+	  fHitsX->Add(grX2T.release());
+	  fHitsU->Add(grU2T.release());
+	}
+	if(planeComb==1){
+	  fHitsX->Add(grX2T.release());
+	  fHitsV->Add(grU2T.release());
+	}
+	if(planeComb==2){
+	  fHitsU->Add(grX2T.release());
+	  fHitsV->Add(grU2T.release());
+	}
+	//	fHitsV->Add(grV3T.release());
+
+  
+  
   for(std::set<CP::THandle<CP::THit>>::iterator it = setX.begin();it!=setX.end();++it)
     {
       hitX->push_back(*it); 
@@ -639,13 +759,13 @@ bool Assemble2DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReco
 
 
 
-void FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP::TReconObjectContainer& tracksU,CP::TReconObjectContainer& tracksV,CP::TReconObjectContainer& match3,CP::TReconObjectContainer& match2){
+void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP::TReconObjectContainer& tracksU,CP::TReconObjectContainer& tracksV,CP::TReconObjectContainer& match3,CP::TReconObjectContainer& match2){
 
   //********************************************************************************
   //Algorithm match 2D tracks by time(z) of their start and end positions
   //********************************************************************************
 
-  double distCut=100;
+  double distCut=250;
   int trackNum=0;
   if(tracksX.size()>0 && tracksU.size()>0 && tracksV.size()>0) {
 
@@ -702,7 +822,7 @@ void FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP::TReconObjectCont
 	std::cout<<"xuDiff="<<xuDiff<<std::endl;
 	if(xuDiff<distCut )
 	  {
-	    if(Assemble2DTrack(trackX,tracksU[0],match2,trackNum)){ 
+	    if(Assemble2DTrack(trackX,tracksU[0],match2,trackNum,0)){ 
 	      tracksX.erase(trX);
 	      trackNum++;
 	      tracksU.erase(tracksU.begin());
@@ -713,7 +833,7 @@ void FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP::TReconObjectCont
 	std::cout<<"xvDiff="<<xvDiff<<std::endl;
 	if(xvDiff<distCut )
 	  {
-	    if(Assemble2DTrack(trackX,tracksV[0],match2,trackNum)){ 
+	    if(Assemble2DTrack(trackX,tracksV[0],match2,trackNum,1)){ 
 	      tracksX.erase(trX);
 	      trackNum++;
 	      tracksV.erase(tracksV.begin());
@@ -738,7 +858,7 @@ void FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP::TReconObjectCont
 	std::cout<<"xuDiff="<<xuDiff<<std::endl;
 	if(xuDiff<distCut )
 	  {
-	    if(Assemble2DTrack(trackX,tracksU[0],match2,trackNum)){ 
+	    if(Assemble2DTrack(trackX,tracksU[0],match2,trackNum,0)){ 
 	      tracksX.erase(trX);
 	      trackNum++;
 	      tracksU.erase(tracksU.begin());
@@ -760,7 +880,7 @@ void FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP::TReconObjectCont
 	std::cout<<"xuDiff="<<xvDiff<<std::endl;
 	if(xvDiff<distCut)
 	  {
-	    if(Assemble2DTrack(trackX,tracksV[0],match2,trackNum)){
+	    if(Assemble2DTrack(trackX,tracksV[0],match2,trackNum,1)){
 	      tracksX.erase(trX);
 	      trackNum++;
 	      tracksV.erase(tracksV.begin());
@@ -787,7 +907,7 @@ void FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP::TReconObjectCont
   std::cout<<"uvDiff="<<uvDiff<<std::endl;
     if(uvDiff<distCut)
       { 
-	if(Assemble2DTrack(trackU,tracksV[0],match2,trackNum)){
+	if(Assemble2DTrack(trackU,tracksV[0],match2,trackNum,2)){
 	 
 	tracksU.erase(trU);
 	trackNum++;
@@ -808,11 +928,20 @@ CP::TTracking3D::TTracking3D()
   : TAlgorithm("TTracking3D", 
 	       "Break up objects into separate hits") {
 
+  
+  fHitsX = new TMultiGraph();//TH2F("fHitsForX","fHitsForX",340,0,340,9600,0,9600);
+  fHitsU = new TMultiGraph();//TH2F("fHitsForU","fHitsForU",340,0,340,9600,0,9600);
+  fHitsV = new TMultiGraph();//TH2F("fHitsForV","fHitsForV",340,0,340,9600,0,9600);
+
 
  
 }
 
-CP::TTracking3D::~TTracking3D() { }
+CP::TTracking3D::~TTracking3D() {
+  delete fHitsX;
+  delete fHitsU;
+  delete fHitsV;
+}
 
 
 
@@ -820,6 +949,7 @@ CP::THandle<CP::TAlgorithmResult>
 CP::TTracking3D::Process(const CP::TAlgorithmResult& input,
 			 const CP::TAlgorithmResult& input1,
 			 const CP::TAlgorithmResult&) {
+
 
   //ReconObjects 
   CP::THandle<CP::TReconObjectContainer> inputObjects 
@@ -832,6 +962,105 @@ CP::TTracking3D::Process(const CP::TAlgorithmResult& input,
     CaptError("No input objects");
     return CP::THandle<CP::TAlgorithmResult>();
   }
+
+
+
+  CP::THandle<CP::THitSelection> TotalHits = GetEvent().Get<CP::THitSelection>("~/hits/drift");
+
+  CP::THitSelection xHits;
+  CP::THitSelection vHits;
+  CP::THitSelection uHits;
+  for (CP::THitSelection::iterator h = TotalHits->begin(); 
+       h != TotalHits->end(); ++h) {
+    int plane = CP::GeomId::Captain::GetWirePlane((*h)->GetGeomId());
+    if (plane == CP::GeomId::Captain::kXPlane) {
+      xHits.push_back(*h);
+    }
+    else if (plane == CP::GeomId::Captain::kVPlane) {
+      vHits.push_back(*h);
+    }
+    else if (plane == CP::GeomId::Captain::kUPlane) {
+      uHits.push_back(*h);
+    }
+  }
+
+  TVectorD xAxisXH;
+  TVectorD yAxisXH;
+  TVectorD xAxisUH;
+  TVectorD yAxisUH;
+  TVectorD xAxisVH;
+  TVectorD yAxisVH;
+
+
+  if(xHits.size()>0){
+    std::vector<double> xCoordX;
+    std::vector<double> yCoordX;
+    for(CP::THitSelection::iterator h = xHits.begin();h!=xHits.end();++h){
+      double ht=((*h)->GetTime()+1.6*unit::ms)/(500*unit::ns);
+      double hw=CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId());
+      xCoordX.push_back(hw);
+      yCoordX.push_back(ht);
+    }
+    TVectorD xTV(xCoordX.size(),&xCoordX[0]);
+    TVectorD yTV(yCoordX.size(),&yCoordX[0]);
+    xAxisXH.ResizeTo(xTV);
+    yAxisXH.ResizeTo(yTV);
+    xAxisXH = xTV;
+    yAxisXH = yTV;
+  }
+  if(uHits.size()>0){
+    std::vector<double> xCoordU;
+    std::vector<double> yCoordU;
+    for(CP::THitSelection::iterator h = uHits.begin();h!=uHits.end();++h){
+      double ht=((*h)->GetTime()+1.6*unit::ms)/(500*unit::ns);
+      double hw=CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId());
+      xCoordU.push_back(hw);
+      yCoordU.push_back(ht);
+    }
+    TVectorD xTV(xCoordU.size(),&xCoordU[0]);
+    TVectorD yTV(yCoordU.size(),&yCoordU[0]);
+    xAxisUH.ResizeTo(xTV);
+    yAxisUH.ResizeTo(yTV);
+    xAxisUH = xTV;
+    yAxisUH = yTV;
+  }
+  if(vHits.size()>0){
+    std::vector<double> xCoordV;
+    std::vector<double> yCoordV;
+    for(CP::THitSelection::iterator h = vHits.begin();h!=vHits.end();++h){
+      double ht=((*h)->GetTime()+1.6*unit::ms)/(500*unit::ns);
+      double hw=CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId());
+      xCoordV.push_back(hw);
+      yCoordV.push_back(ht);
+    }
+    TVectorD xTV(xCoordV.size(),&xCoordV[0]);
+    TVectorD yTV(yCoordV.size(),&yCoordV[0]);
+    xAxisVH.ResizeTo(xTV);
+    yAxisVH.ResizeTo(yTV);
+    xAxisVH = xTV;
+    yAxisVH = yTV;
+  }
+  
+
+   std::unique_ptr<TGraph> grXH(new TGraph(xAxisXH,yAxisXH));
+  	grXH->SetMarkerColor(1);
+	grXH->SetMarkerStyle(3);
+       	grXH->SetMarkerSize(1.4);
+  std::unique_ptr<TGraph> grUH(new TGraph(xAxisUH,yAxisUH));
+    	grUH->SetMarkerColor(1);
+	grUH->SetMarkerStyle(3);
+		grUH->SetMarkerSize(1.4);
+  std::unique_ptr<TGraph> grVH(new TGraph(xAxisVH,yAxisVH));
+    	grVH->SetMarkerColor(1);
+	grVH->SetMarkerStyle(3);
+		grVH->SetMarkerSize(1.4);
+	
+	fHitsX->Add(grXH.release());
+	fHitsU->Add(grUH.release());
+	fHitsV->Add(grVH.release());
+  
+
+  
     
   // Create the output containers.
   CP::THandle<CP::TAlgorithmResult> result = CreateResult();
@@ -887,8 +1116,32 @@ CP::TTracking3D::Process(const CP::TAlgorithmResult& input,
 	match2Tr->push_back(match2[i]);
       }
     }
+  
 
-       
+  int evNum=GetEvent().GetEventId();
+  int evRun=GetEvent().GetRunId();
+  std::string plotName1= "check/check_run_"+toString(evRun)+"_event_"+toString(evNum)+".pdf(";
+  std::string plotName2= "check/check_run_"+toString(evRun)+"_event_"+toString(evNum)+".pdf";
+  std::string plotName3= "check/check_run_"+toString(evRun)+"_event_"+toString(evNum)+".pdf)";
+
+  fHitsX->SetTitle("XHits");
+fHitsX->Draw("AP");
+ fHitsX->GetXaxis()->SetTitle("Wire#");
+ fHitsX->GetYaxis()->SetTitle("Samples");
+ gPad->Print(plotName1.c_str());
+ fHitsU->SetTitle("UHits");
+  fHitsU->Draw("AP");
+  fHitsU->GetXaxis()->SetTitle("Wire#");
+ fHitsU->GetYaxis()->SetTitle("Samples");
+  gPad->Print(plotName2.c_str());
+  fHitsV->SetTitle("VHits");
+  fHitsV->Draw("AP");
+  fHitsV->GetXaxis()->SetTitle("Wire#");
+  fHitsV->GetYaxis()->SetTitle("Samples");
+  gPad->Print(plotName3.c_str());
+
+  //delete c2;
+ 
 
   result->AddResultsContainer(match3Tr.release());
   result->AddResultsContainer(match2Tr.release());
