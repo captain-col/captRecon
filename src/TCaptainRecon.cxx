@@ -16,6 +16,7 @@
 #include "TClustering2D.hxx"
 #include "TTracking2D.hxx"
 #include "TTracking3D.hxx"
+#include "TFitting3D.hxx"
 
 
 #include "HitUtilities.hxx"
@@ -162,6 +163,18 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
     currentResult = track3DResult;
     result->AddDatum(currentResult);
 #endif
+
+    #define Apply_Track_Fit
+#ifdef Apply_Track_Fit
+    // Fit tracks 
+    CP::THandle<CP::TAlgorithmResult> trackFitResult;
+    trackFitResult  = Run<CP::TFitting3D>(*currentResult);
+    if (!trackFitResult) break;
+    currentResult = trackFitResult;
+    result->AddDatum(currentResult);
+#endif
+
+    
 #endif
 
 
@@ -279,9 +292,9 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
 
   CaptLog("Save the results");
   result->AddResultsContainer(finalObjects.release());
-  CP::THandle<CP::TReconObjectContainer> m3Objects
-    = currentResult->GetResultsContainer("match3Tr");
-  result->AddResultsContainer(&(*m3Objects));
+  //CP::THandle<CP::TReconObjectContainer> m3Objects
+  //  = currentResult->GetResultsContainer("match3Tr");
+  // result->AddResultsContainer(&(*m3Objects));
 
   return result;
 }
