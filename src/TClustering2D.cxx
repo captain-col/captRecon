@@ -33,7 +33,11 @@ double GetDist(double x0, double y0, std::pair<double,double> line)
   double a = line.first;
   double b = line.second;
   double d;
+  std::cout<<"a="<<a<<"; b="<<b<<"; x0="<<x0<<"; y0="<<y0<<std::endl;
   d=fabs(a*x0-y0+b)/sqrt(a*a+b*b);
+  // std::cout<<"d1="<<d<<std::endl;
+  d=fabs(a*x0-y0+b)/sqrt(a*a+1);
+  std::cout<<"d2="<<d<<std::endl;
   return d;
 }
 
@@ -181,7 +185,7 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 	for(CP::THitSelection::iterator h=xHits_cl.begin();h!=xHits_cl.end();++h){
 	  double dist = GetDist((*h)->GetPosition().X(),(*h)->GetPosition().Z(),lineParam);
 	 
-	  if(dist<1.7*unit::mm) LineHits.push_back(*h);
+	  if(dist<100*unit::mm) LineHits.push_back(*h);
 	}
 
 	if(LineHits.size()>2){
@@ -264,7 +268,7 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 	  double x=sign*sqrt((*h)->GetPosition().X()*(*h)->GetPosition().X()+(*h)->GetPosition().Y()*(*h)->GetPosition().Y());
 	  double dist = GetDist(x,(*h)->GetPosition().Z(),lineParam);
 
-	  if(dist<1.7*unit::mm) LineHits.push_back(*h);
+	  if(dist<100*unit::mm) LineHits.push_back(*h);
 	}
 
 	if(LineHits.size()>2){
@@ -346,7 +350,7 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 	  double x=sign*sqrt((*h)->GetPosition().X()*(*h)->GetPosition().X()+(*h)->GetPosition().Y()*(*h)->GetPosition().Y());
 	  double dist = GetDist(x,(*h)->GetPosition().Z(),lineParam);
 
-	  if(dist<1.7*unit::mm) LineHits.push_back(*h);
+	  if(dist<100*unit::mm) LineHits.push_back(*h);
 	}
 
 	CP::THitSelection FinalLine;
