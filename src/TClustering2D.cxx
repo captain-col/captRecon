@@ -33,11 +33,8 @@ double GetDist(double x0, double y0, std::pair<double,double> line)
   double a = line.first;
   double b = line.second;
   double d;
-  std::cout<<"a="<<a<<"; b="<<b<<"; x0="<<x0<<"; y0="<<y0<<std::endl;
-  d=fabs(a*x0-y0+b)/sqrt(a*a+b*b);
-  // std::cout<<"d1="<<d<<std::endl;
   d=fabs(a*x0-y0+b)/sqrt(a*a+1);
-  std::cout<<"d2="<<d<<std::endl;
+
   return d;
 }
 
