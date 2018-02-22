@@ -894,7 +894,7 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
   
 
   
-   if(tracksU.size()>0 && tracksV.size()>0) {
+  /* if(tracksU.size()>0 && tracksV.size()>0) {
      for (CP::TReconObjectContainer::iterator trU = tracksU.begin();
        trU != tracksU.end(); ) {
     CP::THandle<CP::TReconTrack> trackU = *trU;
@@ -917,8 +917,8 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
 	}else++trU;
       }else++trU;
     }else ++trU;
-  }
-  }
+   }
+ }*/
   
   
 }

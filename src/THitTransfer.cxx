@@ -319,8 +319,8 @@ CP::THitTransfer::Process(const CP::TAlgorithmResult& wires,
                         const CP::TAlgorithmResult& pmts,
                         const CP::TAlgorithmResult&) {
     CaptLog("THitTransfer Process " << GetEvent().GetContext());
-    CP::THandle<CP::THitSelection> wireHits = wires.GetHits();
-    if (!wireHits) {
+   CP::THandle<CP::THitSelection> wireHits_all = wires.GetHits();
+    if (!wireHits_all) {
         CaptError("No input hits");
         return CP::THandle<CP::TAlgorithmResult>();
     }
@@ -328,32 +328,57 @@ CP::THitTransfer::Process(const CP::TAlgorithmResult& wires,
     CP::THitSelection xHits;
     CP::THitSelection vHits;
     CP::THitSelection uHits;
-    for (CP::THitSelection::iterator h = wireHits->begin(); 
-         h != wireHits->end(); ++h) {
+     CP::THitSelection xHits_all;
+    CP::THitSelection vHits_all;
+    CP::THitSelection uHits_all;
+    for (CP::THitSelection::iterator h = wireHits_all->begin(); 
+         h != wireHits_all->end(); ++h) {
         int plane = CP::GeomId::Captain::GetWirePlane((*h)->GetGeomId());
         if (plane == CP::GeomId::Captain::kXPlane) {
-	   xHits.push_back(*h);
+	   xHits_all.push_back(*h);
         }
         else if (plane == CP::GeomId::Captain::kVPlane) {
-	  vHits.push_back(*h);
+	  vHits_all.push_back(*h);
         }
         else if (plane == CP::GeomId::Captain::kUPlane) {
-	  uHits.push_back(*h);
+	  uHits_all.push_back(*h);
         }
     }
-    for(std::size_t i=0;i<xHits.size();++i){
-      // std::cout<<"HitTransferX"<<"; X="<<xHits[i]->GetPosition().X()<<"; Y="<<xHits[i]->GetPosition().Y()<<"; Z="<<xHits[i]->GetPosition().Z()<<"; StartTime="<<xHits[i]->GetTimeStart()<<"; StopTime="<<xHits[i]->GetTimeStop()<<std::endl;
-      //std::cout<<"Wire#"<<CP::GeomId::Captain::GetWireNumber(xHits[i]->GetGeomId())<<std::endl;
-    }
-        for(std::size_t i=0;i<uHits.size();++i){
-	  // std::cout<<"HitTransferU"<<"; X="<<uHits[i]->GetPosition().X()<<"; Y="<<uHits[i]->GetPosition().Y()<<"; Z="<<uHits[i]->GetPosition().Z()<<"; StartTime="<<uHits[i]->GetTimeStart()<<"; StopTime="<<uHits[i]->GetTimeStop()<<std::endl;
-	  // std::cout<<"Wire#"<<CP::GeomId::Captain::GetWireNumber(uHits[i]->GetGeomId())<<std::endl;
-    }
-	    for(std::size_t i=0;i<vHits.size();++i){
-	      // std::cout<<"HitTransferV"<<"; X="<<vHits[i]->GetPosition().X()<<"; Y="<<vHits[i]->GetPosition().Y()<<"; Z="<<vHits[i]->GetPosition().Z()<<"; StartTime="<<vHits[i]->GetTimeStart()<<"; StopTime="<<vHits[i]->GetTimeStop()<<std::endl;
-	      //std::cout<<"Wire#"<<CP::GeomId::Captain::GetWireNumber(vHits[i]->GetGeomId())<<std::endl;
-    }
 
+         for(CP::THitSelection::iterator i = xHits_all.begin(); i !=xHits_all.end(); i++){
+	double SampleValue_X = 0.0;
+	for ( int count=0; count < ( (*i)->GetTimeSamples()); count++)
+	  { 
+	    SampleValue_X = SampleValue_X+((*i)->GetTimeSample(count));
+	              }
+		double SampleValueAbs_X = 0.0;
+	for ( int count=0; count < ( (*i)->GetTimeSamples()); count++)
+	  { 
+	    SampleValueAbs_X = SampleValueAbs_X+fabs(((*i)->GetTimeSample(count)));
+	              }
+	if(fabs(SampleValue_X)/SampleValueAbs_X>0.2){
+	  xHits.push_back(*i);
+	}
+           }
+    
+     for(CP::THitSelection::iterator i = uHits_all.begin(); i !=uHits_all.end(); i++){
+	  uHits.push_back(*i);
+           }
+
+      for(CP::THitSelection::iterator i = vHits_all.begin(); i !=vHits_all.end(); i++){
+        vHits.push_back(*i);  
+	 }
+
+      CP::THandle<CP::THitSelection> wireHits(new CP::THitSelection);
+      for(CP::THitSelection::iterator i = xHits.begin(); i !=xHits.end(); i++){
+	wireHits->push_back(*i);
+      }
+      for(CP::THitSelection::iterator i = uHits.begin(); i !=uHits.end(); i++){
+	wireHits->push_back(*i);
+      }
+      for(CP::THitSelection::iterator i = vHits.begin(); i !=vHits.end(); i++){
+	wireHits->push_back(*i);
+      }
 
 
 
