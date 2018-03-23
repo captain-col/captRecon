@@ -29,7 +29,7 @@ CP::TTrackFit::Apply(CP::THandle<CP::TReconTrack>& input) {
     // If the bootstrap was successful, return it.
     if (result) return result;
 
-    if (input->GetNodes().size() > 2) {
+    if (input->GetNodes().size() > 1) {
         // For shorter tracks, or if the boot strap fails, use the cluster
         // fitter.  This fits a straight line to the track and is super
         // robust, but not very accurate.

@@ -54,13 +54,16 @@ CP::TFitting3D::Process(const CP::TAlgorithmResult& input,
       tracks.push_back(*tr);
     }
 
+   
 for(CP::TReconObjectContainer::iterator tr=tracks.begin();tr!=tracks.end();++tr){
+ 
   CP::THandle<CP::TReconTrack> trackS=*tr;
                     TTrackFit fitter;
 		    CP::THandle<CP::TReconTrack> trackfit= fitter(trackS);
 
             final->push_back(trackfit);
  }
+
     result->AddResultsContainer(final.release());
     return result;
 }
