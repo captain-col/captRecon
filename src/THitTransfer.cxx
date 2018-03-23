@@ -164,8 +164,8 @@ bool CP::THitTransfer::MakeHit(CP::THitSelection& writableHits,
 
   
     // Extend the time range to cover for the drift between the wires.
-    startTime -= 15*unit::microsecond;
-    stopTime += 15*unit::microsecond;
+     startTime -= 15*unit::microsecond;
+     stopTime += 15*unit::microsecond;
     
     CP::TDriftPosition drift;
 
@@ -224,6 +224,7 @@ bool CP::THitTransfer::MakeHit(CP::THitSelection& writableHits,
     // charge distribution by finding the internal partition points.
     double hitSpread = fDigitStep*(hitStop-hitStart);
     int nSplits = (int) hitSpread/fMaximumSpread + 1;
+    nSplits=0;
     if (nSplits > 1) {
         // Determine the number of samples to put into each "split".  This is
         // a double so that the binning effect is spread over all of the
@@ -319,7 +320,7 @@ CP::THitTransfer::Process(const CP::TAlgorithmResult& wires,
                         const CP::TAlgorithmResult& pmts,
                         const CP::TAlgorithmResult&) {
     CaptLog("THitTransfer Process " << GetEvent().GetContext());
-   CP::THandle<CP::THitSelection> wireHits_all = wires.GetHits();
+    CP::THandle<CP::THitSelection> wireHits_all = wires.GetHits();
     if (!wireHits_all) {
         CaptError("No input hits");
         return CP::THandle<CP::TAlgorithmResult>();
@@ -362,12 +363,16 @@ CP::THitTransfer::Process(const CP::TAlgorithmResult& wires,
            }
     
      for(CP::THitSelection::iterator i = uHits_all.begin(); i !=uHits_all.end(); i++){
+
 	  uHits.push_back(*i);
+	
            }
 
       for(CP::THitSelection::iterator i = vHits_all.begin(); i !=vHits_all.end(); i++){
-        vHits.push_back(*i);  
-	 }
+
+	  vHits.push_back(*i);
+	
+           }
 
       CP::THandle<CP::THitSelection> wireHits(new CP::THitSelection);
       for(CP::THitSelection::iterator i = xHits.begin(); i !=xHits.end(); i++){
@@ -379,10 +384,7 @@ CP::THitTransfer::Process(const CP::TAlgorithmResult& wires,
       for(CP::THitSelection::iterator i = vHits.begin(); i !=vHits.end(); i++){
 	wireHits->push_back(*i);
       }
-
-
-
-    
+      // std::cout<<wireHits_all->size()<<" ; "<<wireHits->size()<<std::endl;
 
     //#define CHECK_FOR_OVERLAPPED_HITS
 #ifdef  CHECK_FOR_OVERLAPPED_HITS
