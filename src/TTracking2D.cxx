@@ -150,14 +150,15 @@ CP::TTracking2D::Process(const CP::TAlgorithmResult& input,
 	    double MajorAxis = cluster->GetMajorExtent();
 	    double MinorAxis = cluster->GetMinorExtent();
 	    double ratio=-1;
-	    std::cout<<"LongX="<<LongAxis<<"; MajorX="<<MajorAxis<<"; MinorX="<<MinorAxis<<std::endl;
+	    // std::cout<<"LongX="<<LongAxis<<"; MajorX="<<MajorAxis<<"; MinorX="<<MinorAxis<<std::endl;
 	    std::vector<int> useAxis = DeterminAxis(LongAxis,MajorAxis,MinorAxis);
 	    
 	    ratio = GetAxisRation(useAxis,LongAxis,MajorAxis,MinorAxis);
-	    std::cout<<"RatioX="<<ratio<<std::endl;
+	    // std::cout<<"RatioX="<<ratio<<std::endl;
 	    if(ratio<fXZRatio){
 	      CP::THandle<CP::THitSelection> hft = cluster->GetHits();
-	      if((*hft).size()>3){
+
+	      if((*hft).size()>2){
 		CP::THandle<CP::TReconTrack> track ;
 		if(useAxis[0]==1){
 	      track = CreateTrackFromHits("TTracking2D",
@@ -195,15 +196,16 @@ CP::TTracking2D::Process(const CP::TAlgorithmResult& input,
 	    double MajorAxis = cluster->GetMajorExtent();
 	    double MinorAxis = cluster->GetMinorExtent();
 	    double ratio=-1;
-	    std::cout<<"LongU="<<LongAxis<<"; MajorU="<<MajorAxis<<"; MinorU="<<MinorAxis<<std::endl;
+	    //   std::cout<<"LongU="<<LongAxis<<"; MajorU="<<MajorAxis<<"; MinorU="<<MinorAxis<<std::endl;
   std::vector<int> useAxis = DeterminAxis(LongAxis,MajorAxis,MinorAxis);
 	    
 	    ratio = GetAxisRation(useAxis,LongAxis,MajorAxis,MinorAxis);
 
-	    std::cout<<"RatioU="<<ratio<<std::endl;
+	    // std::cout<<"RatioU="<<ratio<<std::endl;
 	    if(ratio<fXZRatio){
 	      CP::THandle<CP::THitSelection> hft = cluster->GetHits();
-	      if((*hft).size()>3){
+	      std::cout<<"hitsfortrack="<<hft->size()<<std::endl;
+	      if((*hft).size()>2){
 		CP::THandle<CP::TReconTrack> track ;
 		if(useAxis[0]==1){
 	      track = CreateTrackFromHits("TTracking2D",
@@ -240,15 +242,16 @@ CP::TTracking2D::Process(const CP::TAlgorithmResult& input,
 	    double MajorAxis = cluster->GetMajorExtent();
 	    double MinorAxis = cluster->GetMinorExtent();
 	    double ratio=-1;
-	    std::cout<<"LongV="<<LongAxis<<"; MajorV="<<MajorAxis<<"; MinorV="<<MinorAxis<<std::endl;
+	    // std::cout<<"LongV="<<LongAxis<<"; MajorV="<<MajorAxis<<"; MinorV="<<MinorAxis<<std::endl;
   std::vector<int> useAxis = DeterminAxis(LongAxis,MajorAxis,MinorAxis);
 	    
 	    ratio = GetAxisRation(useAxis,LongAxis,MajorAxis,MinorAxis);
 
-	    std::cout<<"RatioV="<<ratio<<std::endl;
+	    //std::cout<<"RatioV="<<ratio<<std::endl;
 	    if(ratio<fXZRatio){
 	      CP::THandle<CP::THitSelection> hft = cluster->GetHits();
-	      if((*hft).size()>3){
+	      std::cout<<"hitsfortrack="<<hft->size()<<std::endl;
+	      if((*hft).size()>2){
 		CP::THandle<CP::TReconTrack> track ;
 		if(useAxis[0]==1){
 	      track = CreateTrackFromHits("TTracking2D",
@@ -281,7 +284,7 @@ CP::TTracking2D::Process(const CP::TAlgorithmResult& input,
 
     std::unique_ptr<TH2F> HitsX(new TH2F("HitsForX","HitsForX",340,0,340,9600,0,9600));
     std::unique_ptr<TH2F> HitsU(new TH2F("HitsForU","HitsForU",340,0,340,9600,0,9600));
-    std::unique_ptr<TH2F>  HitsV(new TH2F("HitsForV","HitsForV",340,0,340,9600,0,9600));
+    std::unique_ptr<TH2F> HitsV(new TH2F("HitsForV","HitsForV",340,0,340,9600,0,9600));
     if(tracksX->size()>0){
       for(CP::TReconObjectContainer::iterator it = tracksX->begin();it!=tracksX->end();++it){
 	CP::THandle<CP::THitSelection> hits = (*it)->GetHits();
