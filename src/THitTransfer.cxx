@@ -84,6 +84,75 @@ namespace {
 };
 
 
+CP::THitSelection NoiseDeduction(CP::THitSelection* Hits, double dt, double clustersize){
+
+  CP::THitSelection resultSelection;
+  std::vector<CP::THitSelection> Plane_noise(341);
+        for(CP::THitSelection::iterator i = Hits->begin(); i !=Hits->end(); i++)   {
+	  int Vwire = CP::GeomId::Captain::GetWireNumber((*i)->GetGeomId());
+	  Plane_noise[Vwire].push_back(*i);
+	}
+	
+	for(int i =0; i<=340; i++)
+	  {
+	    std::sort(Plane_noise[i].begin(),Plane_noise[i].end(),[](const CP::THandle<CP::THit> first,const CP::THandle<CP::THit> second){
+		double a= first->GetTime();
+		double b= second->GetTime();
+		return a<b; });
+	  }
+
+	
+	std::vector< std::vector<CP::THitSelection> > Plane_cluster(341);
+	CP::THitSelection NewCluster;        
+	for(int i=0; i<=340; i++)
+	  {
+	    int last = Plane_noise[i].size();
+	    last=last-1;
+	    for( int j = 0; j <last; j++)
+	      {
+		  NewCluster.push_back(Plane_noise[i][j]);
+		  double time1 = Plane_noise[i][j]->GetTime();
+		  time1 = (time1 + 1.6*(unit::ms))/(500*(unit::ns));
+		  double time2 =  Plane_noise[i][j+1]->GetTime();
+		  time2 = (time2 + 1.6*(unit::ms))/(500*(unit::ns));	    	 
+		  if( time2-time1 > dt)
+		    {
+		      Plane_cluster[i].push_back(NewCluster);
+
+		       if(NewCluster.size()<clustersize)
+			{
+			  for(CP::THitSelection::iterator it = NewCluster.begin(); it !=NewCluster.end(); it++)
+			    {
+			     
+			      resultSelection.push_back(*it);
+			                      }
+			     }
+		      NewCluster.erase (NewCluster.begin(),NewCluster.end());
+		    }
+	      }
+	    
+	    if(last>=0)
+	      { NewCluster.push_back(Plane_noise[i][last]);     	    
+		  Plane_cluster[i].push_back(NewCluster);
+
+		   if(NewCluster.size()<clustersize)
+			{
+			  for(CP::THitSelection::iterator it = NewCluster.begin(); it !=NewCluster.end(); it++)
+			    {
+			     resultSelection.push_back(*it);
+			                      }
+			     }
+		  NewCluster.erase (NewCluster.begin(),NewCluster.end());
+
+		}
+	  }
+
+  
+	return resultSelection;
+  
+}
+
+
 double CP::THitTransfer::TimeZero(const CP::THitSelection& pmts,
                                 const CP::THitSelection& wires) {
     ///////////////////////////////////////////////////////////////////////
@@ -362,17 +431,15 @@ CP::THitTransfer::Process(const CP::TAlgorithmResult& wires,
 	}
            }
     
-     for(CP::THitSelection::iterator i = uHits_all.begin(); i !=uHits_all.end(); i++){
-
+	 /*for(CP::THitSelection::iterator i = uHits_all.begin(); i !=uHits_all.end(); i++){
 	  uHits.push_back(*i);
-	
            }
 
-      for(CP::THitSelection::iterator i = vHits_all.begin(); i !=vHits_all.end(); i++){
-
-	  vHits.push_back(*i);
-	
-           }
+      for(CP::THitSelection::iterator i = vHits_all.begin(); i !=vHits_all.end(); i++){ 
+	  vHits.push_back(*i);	
+	  }*/
+	 uHits = NoiseDeduction(&uHits_all,100,5);
+	 vHits = NoiseDeduction(&vHits_all,300,5);
 
       CP::THandle<CP::THitSelection> wireHits(new CP::THitSelection);
       for(CP::THitSelection::iterator i = xHits.begin(); i !=xHits.end(); i++){
