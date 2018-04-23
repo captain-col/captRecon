@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <vector>
 #include "TH2F.h"
+#include "TPad.h"
 
 #define PI 3.14159265
 
@@ -123,7 +124,7 @@ template<class DataPointer>
 template<class DataIterator>
 void CP::THoughTrans<DataPointer>::HoughTransform(DataIterator begin, DataIterator end){
 
-fHoughHist = new TH2F("HH","HH",fAngleBin,0,fMaxThet,fRadBin,-fMaxRad,fMaxRad);
+fHoughHist = new TH2F("HH","HH",fAngleBin,-90,90,fRadBin,-fMaxRad,fMaxRad);
   
   for(DataIterator p=begin; p != end;++p){
 
@@ -136,6 +137,7 @@ fHoughHist = new TH2F("HH","HH",fAngleBin,0,fMaxThet,fRadBin,-fMaxRad,fMaxRad);
     for(int i=1;i<fAngleBin+1;++i){
       double thet=fHoughHist->GetXaxis()->GetBinCenter(i);
       double rad = x*sin(thet*PI/180.0)+y*cos(thet*PI/180.0);
+      //  std::cout<<rad<<std::endl;
       int ibin = fHoughHist->FindFixBin(thet,rad);
       int j=fHoughHist->GetYaxis()->FindFixBin(rad);
 
@@ -229,12 +231,13 @@ fHoughHist = new TH2F("HH","HH",fAngleBin,0,fMaxThet,fRadBin,-fMaxRad,fMaxRad);
 	}
     }
   }
+
 }
 
 template<class DataPointer>
 std::pair<double,double> CP::THoughTrans<DataPointer>::GetLineParam(int limit){
 
-  int maxi=-9999;
+int maxi=-9999;
   int maxj=-9999;
   int maxW=-9999;
   std::pair<double,double> line_bad = std::make_pair(-9999,-9999);
@@ -246,6 +249,7 @@ std::pair<double,double> CP::THoughTrans<DataPointer>::GetLineParam(int limit){
     }
   }
   if(maxW>limit){
+   
   //y=a*x+b <- y = rad/cos(thet)-x*sin(thet)/cos(thet)
     double thet = fHoughHist->GetXaxis()->GetBinCenter(maxi);
   double rad = fHoughHist->GetYaxis()->GetBinCenter(maxj);

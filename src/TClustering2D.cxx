@@ -20,11 +20,13 @@
 #include <cmath>
 
 #include "TH1F.h"
+#include "TF1.h"
 #include "TH2F.h"
 #include "TCanvas.h"
 #include "TPad.h"
 #include "TLine.h"
 #include "TGraph.h"
+#include "TVectorD.h"
 
 //#define WIRE_CLUSTERING
 
@@ -61,6 +63,7 @@ CP::THitSelection CP::TClustering2D::ClusteredHits(CP::THitSelection& hits,bool 
   ClusterAlgorithm Clusters(minPoints,maxDist);
   Clusters.Cluster(hits.begin(), hits.end());
   int nClusters = Clusters.GetClusterCount();
+  //std::cout<<"nclusters="<<nClusters<<std::endl;
   if(!bigest){
     for (int i=0; i<nClusters; ++i) {
       const ClusterAlgorithm::Points& points 
@@ -78,6 +81,7 @@ CP::THitSelection CP::TClustering2D::ClusteredHits(CP::THitSelection& hits,bool 
     }
     const ClusterAlgorithm::Points& points 
       = Clusters.GetCluster(maxi);
+    if(nClusters>0)
     std::copy(points.begin(),points.end(),back_inserter(finalHits));
   }
   return finalHits;
@@ -88,6 +92,11 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 			   const CP::TAlgorithmResult&,
 			   const CP::TAlgorithmResult&) {
 
+  int finallinecut=0;
+
+  TH1F* distance = new TH1F("dist","dist",30,0,30);
+  TH1F* chi = new TH1F("chi","chi",1000,0,1000);
+  TH2F* chi_angle = new TH2F("chi_angle","chi_angle",1000,0,1000,180,0,180);
   //ReconObjects 
   CP::THandle<CP::TReconObjectContainer> inputObjects 
     = input.GetResultsContainer();
@@ -152,12 +161,13 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
     {
       CP::THitSelection xHits_cl;
       
-      xHits_cl=ClusteredHits(xHits,false,5,25);
+      // xHits_cl=ClusteredHits(xHits,false,5,25);
+      std::copy(xHits.begin(),xHits.end(),back_inserter(xHits_cl));
       bool failHough=false;
       typedef CP::THoughTrans< CP::THandle<THit> > HoughAlgorithm;
       
       while(!failHough){
-	HoughAlgorithm Hough(180,5000);
+	HoughAlgorithm Hough(180,10000);
 
 	std::vector<std::pair<double,double>> points;
 
@@ -169,8 +179,9 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 	Hough.HoughTransform(points.begin(),points.end());
 
 	
-	std::pair<double,double> lineParam=Hough.GetLineParam(10);
+	std::pair<double,double> lineParam=Hough.GetLineParam(4);
 
+	
 	if(lineParam.first==-9999 || lineParam.second==-9999){
 	  failHough=true;
 	  continue;
@@ -181,15 +192,17 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 
 	for(CP::THitSelection::iterator h=xHits_cl.begin();h!=xHits_cl.end();++h){
 	  double dist = GetDist((*h)->GetPosition().X(),(*h)->GetPosition().Z(),lineParam);
-	 
-	  if(dist<100*unit::mm) LineHits.push_back(*h);
+	  distance->Fill(dist);
+	  if(dist<7*unit::mm) LineHits.push_back(*h);
 	}
 
 	if(LineHits.size()>2){
 	  std::sort(LineHits.begin(),LineHits.end(),CompX);
-	  FinalLine=CP::TClustering2D::ClusteredHits(LineHits,true,3,60);
+	   
+	  FinalLine=CP::TClustering2D::ClusteredHits(LineHits,true,2,40*unit::mm);
 	  //	std::copy(LineHits.begin(),LineHits.end(),back_inserter(FinalLine));
-
+        
+	  if(FinalLine.size()>2){
 	  CP::THandle<CP::TReconCluster> cluster = CreateCluster("cluster_xh",FinalLine.begin(),FinalLine.end());
 	  if(cluster){
 #ifndef WIRE_CLUSTERING
@@ -197,13 +210,21 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 	    final->push_back(cluster);
 #endif
 	  }
+	  }
 	}
 	
-	if(FinalLine.size()>0){
+	if(FinalLine.size()>finallinecut){
 	  for(CP::THitSelection::iterator h=FinalLine.begin();h!=FinalLine.end();++h){
 	    xHits_cl.erase(std::remove(xHits_cl.begin(),xHits_cl.end(),*h),xHits_cl.end());
 	  }
-	}else{failHough=true;}
+	}
+if(FinalLine.size()==0 && LineHits.size()>0){
+	    for(CP::THitSelection::iterator h=LineHits.begin();h!=LineHits.end();++h){
+	    xHits_cl.erase(std::remove(xHits_cl.begin(),xHits_cl.end(),*h),xHits_cl.end());
+	  }
+	  }
+  if(FinalLine.size()==0 && LineHits.size()<3){failHough=true;}
+	
 	if(xHits_cl.size()<5)
 	  failHough=true;
 	points.clear();
@@ -229,13 +250,13 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 
       CP::THitSelection uHits_cl;
 
-      uHits_cl=ClusteredHits(uHits,false,3,25);
-      //		std::copy(uHits.begin(),uHits.end(),back_inserter(uHits_cl));
+      
+      	std::copy(uHits.begin(),uHits.end(),back_inserter(uHits_cl));
       bool failHough=false;
       typedef CP::THoughTrans< CP::THandle<THit> > HoughAlgorithm;
 
       while(!failHough){
-	HoughAlgorithm Hough(180,7000);
+	HoughAlgorithm Hough(180,10000);
 
 	
 	std::vector<std::pair<double,double>> points;
@@ -250,7 +271,8 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 	Hough.HoughTransform(points.begin(),points.end());
 
 	
-	std::pair<double,double> lineParam=Hough.GetLineParam(20);
+	std::pair<double,double> lineParam=Hough.GetLineParam(3);
+	
 
 	if(lineParam.first==-9999 || lineParam.second==-9999){
 	  failHough=true;
@@ -258,21 +280,22 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 	}
 	
 	CP::THitSelection LineHits;
+
 	CP::THitSelection FinalLine;
 	for(CP::THitSelection::iterator h=uHits_cl.begin();h!=uHits_cl.end();++h){
 	  double sign = 1.0;
 	  if((*h)->GetPosition().X()<0)sign=-1.0;
 	  double x=sign*sqrt((*h)->GetPosition().X()*(*h)->GetPosition().X()+(*h)->GetPosition().Y()*(*h)->GetPosition().Y());
 	  double dist = GetDist(x,(*h)->GetPosition().Z(),lineParam);
-
-	  if(dist<100*unit::mm) LineHits.push_back(*h);
+	 
+	  if(dist<8*unit::mm) LineHits.push_back(*h);
 	}
 
 	if(LineHits.size()>2){
 	  std::sort(LineHits.begin(),LineHits.end(),CompX);
-	  FinalLine=CP::TClustering2D::ClusteredHits(LineHits,true,2,60);
-	  //	std::copy(LineHits.begin(),LineHits.end(),back_inserter(FinalLine));
-
+	  FinalLine=CP::TClustering2D::ClusteredHits(LineHits,true,2,40*unit::mm);
+	  
+	  if(FinalLine.size()>finallinecut){
 	  CP::THandle<CP::TReconCluster> cluster = CreateCluster("cluster_uh",FinalLine.begin(),FinalLine.end());
 	  if(cluster){
 #ifndef WIRE_CLUSTERING
@@ -280,13 +303,20 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 	    final->push_back(cluster);
 #endif
 	  }
+	  }
 	}
 	
 	if(FinalLine.size()>0){
 	  for(CP::THitSelection::iterator h=FinalLine.begin();h!=FinalLine.end();++h){
 	    uHits_cl.erase(std::remove(uHits_cl.begin(),uHits_cl.end(),*h),uHits_cl.end());
 	  }
-	}else{failHough=true;}
+	}
+	if(FinalLine.size()==0 && LineHits.size()>0){
+	    for(CP::THitSelection::iterator h=LineHits.begin();h!=LineHits.end();++h){
+	    uHits_cl.erase(std::remove(uHits_cl.begin(),uHits_cl.end(),*h),uHits_cl.end());
+	  }
+	  }
+  if(FinalLine.size()==0 && LineHits.size()<3){failHough=true;}
 	if(uHits_cl.size()<5)
 	  failHough=true;
 	points.clear();
@@ -307,18 +337,25 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
     
     }
 
+
      
   if(vHits.size()>0)
     {
       CP::THitSelection vHits_cl;
 
-      vHits_cl=ClusteredHits(vHits,false,5,25);
-      //		std::copy(vHits.begin(),vHits.end(),back_inserter(vHits_cl));
+      // vHits_cl=ClusteredHits(vHits,false,5,25);
+      //	std::copy(vHits.begin(),vHits.end(),back_inserter(vHits_cl));
+      for(CP::THitSelection::iterator h=vHits.begin();h !=vHits.end();++h){
+	double hw=CP::GeomId::Captain::GetWireNumber((*h)->GetConstituent()->GetGeomId());
+	 if(hw==308 || hw==310) continue;
+	   vHits_cl.push_back(*h);
+	 
+      }
       bool failHough=false;
       typedef CP::THoughTrans< CP::THandle<THit> > HoughAlgorithm;
 
       while(!failHough){
-	HoughAlgorithm Hough(180,3000);
+	HoughAlgorithm Hough(180,10000);
 
 	
 	std::vector<std::pair<double,double>> points;
@@ -333,7 +370,7 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 	Hough.HoughTransform(points.begin(),points.end());
 
 	
-	std::pair<double,double> lineParam=Hough.GetLineParam(20);
+	std::pair<double,double> lineParam=Hough.GetLineParam(3);
 
 	if(lineParam.first==-9999 || lineParam.second==-9999){
 	  failHough=true;
@@ -345,9 +382,10 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 	  double sign = 1.0;
 	  if((*h)->GetPosition().X()<0)sign=-1.0;
 	  double x=sign*sqrt((*h)->GetPosition().X()*(*h)->GetPosition().X()+(*h)->GetPosition().Y()*(*h)->GetPosition().Y());
+	  
 	  double dist = GetDist(x,(*h)->GetPosition().Z(),lineParam);
-
-	  if(dist<100*unit::mm) LineHits.push_back(*h);
+	  //  distance->Fill(dist);
+	  if(dist<6*unit::mm) LineHits.push_back(*h);
 	}
 
 	CP::THitSelection FinalLine;
@@ -355,23 +393,30 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 	if(LineHits.size()>2){
 	  std::sort(LineHits.begin(),LineHits.end(),CompX);
 
-	  FinalLine=CP::TClustering2D::ClusteredHits(LineHits,true,2,60);
+	  	  FinalLine=CP::TClustering2D::ClusteredHits(LineHits,true,2,40*unit::mm);
 	  //	std::copy(LineHits.begin(),LineHits.end(),back_inserter(FinalLine));
-
+if(FinalLine.size()>finallinecut){
 	  CP::THandle<CP::TReconCluster> cluster = CreateCluster("cluster_vh",FinalLine.begin(),FinalLine.end());
 	  if(cluster){
 #ifndef WIRE_CLUSTERING
-	    vclusters->push_back(cluster);
+	     vclusters->push_back(cluster);
 	    final->push_back(cluster);
 #endif
 	  }
+ }
 	}
 	
 	if(FinalLine.size()>0){
 	  for(CP::THitSelection::iterator h=FinalLine.begin();h!=FinalLine.end();++h){
 	    vHits_cl.erase(std::remove(vHits_cl.begin(),vHits_cl.end(),*h),vHits_cl.end());
 	  }
-	}else{failHough=true;}
+	}
+        if(FinalLine.size()==0 && LineHits.size()>0){
+	    for(CP::THitSelection::iterator h=LineHits.begin();h!=LineHits.end();++h){
+	    vHits_cl.erase(std::remove(vHits_cl.begin(),vHits_cl.end(),*h),vHits_cl.end());
+	  }
+	  }
+  if(FinalLine.size()==0 && LineHits.size()<3){failHough=true;}
 	if(vHits_cl.size()<5)
 	  failHough=true;
 	points.clear();
@@ -393,7 +438,8 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
     
     }
     
-  std::unique_ptr<TH2F> HitsX(new TH2F("HitsForX","HitsForX",340,0,340,9600,0,9600));
+   std::unique_ptr<TH2F> HitsX(new TH2F("HitsForX","HitsForX",340,0,340,9600,0,9600));
+  // std::unique_ptr<TH2F> HitsX(new TH2F("HitsForX","HitsForX",1000,-500,500,2000,-1000,1000));
   std::unique_ptr<TH2F> HitsU(new TH2F("HitsForU","HitsForU",340,0,340,9600,0,9600));
   std::unique_ptr<TH2F>  HitsV(new TH2F("HitsForV","HitsForV",340,0,340,9600,0,9600));
   
@@ -407,7 +453,14 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 	  int j = HitsX->GetYaxis()->FindFixBin(ht);
 	  double hw=CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId());
 	  int i = HitsX->GetXaxis()->FindFixBin(hw);
+	  double sign = 1.0;
+	  if((*h)->GetPosition().X()<0)sign=-1.0;
+	   double x=sign*sqrt((*h)->GetConstituent()->GetPosition().X()*(*h)->GetConstituent()->GetPosition().X()+(*h)->GetConstituent()->GetPosition().Y()*(*h)->GetConstituent()->GetPosition().Y());
+	   // i = HitsX->GetXaxis()->FindFixBin(x);
+	   // std::cout<<(*h)->GetConstituent()->GetTime()*1.6/1000<<std::endl;
+	   // j = HitsX->GetYaxis()->FindFixBin((*h)->GetConstituent()->GetTime()*1.6/1000);
 	  HitsX->SetBinContent(i,j,coll*10);
+	  
 	}
 
       }
@@ -463,6 +516,6 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
   result->AddResultsContainer(uclusters.release());
   result->AddResultsContainer(vclusters.release());
   result->AddResultsContainer(final.release());
-
+  
   return result;
 }

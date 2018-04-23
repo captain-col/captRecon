@@ -84,6 +84,75 @@ namespace {
 };
 
 
+CP::THitSelection NoiseDeduction(CP::THitSelection* Hits, double dt, double clustersize){
+
+  CP::THitSelection resultSelection;
+  std::vector<CP::THitSelection> Plane_noise(341);
+        for(CP::THitSelection::iterator i = Hits->begin(); i !=Hits->end(); i++)   {
+	  int Vwire = CP::GeomId::Captain::GetWireNumber((*i)->GetGeomId());
+	  Plane_noise[Vwire].push_back(*i);
+	}
+	
+	for(int i =0; i<=340; i++)
+	  {
+	    std::sort(Plane_noise[i].begin(),Plane_noise[i].end(),[](const CP::THandle<CP::THit> first,const CP::THandle<CP::THit> second){
+		double a= first->GetTime();
+		double b= second->GetTime();
+		return a<b; });
+	  }
+
+	
+	std::vector< std::vector<CP::THitSelection> > Plane_cluster(341);
+	CP::THitSelection NewCluster;        
+	for(int i=0; i<=340; i++)
+	  {
+	    int last = Plane_noise[i].size();
+	    last=last-1;
+	    for( int j = 0; j <last; j++)
+	      {
+		  NewCluster.push_back(Plane_noise[i][j]);
+		  double time1 = Plane_noise[i][j]->GetTime();
+		  time1 = (time1 + 1.6*(unit::ms))/(500*(unit::ns));
+		  double time2 =  Plane_noise[i][j+1]->GetTime();
+		  time2 = (time2 + 1.6*(unit::ms))/(500*(unit::ns));	    	 
+		  if( time2-time1 > dt)
+		    {
+		      Plane_cluster[i].push_back(NewCluster);
+
+		       if(NewCluster.size()<clustersize)
+			{
+			  for(CP::THitSelection::iterator it = NewCluster.begin(); it !=NewCluster.end(); it++)
+			    {
+			     
+			      resultSelection.push_back(*it);
+			                      }
+			     }
+		      NewCluster.erase (NewCluster.begin(),NewCluster.end());
+		    }
+	      }
+	    
+	    if(last>=0)
+	      { NewCluster.push_back(Plane_noise[i][last]);     	    
+		  Plane_cluster[i].push_back(NewCluster);
+
+		   if(NewCluster.size()<clustersize)
+			{
+			  for(CP::THitSelection::iterator it = NewCluster.begin(); it !=NewCluster.end(); it++)
+			    {
+			     resultSelection.push_back(*it);
+			                      }
+			     }
+		  NewCluster.erase (NewCluster.begin(),NewCluster.end());
+
+		}
+	  }
+
+  
+	return resultSelection;
+  
+}
+
+
 double CP::THitTransfer::TimeZero(const CP::THitSelection& pmts,
                                 const CP::THitSelection& wires) {
     ///////////////////////////////////////////////////////////////////////
@@ -164,8 +233,8 @@ bool CP::THitTransfer::MakeHit(CP::THitSelection& writableHits,
 
   
     // Extend the time range to cover for the drift between the wires.
-    startTime -= 15*unit::microsecond;
-    stopTime += 15*unit::microsecond;
+     startTime -= 15*unit::microsecond;
+     stopTime += 15*unit::microsecond;
     
     CP::TDriftPosition drift;
 
@@ -224,6 +293,7 @@ bool CP::THitTransfer::MakeHit(CP::THitSelection& writableHits,
     // charge distribution by finding the internal partition points.
     double hitSpread = fDigitStep*(hitStop-hitStart);
     int nSplits = (int) hitSpread/fMaximumSpread + 1;
+    nSplits=0;
     if (nSplits > 1) {
         // Determine the number of samples to put into each "split".  This is
         // a double so that the binning effect is spread over all of the
@@ -319,8 +389,8 @@ CP::THitTransfer::Process(const CP::TAlgorithmResult& wires,
                         const CP::TAlgorithmResult& pmts,
                         const CP::TAlgorithmResult&) {
     CaptLog("THitTransfer Process " << GetEvent().GetContext());
-    CP::THandle<CP::THitSelection> wireHits = wires.GetHits();
-    if (!wireHits) {
+    CP::THandle<CP::THitSelection> wireHits_all = wires.GetHits();
+    if (!wireHits_all) {
         CaptError("No input hits");
         return CP::THandle<CP::TAlgorithmResult>();
     }
@@ -328,36 +398,60 @@ CP::THitTransfer::Process(const CP::TAlgorithmResult& wires,
     CP::THitSelection xHits;
     CP::THitSelection vHits;
     CP::THitSelection uHits;
-    for (CP::THitSelection::iterator h = wireHits->begin(); 
-         h != wireHits->end(); ++h) {
+     CP::THitSelection xHits_all;
+    CP::THitSelection vHits_all;
+    CP::THitSelection uHits_all;
+    for (CP::THitSelection::iterator h = wireHits_all->begin(); 
+         h != wireHits_all->end(); ++h) {
         int plane = CP::GeomId::Captain::GetWirePlane((*h)->GetGeomId());
         if (plane == CP::GeomId::Captain::kXPlane) {
-	   xHits.push_back(*h);
+	   xHits_all.push_back(*h);
         }
         else if (plane == CP::GeomId::Captain::kVPlane) {
-	  vHits.push_back(*h);
+	  vHits_all.push_back(*h);
         }
         else if (plane == CP::GeomId::Captain::kUPlane) {
-	  uHits.push_back(*h);
+	  uHits_all.push_back(*h);
         }
     }
-    for(std::size_t i=0;i<xHits.size();++i){
-      // std::cout<<"HitTransferX"<<"; X="<<xHits[i]->GetPosition().X()<<"; Y="<<xHits[i]->GetPosition().Y()<<"; Z="<<xHits[i]->GetPosition().Z()<<"; StartTime="<<xHits[i]->GetTimeStart()<<"; StopTime="<<xHits[i]->GetTimeStop()<<std::endl;
-      //std::cout<<"Wire#"<<CP::GeomId::Captain::GetWireNumber(xHits[i]->GetGeomId())<<std::endl;
-    }
-        for(std::size_t i=0;i<uHits.size();++i){
-	  // std::cout<<"HitTransferU"<<"; X="<<uHits[i]->GetPosition().X()<<"; Y="<<uHits[i]->GetPosition().Y()<<"; Z="<<uHits[i]->GetPosition().Z()<<"; StartTime="<<uHits[i]->GetTimeStart()<<"; StopTime="<<uHits[i]->GetTimeStop()<<std::endl;
-	  // std::cout<<"Wire#"<<CP::GeomId::Captain::GetWireNumber(uHits[i]->GetGeomId())<<std::endl;
-    }
-	    for(std::size_t i=0;i<vHits.size();++i){
-	      // std::cout<<"HitTransferV"<<"; X="<<vHits[i]->GetPosition().X()<<"; Y="<<vHits[i]->GetPosition().Y()<<"; Z="<<vHits[i]->GetPosition().Z()<<"; StartTime="<<vHits[i]->GetTimeStart()<<"; StopTime="<<vHits[i]->GetTimeStop()<<std::endl;
-	      //std::cout<<"Wire#"<<CP::GeomId::Captain::GetWireNumber(vHits[i]->GetGeomId())<<std::endl;
-    }
 
-
-
-
+         for(CP::THitSelection::iterator i = xHits_all.begin(); i !=xHits_all.end(); i++){
+	double SampleValue_X = 0.0;
+	for ( int count=0; count < ( (*i)->GetTimeSamples()); count++)
+	  { 
+	    SampleValue_X = SampleValue_X+((*i)->GetTimeSample(count));
+	              }
+		double SampleValueAbs_X = 0.0;
+	for ( int count=0; count < ( (*i)->GetTimeSamples()); count++)
+	  { 
+	    SampleValueAbs_X = SampleValueAbs_X+fabs(((*i)->GetTimeSample(count)));
+	              }
+	if(fabs(SampleValue_X)/SampleValueAbs_X>0.2){
+	  xHits.push_back(*i);
+	}
+           }
     
+	 /*for(CP::THitSelection::iterator i = uHits_all.begin(); i !=uHits_all.end(); i++){
+	  uHits.push_back(*i);
+           }
+
+      for(CP::THitSelection::iterator i = vHits_all.begin(); i !=vHits_all.end(); i++){ 
+	  vHits.push_back(*i);	
+	  }*/
+	 uHits = NoiseDeduction(&uHits_all,100,5);
+	 vHits = NoiseDeduction(&vHits_all,300,5);
+
+      CP::THandle<CP::THitSelection> wireHits(new CP::THitSelection);
+      for(CP::THitSelection::iterator i = xHits.begin(); i !=xHits.end(); i++){
+	wireHits->push_back(*i);
+      }
+      for(CP::THitSelection::iterator i = uHits.begin(); i !=uHits.end(); i++){
+	wireHits->push_back(*i);
+      }
+      for(CP::THitSelection::iterator i = vHits.begin(); i !=vHits.end(); i++){
+	wireHits->push_back(*i);
+      }
+      // std::cout<<wireHits_all->size()<<" ; "<<wireHits->size()<<std::endl;
 
     //#define CHECK_FOR_OVERLAPPED_HITS
 #ifdef  CHECK_FOR_OVERLAPPED_HITS

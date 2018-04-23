@@ -137,6 +137,7 @@ CP::CreateTrackFromHits(const char* name, hitIterator begin, hitIterator end,
                         const TVector3& approxDir) {
     CP::THandle<CP::TReconObjectContainer> c
         = CreateTrackClusters(name, begin, end, approxDir);
+    // std::cout<<"trackClusters="<<c->size()<<std::endl;
     return CreateTrackFromClusters(name,c->begin(), c->end(), false);
 }
 #endif

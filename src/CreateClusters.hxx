@@ -270,9 +270,10 @@ CP::CreateTrackClusters(const char* name, hitIterator begin, hitIterator end,
                          std::max(2.0*minLength,maxLength/10.0));
 
     int minSize = end - begin;
-    minSize = std::max(3, minSize/100);
+    minSize = std::max(1, minSize/100);
     int maxSize = end-begin;
     maxSize = std::max(4*minSize, maxSize/3);
+    //if(minSize==1){maxSize=2;}
     
     return CreateClusters(name,begin,end,approxDir,
                           minLength,maxLength,

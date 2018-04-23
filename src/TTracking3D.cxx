@@ -803,7 +803,6 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
 	xvDiff=abs(maxZX-MaxZ(tracksV[0]))+abs(minZX-MinZ(tracksV[0]));
 	ntracks++;
       }
-   
       if(ntracks==2){
 	//Turned ou that this dis should be 0 , otherwise nothing works :/ 
 	double uvDiff=0;//abs(MaxZ(tracksV[0])-MaxZ(tracksU[0]))+abs(MinZ(tracksV[0])-MinZ(tracksU[0]));
@@ -818,7 +817,7 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
 	    }else ++trX;
 	  }else ++trX;
       }
-      if(ntracks==1 && xvDiff==0){
+      if(ntracks==1 && xvDiff==0 && tracksU.size()>0){
 	std::cout<<"xuDiff="<<xuDiff<<std::endl;
 	if(xuDiff<distCut )
 	  {
@@ -829,7 +828,7 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
 	    }else ++trX;
 	  }else ++trX;
       }
-      if(ntracks==1 && xuDiff==0){
+      if(ntracks==1 && xuDiff==0 && tracksV.size()>0){
 	std::cout<<"xvDiff="<<xvDiff<<std::endl;
 	if(xvDiff<distCut )
 	  {
@@ -894,7 +893,7 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
   
 
   
-   if(tracksU.size()>0 && tracksV.size()>0) {
+  /* if(tracksU.size()>0 && tracksV.size()>0) {
      for (CP::TReconObjectContainer::iterator trU = tracksU.begin();
        trU != tracksU.end(); ) {
     CP::THandle<CP::TReconTrack> trackU = *trU;
@@ -917,8 +916,8 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
 	}else++trU;
       }else++trU;
     }else ++trU;
-  }
-  }
+   }
+ }*/
   
   
 }
