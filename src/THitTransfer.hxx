@@ -28,7 +28,10 @@ public:
                     const CP::THitSelection& wires);
 
 private:
-
+  ///Parameter in THitTransfer to reject hits with charge less then this ammoun
+  ///They are still get saved, but are not being used in reconstruction at all.
+  double fMinCharge;
+  
     /// The maximum drift distance in the TPC.  This is set using the
     /// captRecon.Cluster3D.maxDrift
     double fMaxDrift;

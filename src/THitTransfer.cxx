@@ -204,6 +204,8 @@ CP::THitTransfer::THitTransfer()
             "captRecon.cluster3d.maximumSpread");   
     fEnergyPerCharge = CP::TRuntimeParameters::Get().GetParameterD(
         "captRecon.energyPerCharge");
+    fMinCharge = CP::TRuntimeParameters::Get().GetParameterD(
+        "captRecon.hitTransfer.minCharge");
     // The time step per digitizer sample.
     fDigitStep = 500*unit::ns;   
     // This is the determined by the minimum tick of the digitizer.  
@@ -403,6 +405,9 @@ CP::THitTransfer::Process(const CP::TAlgorithmResult& wires,
     CP::THitSelection uHits_all;
     for (CP::THitSelection::iterator h = wireHits_all->begin(); 
          h != wireHits_all->end(); ++h) {
+
+      if((*h)->GetCharge()<fMinCharge)continue;
+      
         int plane = CP::GeomId::Captain::GetWirePlane((*h)->GetGeomId());
         if (plane == CP::GeomId::Captain::kXPlane) {
 	   xHits_all.push_back(*h);
