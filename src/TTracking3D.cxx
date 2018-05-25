@@ -164,16 +164,31 @@ double MinZ(CP::THandle<CP::TReconTrack> track){
 
 struct CompTracks{
 
-  CompTracks(double maxZX, double minZX){this->maxZX=maxZX;this->minZX=minZX;}
+    CompTracks(double maxZX, double minZX){this->maxZX=maxZX;this->minZX=minZX;}
 
-  bool operator()(const CP::THandle<CP::TReconTrack>& lhs, const CP::THandle<CP::TReconTrack>& rhs)
-  {
-    double l=abs(MaxZ(lhs)-maxZX)+abs(MinZ(lhs)-minZX);
-    double r=abs(MaxZ(rhs)-maxZX)+abs(MinZ(rhs)-minZX);
-    return l<r;}
+    bool operator()(const CP::THandle<CP::TReconTrack>& lhs, const CP::THandle<CP::TReconTrack>& rhs)
+    {
+	double l=abs(MaxZ(lhs)-maxZX)+abs(MinZ(lhs)-minZX);
+	double r=abs(MaxZ(rhs)-maxZX)+abs(MinZ(rhs)-minZX);
+	return l<r;}
   
-  double maxZX;
-  double minZX;
+    double maxZX;
+    double minZX;
+};
+
+struct CompWeightedTracks{
+
+    CompWeightedTracks(double maxZX, double minZX, double maxClusterSize){this->maxZX=maxZX;this->minZX=minZX;this->maxClusterSize=maxClusterSize;}
+
+    bool operator()(const CP::THandle<CP::TReconTrack>& lhs, const CP::THandle<CP::TReconTrack>& rhs)
+    {
+	double l=(abs(MaxZ(lhs)-maxZX)+abs(MinZ(lhs)-minZX)) / (lhs->GetHits()->size()/maxClusterSize);
+	double r=(abs(MaxZ(rhs)-maxZX)+abs(MinZ(rhs)-minZX)) / (rhs->GetHits()->size()/maxClusterSize);
+	return l<r;}
+  
+    double maxZX;
+    double minZX;
+    double maxClusterSize;
 };
 
 bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReconTrack> trackU, CP::THandle<CP::TReconTrack> trackV,CP::TReconObjectContainer& match3,int trackNum){
@@ -793,15 +808,31 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
       double uvDiff=0;
       if(tracksU.size()>0){
 
-	std::sort(tracksU.begin(),tracksU.end(),CompTracks(maxZX,minZX));
-	ntracks++;
-	xuDiff=abs(maxZX-MaxZ(tracksU[0]))+abs(minZX-MinZ(tracksU[0]));
+	  double maxSize = 0.0;
+	  for (size_t i_t = 0; i_t < tracksU.size(); i_t++) {
+	      CP::THandle<CP::TReconTrack> t = tracksU[i_t];
+	      if (t->GetHits()->size() > maxSize)
+		  maxSize = t->GetHits()->size();
+	  }
+	  
+	  //std::sort(tracksU.begin(),tracksU.end(),CompWeightedTracks(maxZX,minZX,maxSize));
+	  std::sort(tracksU.begin(),tracksU.end(),CompTracks(maxZX,minZX));
+	  ntracks++;
+	  xuDiff=abs(maxZX-MaxZ(tracksU[0]))+abs(minZX-MinZ(tracksU[0]));
       }
       if(tracksV.size()>0){
 
-	std::sort(tracksV.begin(),tracksV.end(),CompTracks(maxZX,minZX));
-	xvDiff=abs(maxZX-MaxZ(tracksV[0]))+abs(minZX-MinZ(tracksV[0]));
-	ntracks++;
+	  double maxSize = 0.0;
+	  for (size_t i_t = 0; i_t < tracksV.size(); i_t++) {
+	      CP::THandle<CP::TReconTrack> t = tracksV[i_t];
+	      if (t->GetHits()->size() > maxSize)
+		  maxSize = t->GetHits()->size();
+	  }
+	  
+	  //std::sort(tracksV.begin(),tracksV.end(),CompWeightedTracks(maxZX,minZX,maxSize));
+	  std::sort(tracksV.begin(),tracksV.end(),CompTracks(maxZX,minZX));
+	  xvDiff=abs(maxZX-MaxZ(tracksV[0]))+abs(minZX-MinZ(tracksV[0]));
+	  ntracks++;
       }
       if(ntracks==2){
 	//Turned ou that this dis should be 0 , otherwise nothing works :/ 
@@ -966,6 +997,7 @@ CP::TTracking3D::Process(const CP::TAlgorithmResult& input,
 
   CP::THandle<CP::THitSelection> TotalHits = GetEvent().Get<CP::THitSelection>("~/hits/drift");
 
+  
   CP::THitSelection xHits;
   CP::THitSelection vHits;
   CP::THitSelection uHits;
@@ -1124,14 +1156,14 @@ CP::TTracking3D::Process(const CP::TAlgorithmResult& input,
   std::string plotName3= "check/check_run_"+toString(evRun)+"_event_"+toString(evNum)+".pdf)";
 
   fHitsX->SetTitle("XHits");
-fHitsX->Draw("AP");
- fHitsX->GetXaxis()->SetTitle("Wire#");
- fHitsX->GetYaxis()->SetTitle("Samples");
- gPad->Print(plotName1.c_str());
- fHitsU->SetTitle("UHits");
+  fHitsX->Draw("AP");
+  fHitsX->GetXaxis()->SetTitle("Wire#");
+  fHitsX->GetYaxis()->SetTitle("Samples");
+  gPad->Print(plotName1.c_str());
+  fHitsU->SetTitle("UHits");
   fHitsU->Draw("AP");
   fHitsU->GetXaxis()->SetTitle("Wire#");
- fHitsU->GetYaxis()->SetTitle("Samples");
+  fHitsU->GetYaxis()->SetTitle("Samples");
   gPad->Print(plotName2.c_str());
   fHitsV->SetTitle("VHits");
   fHitsV->Draw("AP");
@@ -1140,7 +1172,8 @@ fHitsX->Draw("AP");
   gPad->Print(plotName3.c_str());
 
   //delete c2;
- 
+
+  
 
   result->AddResultsContainer(match3Tr.release());
   result->AddResultsContainer(match2Tr.release());
