@@ -43,13 +43,14 @@ int CheckObjectPlaneT(const CP::THandle<CP::TReconTrack>& obj){
   if (plane == CP::GeomId::Captain::kXPlane) {
     return 1;
   }
-  if (plane == CP::GeomId::Captain::kUPlane) {
+  else if (plane == CP::GeomId::Captain::kUPlane) {
     return 2;
   }
-  if (plane == CP::GeomId::Captain::kVPlane) {
+  else if (plane == CP::GeomId::Captain::kVPlane) {
     return 3;
   }
 
+  else return -1;
 }
 
 
@@ -409,7 +410,7 @@ bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::
   //********************************************************************************
   //Main algorithm: it takes parts of tracks and apply HitConnector to them / optionally it can just create all possible hits from given sets
   //********************************************************************************
-  for(std::size_t l=0;l<nparts;++l){
+  for(int l=0;l<nparts;++l){
 
     CP::THitSelection writableHits;
     CP::THitSelection inHitsX;
@@ -421,37 +422,37 @@ bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::
     CP::THandle<CP::THitSelection> inHitsVH(new CP::THitSelection);
     // std::cout<<"l part="<<l<<std::endl;
 
-    for(std::size_t j=l*counterX; j<counterX*(l+1) ; ++j){
+    for(int j=l*counterX; j<counterX*(l+1) ; ++j){
       //std::cout<<"j part="<<j<<std::endl;
       inHitsX.push_back((*hitX)[j]);
       inHitsXH->push_back((*hitX)[j]);
     }
-    for(std::size_t j=l*counterU; j<counterU*(l+1) ; ++j){
+    for(int j=l*counterU; j<counterU*(l+1) ; ++j){
       inHitsU.push_back((*hitU)[j]);
       inHitsUH->push_back((*hitU)[j]);
     }
-    for(std::size_t j=l*counterV; j<counterV*(l+1) ; ++j){
+    for(int j=l*counterV; j<counterV*(l+1) ; ++j){
       inHitsV.push_back((*hitV)[j]);
       inHitsVH->push_back((*hitV)[j]);
     }
     if(l==(nparts-1)){
       if(nMissedX>0){
 	int bound = (*hitX).size()-nMissedX;
-	for(int j=bound; j<(*hitX).size() ; ++j){
+	for(size_t j=bound; j<(*hitX).size() ; ++j){
 	  inHitsX.push_back((*hitX)[j]);
 	  inHitsXH->push_back((*hitX)[j]);
 	}
       }
       if(nMissedU>0){
 	int bound = (*hitU).size()-nMissedU;
-	for(int j=bound; j<(*hitU).size() ; ++j){
+	for(size_t j=bound; j<(*hitU).size() ; ++j){
 	  inHitsU.push_back((*hitU)[j]);
 	  inHitsUH->push_back((*hitU)[j]);
 	}
       }
       if(nMissedV>0){
 	int bound = (*hitV).size()-nMissedV;
-	for(int j=bound; j<(*hitV).size() ; ++j){
+	for(size_t j=bound; j<(*hitV).size() ; ++j){
 	  inHitsV.push_back((*hitV)[j]);
 	  inHitsVH->push_back((*hitV)[j]);
 	}
@@ -674,7 +675,7 @@ bool CP::TTracking3D::Assemble2DTrack( CP::THandle<CP::TReconTrack> trackX, CP::
   int nMissedU = (*hitU).size()-counterU*minSepar;
 
 
-  for(std::size_t l=0;l<nparts;++l){
+  for(int l=0;l<nparts;++l){
 
     CP::THitSelection writableHits;
     CP::THitSelection inHitsX;
@@ -685,12 +686,12 @@ bool CP::TTracking3D::Assemble2DTrack( CP::THandle<CP::TReconTrack> trackX, CP::
  
  
 
-    for(std::size_t j=l*counterX; j<counterX*(l+1) ; ++j){
+    for(int j=l*counterX; j<counterX*(l+1) ; ++j){
    
       inHitsX.push_back((*hitX)[j]);
       inHitsXH->push_back((*hitX)[j]);
     }
-    for(std::size_t j=l*counterU; j<counterU*(l+1) ; ++j){
+    for(int j=l*counterU; j<counterU*(l+1) ; ++j){
       inHitsU.push_back((*hitU)[j]);
       inHitsUH->push_back((*hitU)[j]);
     }
@@ -698,14 +699,14 @@ bool CP::TTracking3D::Assemble2DTrack( CP::THandle<CP::TReconTrack> trackX, CP::
     if(l==(nparts-1)){
       if(nMissedX>0){
 	int bound = (*hitX).size()-nMissedX;
-	for(int j=bound; j<(*hitX).size() ; ++j){
+	for(size_t j=bound; j<(*hitX).size() ; ++j){
 	  inHitsX.push_back((*hitX)[j]);
 	  inHitsXH->push_back((*hitX)[j]);
 	}
       }
       if(nMissedU>0){
 	int bound = (*hitU).size()-nMissedU;
-	for(int j=bound; j<(*hitU).size() ; ++j){
+	for(size_t j=bound; j<(*hitU).size() ; ++j){
 	  inHitsU.push_back((*hitU)[j]);
 	  inHitsUH->push_back((*hitU)[j]);
 	}
@@ -805,7 +806,7 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
       int ntracks=0;
       double xuDiff=0;
       double xvDiff=0;
-      double uvDiff=0;
+      //double uvDiff=0;
       if(tracksU.size()>0){
 
 	  double maxSize = 0.0;
@@ -903,7 +904,7 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
       CP::THandle<CP::TReconTrack> trackX = *trX;
       double maxZX=MaxZ(trackX);
       double minZX=MinZ(trackX);
-      double xvDiff=0;
+      //double xvDiff=0;
       if(tracksV.size()>0){
 	std::sort(tracksV.begin(),tracksV.end(),CompTracks(maxZX,minZX));
 	double xvDiff=abs(maxZX-MaxZ(tracksV[0]))+abs(minZX-MinZ(tracksV[0]));
@@ -995,8 +996,17 @@ CP::TTracking3D::Process(const CP::TAlgorithmResult& input,
 
 
 
-  CP::THandle<CP::THitSelection> TotalHits = GetEvent().Get<CP::THitSelection>("~/hits/drift");
 
+  CP::THandle<CP::THitSelection> allInputHits = GetEvent().Get<CP::THitSelection>("~/hits/drift");
+  THitSelection *tmpHits = new THitSelection("drift","Hit Handles");
+
+  for (CP::THitSelection::iterator h = allInputHits->begin(); 
+       h != allInputHits->end(); ++h) {
+      if ((*h)->GetCharge() > CP::TRuntimeParameters::Get().GetParameterD("captRecon.hitTransfer.minCharge"))
+	  tmpHits->push_back((*h));
+  }     
+  
+  CP::THandle<CP::THitSelection> TotalHits(tmpHits);  
   
   CP::THitSelection xHits;
   CP::THitSelection vHits;
