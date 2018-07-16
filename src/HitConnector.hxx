@@ -51,6 +51,7 @@ CP::THitSelection HitConnector3D(const CP::THandle<CP::THitSelection>& xHits, co
   if(minS==sizeX)order3=1;
   if(minS==sizeU)order3=2;
   if(minS==sizeV)order3=3;
+
   if(order1==1 && order3==2)order2=3;
   if(order1==2 && order3==1)order2=3;
   if(order1==1 && order3==3)order2=2;
@@ -58,6 +59,13 @@ CP::THitSelection HitConnector3D(const CP::THandle<CP::THitSelection>& xHits, co
   if(order1==2 && order3==3)order2=1;
   if(order1==3 && order3==2)order2=1;
   int orderF=1;
+
+  if(sizeX==sizeU && sizeU==sizeV){
+    order1=1;
+    order2=2;
+    order3=3;
+  }
+  
   if(order1==1 && order2==2 && order3==3){
     hits1=(*xHits);
     hits2=(*uHits);
@@ -94,7 +102,7 @@ CP::THitSelection HitConnector3D(const CP::THandle<CP::THitSelection>& xHits, co
     orderF=2;
 	    }
   CP::THitSelection writableHits;
-  // std::cout<<"1Size="<<hits1.size()<<"; 2Size="<<hits2.size()<<"; 3Size="<<hits3.size()<<std::endl;
+   
   for(int i=0;i<hits1.size();++i){
     int dif_i = hits2.size()-i;
     if(i==0){
@@ -597,7 +605,7 @@ CP::THitSelection HitConnector3D(const CP::THandle<CP::THitSelection>& xHits, co
     }//else for i>0
 
   } //i cycle
-    std::cout<<"#3DHitsCreated"<<writableHits.size()<<std::endl;
+   
     //   std::sort(writableHits.begin(),writableHits.end(),CompHitsX);
   return writableHits;
 }
