@@ -14,6 +14,7 @@
 
 #include "THitTransfer.hxx"
 #include "TClustering2D.hxx"
+#include "TPathFollow.hxx"
 #include "TTracking2D.hxx"
 #include "TTracking3D.hxx"
 #include "TFitting3D.hxx"
@@ -144,7 +145,18 @@ CP::TCaptainRecon::Process(const CP::TAlgorithmResult& driftInput,
     result->AddDatum(currentResult);
 #endif
 
-#define Apply_TTracking_2D
+
+    #define Apply_TPathFollow
+#ifdef Apply_TPathFollow
+    // Path Following algorithm 
+    CP::THandle<CP::TAlgorithmResult> pathfollowResult;
+    pathfollowResult  = Run<CP::TPathFollow>(*currentResult);
+    if (!pathfollowResult) break;
+    currentResult = pathfollowResult;
+    result->AddDatum(currentResult);
+#endif
+
+    //#define Apply_TTracking_2D
 #ifdef Apply_TTracking_2D
     // Create 2D tracks from 2D clusters 
     CP::THandle<CP::TAlgorithmResult> track2DResult;
