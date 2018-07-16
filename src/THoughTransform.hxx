@@ -137,10 +137,11 @@ fHoughHist = new TH2F("HH","HH",fAngleBin,-90,90,fRadBin,-fMaxRad,fMaxRad);
     for(int i=1;i<fAngleBin+1;++i){
       double thet=fHoughHist->GetXaxis()->GetBinCenter(i);
       double rad = x*sin(thet*PI/180.0)+y*cos(thet*PI/180.0);
-      //  std::cout<<rad<<std::endl;
+      // std::cout<<rad<<std::endl;
       int ibin = fHoughHist->FindFixBin(thet,rad);
       int j=fHoughHist->GetYaxis()->FindFixBin(rad);
-
+      ibin = fHoughHist->GetBin(i,j);
+      fHoughHist->AddBinContent(ibin);
       //Make Wide Lines
        if(i==1){
 	if(j==1){
@@ -248,6 +249,7 @@ int maxi=-9999;
       if(weight>maxW){maxW=weight;maxi=i;maxj=j;}
     }
   }
+  // std::cout<<"maxW="<<maxW<<std::endl;
   if(maxW>limit){
    
   //y=a*x+b <- y = rad/cos(thet)-x*sin(thet)/cos(thet)
