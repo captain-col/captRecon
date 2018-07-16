@@ -59,11 +59,25 @@ CP::THitSelection CP::TClustering2D::ClusteredHits(CP::THitSelection& hits,bool 
   CP::THitSelection finalHits;
   typedef CP::TPositionDensityCluster< CP::THandle<THit> > ClusterAlgorithm;
 
-   
+for(CP::THitSelection::iterator h=hits.begin();h!=hits.end();++h){
+	 
+	  double ht=((*h)->GetTime()+1.6*unit::ms)/(500*unit::ns);
+	  double hw=CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId());
+       
+	  //  std::cout<<"t="<<ht<<"; w="<<hw<<std::endl;
+
+	  //  std::cout<<"X="<<(*h)->GetPosition().X()<<"; Y="<<(*h)->GetPosition().Y()<<"; Z="<<(*h)->GetPosition().Z()<<std::endl;
+
+	  if(h<hits.end()-1){
+	    //   std::cout<<"distance="<< ((*h)->GetPosition()-(*(h+1))->GetPosition()).Mag()<<std::endl;
+				 }
+ }
+
+  
   ClusterAlgorithm Clusters(minPoints,maxDist);
   Clusters.Cluster(hits.begin(), hits.end());
   int nClusters = Clusters.GetClusterCount();
-  //std::cout<<"nclusters="<<nClusters<<std::endl;
+  // std::cout<<"nclusters="<<nClusters<<std::endl;
   if(!bigest){
     for (int i=0; i<nClusters; ++i) {
       const ClusterAlgorithm::Points& points 
@@ -95,6 +109,7 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
   int finallinecut=0;
 
   TH1F* distance = new TH1F("dist","dist",30,0,30);
+  TH2F* distance2D = new TH2F("dist2D","dis2D",30,0,30,20,0,20);
   TH1F* chi = new TH1F("chi","chi",1000,0,1000);
   TH2F* chi_angle = new TH2F("chi_angle","chi_angle",1000,0,1000,180,0,180);
   //ReconObjects 
@@ -139,6 +154,8 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
  
   // Create the output containers.
   CP::THandle<CP::TAlgorithmResult> result = CreateResult();
+  std::unique_ptr<CP::THitSelection> hitsAll(new CP::THitSelection(
+                                                     "hitsAll"));
   std::unique_ptr<CP::TReconObjectContainer> 
     final(new CP::TReconObjectContainer("final"));
   std::unique_ptr<CP::TReconObjectContainer> xclusters(
@@ -149,12 +166,15 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 						       new CP::TReconObjectContainer("vclusters"));
 
   //Copy inputObjects in "final" container
-  for (CP::TReconObjectContainer::iterator it = inputObjects->begin();
-       it != inputObjects->end(); ++it)
+  for (CP::THitSelection::iterator it = inputObjects1->begin();
+       it != inputObjects1->end(); ++it)
     {
-      final->push_back(*it);
+      CP::THandle<CP::TReconHit> hit = *it;
+      if(hit){
+	 hitsAll->push_back(hit);
+      }
     }
-
+  
   //If unused hits exist, cluster them by position and save in "final" container
 
   if(xHits.size()>0)
@@ -167,7 +187,7 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
       typedef CP::THoughTrans< CP::THandle<THit> > HoughAlgorithm;
       
       while(!failHough){
-	HoughAlgorithm Hough(180,10000);
+	HoughAlgorithm Hough(2*180,10000);
 
 	std::vector<std::pair<double,double>> points;
 
@@ -178,8 +198,9 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 	
 	Hough.HoughTransform(points.begin(),points.end());
 
+
 	
-	std::pair<double,double> lineParam=Hough.GetLineParam(4);
+	std::pair<double,double> lineParam=Hough.GetLineParam(3);
 
 	
 	if(lineParam.first==-9999 || lineParam.second==-9999){
@@ -192,22 +213,34 @@ CP::TClustering2D::Process(const CP::TAlgorithmResult& input,
 
 	for(CP::THitSelection::iterator h=xHits_cl.begin();h!=xHits_cl.end();++h){
 	  double dist = GetDist((*h)->GetPosition().X(),(*h)->GetPosition().Z(),lineParam);
-	  distance->Fill(dist);
-	  if(dist<7*unit::mm) LineHits.push_back(*h);
+	  // std::cout<<"dist = "<<dist<<std::endl;
+	  //	  distance->Fill(dist);
+	  if(dist<4*unit::mm) LineHits.push_back(*h);
 	}
-
+	//	std::cout<<"lineHits="<<LineHits.size()<<std::endl;
 	if(LineHits.size()>2){
 	  std::sort(LineHits.begin(),LineHits.end(),CompX);
 	   
-	  FinalLine=CP::TClustering2D::ClusteredHits(LineHits,true,2,40*unit::mm);
+	  FinalLine=CP::TClustering2D::ClusteredHits(LineHits,true,1,53*unit::mm);
+	  // std::cout<<"finalLine="<<FinalLine.size()<<std::endl;
 	  //	std::copy(LineHits.begin(),LineHits.end(),back_inserter(FinalLine));
         
 	  if(FinalLine.size()>2){
 	  CP::THandle<CP::TReconCluster> cluster = CreateCluster("cluster_xh",FinalLine.begin(),FinalLine.end());
 	  if(cluster){
 #ifndef WIRE_CLUSTERING
+
+	     CP::THandle<CP::THitSelection> hits = cluster->GetHits();
+	     	double avgDist=0;
+      if(hits){
+
+	for(CP::THitSelection::iterator h = hits->begin();h!=(hits->end()-1);++h){avgDist+= ((*h)->GetPosition()- (*(h+1))->GetPosition()).Mag();
+	}
+      }
+	if(cluster->GetHits()->size()>2 ){
 	    xclusters->push_back(cluster);
 	    final->push_back(cluster);
+	    }
 #endif
 	  }
 	  }
@@ -238,6 +271,21 @@ if(FinalLine.size()==0 && LineHits.size()>0){
 	    final->push_back(cluster);
       }
 #endif
+
+      if(xclusters->size()>0){
+    for(CP::TReconObjectContainer::iterator it = xclusters->begin();it!=xclusters->end();++it){
+      CP::THandle<CP::THitSelection> hits = (*it)->GetHits();
+      if(hits){
+	double avgDist=0;
+	for(CP::THitSelection::iterator h = hits->begin();h!=(hits->end()-1);++h){avgDist+= ((*h)->GetPosition()- (*(h+1))->GetPosition()).Mag();
+	}
+	avgDist/=((double)hits->size()-1);
+	distance2D->Fill(avgDist,(int)hits->size());
+      }
+    }
+      }
+
+      
       std::cout<<"NClusters="<<xclusters->size()<<std::endl;
      
       CaptNamedLog("TClusterXHits",
@@ -251,12 +299,16 @@ if(FinalLine.size()==0 && LineHits.size()>0){
       CP::THitSelection uHits_cl;
 
       
+      
       	std::copy(uHits.begin(),uHits.end(),back_inserter(uHits_cl));
+
+      
+	
       bool failHough=false;
       typedef CP::THoughTrans< CP::THandle<THit> > HoughAlgorithm;
 
       while(!failHough){
-	HoughAlgorithm Hough(180,10000);
+	HoughAlgorithm Hough(2*180,10000);
 
 	
 	std::vector<std::pair<double,double>> points;
@@ -287,20 +339,32 @@ if(FinalLine.size()==0 && LineHits.size()>0){
 	  if((*h)->GetPosition().X()<0)sign=-1.0;
 	  double x=sign*sqrt((*h)->GetPosition().X()*(*h)->GetPosition().X()+(*h)->GetPosition().Y()*(*h)->GetPosition().Y());
 	  double dist = GetDist(x,(*h)->GetPosition().Z(),lineParam);
-	 
-	  if(dist<8*unit::mm) LineHits.push_back(*h);
+	  double ht=((*h)->GetTime()+1.6*unit::ms)/(500*unit::ns);
+	  double hw=CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId());
+	  //  if(hw>33 && hw<50)
+	    // std::cout<<"t="<<ht<<"; w="<<hw<<"; dist="<<dist<<std::endl;
+	  if(dist<4*unit::mm) LineHits.push_back(*h);
 	}
-
+	//	std::cout<<"lihesize="<<LineHits.size()<<std::endl;
 	if(LineHits.size()>2){
 	  std::sort(LineHits.begin(),LineHits.end(),CompX);
-	  FinalLine=CP::TClustering2D::ClusteredHits(LineHits,true,2,40*unit::mm);
-	  
+	  FinalLine=CP::TClustering2D::ClusteredHits(LineHits,true,1,53*unit::mm);
+	  // std::cout<<"filanline="<<FinalLine.size()<<std::endl;
 	  if(FinalLine.size()>finallinecut){
 	  CP::THandle<CP::TReconCluster> cluster = CreateCluster("cluster_uh",FinalLine.begin(),FinalLine.end());
 	  if(cluster){
 #ifndef WIRE_CLUSTERING
+	   CP::THandle<CP::THitSelection> hits = cluster->GetHits();
+	     	double avgDist=0;
+      if(hits){
+
+	for(CP::THitSelection::iterator h = hits->begin();h!=(hits->end()-1);++h){avgDist+= ((*h)->GetPosition()- (*(h+1))->GetPosition()).Mag();
+	}
+      }
+	if(cluster->GetHits()->size()>2 ){
 	    uclusters->push_back(cluster);
 	    final->push_back(cluster);
+	    }
 #endif
 	  }
 	  }
@@ -330,6 +394,21 @@ if(FinalLine.size()==0 && LineHits.size()>0){
 	final->push_back(cluster);
       }
 #endif
+
+ if(uclusters->size()>0){
+    for(CP::TReconObjectContainer::iterator it = uclusters->begin();it!=uclusters->end();++it){
+      CP::THandle<CP::THitSelection> hits = (*it)->GetHits();
+      if(hits){
+	double avgDist=0;
+	for(CP::THitSelection::iterator h = hits->begin();h!=(hits->end()-1);++h){avgDist+= ((*h)->GetPosition()- (*(h+1))->GetPosition()).Mag();
+	}
+	avgDist/=((double)hits->size()-1);
+	distance2D->Fill(avgDist,(int)hits->size());
+      }
+    }
+      }
+
+      
       std::cout<<"NClusters="<<uclusters->size()<<std::endl;
      
       CaptNamedLog("TClusterUHits",
@@ -355,7 +434,7 @@ if(FinalLine.size()==0 && LineHits.size()>0){
       typedef CP::THoughTrans< CP::THandle<THit> > HoughAlgorithm;
 
       while(!failHough){
-	HoughAlgorithm Hough(180,10000);
+	HoughAlgorithm Hough(2*180,10000);
 
 	
 	std::vector<std::pair<double,double>> points;
@@ -385,7 +464,7 @@ if(FinalLine.size()==0 && LineHits.size()>0){
 	  
 	  double dist = GetDist(x,(*h)->GetPosition().Z(),lineParam);
 	  //  distance->Fill(dist);
-	  if(dist<6*unit::mm) LineHits.push_back(*h);
+	  if(dist<4*unit::mm) LineHits.push_back(*h);
 	}
 
 	CP::THitSelection FinalLine;
@@ -393,14 +472,23 @@ if(FinalLine.size()==0 && LineHits.size()>0){
 	if(LineHits.size()>2){
 	  std::sort(LineHits.begin(),LineHits.end(),CompX);
 
-	  	  FinalLine=CP::TClustering2D::ClusteredHits(LineHits,true,2,40*unit::mm);
+	  	  FinalLine=CP::TClustering2D::ClusteredHits(LineHits,true,1,40*unit::mm);
 	  //	std::copy(LineHits.begin(),LineHits.end(),back_inserter(FinalLine));
 if(FinalLine.size()>finallinecut){
 	  CP::THandle<CP::TReconCluster> cluster = CreateCluster("cluster_vh",FinalLine.begin(),FinalLine.end());
 	  if(cluster){
 #ifndef WIRE_CLUSTERING
-	     vclusters->push_back(cluster);
+	     CP::THandle<CP::THitSelection> hits = cluster->GetHits();
+	     	double avgDist=0;
+      if(hits){
+
+	for(CP::THitSelection::iterator h = hits->begin();h!=(hits->end()-1);++h){avgDist+= ((*h)->GetPosition()- (*(h+1))->GetPosition()).Mag();
+	}
+      }
+	if(cluster->GetHits()->size()>2){
+	    vclusters->push_back(cluster);
 	    final->push_back(cluster);
+	    }
 #endif
 	  }
  }
@@ -430,6 +518,20 @@ if(FinalLine.size()>finallinecut){
 	final->push_back(cluster);
       }
 #endif
+
+
+       if(vclusters->size()>0){
+    for(CP::TReconObjectContainer::iterator it = vclusters->begin();it!=vclusters->end();++it){
+      CP::THandle<CP::THitSelection> hits = (*it)->GetHits();
+      if(hits){
+	double avgDist=0;
+	for(CP::THitSelection::iterator h = hits->begin();h!=(hits->end()-1);++h){avgDist+= ((*h)->GetPosition()- (*(h+1))->GetPosition()).Mag();
+	}
+	avgDist/=((double)hits->size()-1);
+	distance2D->Fill(avgDist,(int)hits->size());
+      }
+    }
+      }
       std::cout<<"NClusters="<<vclusters->size()<<std::endl;
 	
      
@@ -511,10 +613,14 @@ if(FinalLine.size()>finallinecut){
     gPad->Print("plots/VHits_cl.C");
   }    
    
-
+distance->Draw();
+    gPad->Print("plots/distance.C");
+    distance2D->Draw("COLZ");
+    gPad->Print("plots/distance2D.C");
   result->AddResultsContainer(xclusters.release());
   result->AddResultsContainer(uclusters.release());
   result->AddResultsContainer(vclusters.release());
+  result->AddHits(hitsAll.release());
   result->AddResultsContainer(final.release());
   
   return result;
