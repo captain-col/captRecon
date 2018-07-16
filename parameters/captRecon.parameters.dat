@@ -75,3 +75,7 @@ TClustering 2D algotithm parameters
 Parameter in THitTransfer to reject hits with charge less then this ammount. They are still get saved, but are not being used in reconstruction at all. As for now most of noise appeared in events is less then 4000, but I set this parameter for 0 now.
 
 < captRecon.hitTransfer.minCharge = 15 >
+
+Enable check for hits to have valid Charge/Time info
+
+< captRecon.hitTransfer.validChargeTime = 0 >

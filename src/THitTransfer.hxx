@@ -77,6 +77,9 @@ private:
     /// The amount of time per digitizer sample.  This is the same for all
     /// hits (and is nominally 500*ns).
     double fDigitStep;
+
+  ///Enable check for hits to have valid charge/time info
+  int fValidChargeTime;
  
         
     /// The (up to) three wire hits and make a 3D TWritableReconHit handle.

@@ -14,6 +14,10 @@
 #include <TUnitsTable.hxx> 
 #include <TRuntimeParameters.hxx>
 
+
+#include <TPad.h>
+#include <TH2F.h>
+
 #include <algorithm>
 #include <memory>
 #include <cmath>
@@ -206,6 +210,10 @@ CP::THitTransfer::THitTransfer()
         "captRecon.energyPerCharge");
     fMinCharge = CP::TRuntimeParameters::Get().GetParameterD(
         "captRecon.hitTransfer.minCharge");
+
+    fValidChargeTime = CP::TRuntimeParameters::Get().GetParameterD(
+        "captRecon.hitTransfer.validChargeTime");
+    
     // The time step per digitizer sample.
     fDigitStep = 500*unit::ns;   
     // This is the determined by the minimum tick of the digitizer.  
@@ -407,6 +415,16 @@ CP::THitTransfer::Process(const CP::TAlgorithmResult& wires,
          h != wireHits_all->end(); ++h) {
 
       if((*h)->GetCharge()<fMinCharge)continue;
+
+      if(fValidChargeTime==1){
+	#define validChargeTime
+      }
+
+      #ifdef validChargeTime
+
+      if(!(*h)->HasValidCharge() || !(*h)->HasValidTime()) continue;
+      
+      #endif
       
         int plane = CP::GeomId::Captain::GetWirePlane((*h)->GetGeomId());
         if (plane == CP::GeomId::Captain::kXPlane) {
@@ -523,16 +541,68 @@ CP::THitTransfer::Process(const CP::TAlgorithmResult& wires,
         // Don't include hits that have had all their charge taken away by the
         // charge sharing.  The  10 electron cut corresponds to a hit energy of
         // about 340 eV.
-        if (hit->GetCharge() < 10.0) continue;
+	// if (hit->GetCharge() < 10.0) continue;
         CP::THandle<CP::TReconHit> newHit(new CP::TReconHit(*hit));
-        clustered->push_back(newHit);
-	//	final->push_back(newHit);
+	 clustered->push_back(newHit);
+	 //	final->push_back(newHit);
        	int plane = CP::GeomId::Captain::GetWirePlane((*newHit).GetGeomId());
-	/*	CaptNamedLog("THitTransfering",
-		"plane " << plane << " PositionX= " << (*newHit).GetPosition().X() << " PositionY="<<(*newHit).GetPosition().Y()<<" PositionZ="<<(*newHit).GetPosition().Z());*/
+	/*	if(plane==CP::GeomId::Captain::kUPlane){
+	   double ht=(newHit->GetTime()+1.6*unit::ms)/(500*unit::ns);
+	    double hw=CP::GeomId::Captain::GetWireNumber(newHit->GetGeomId());
+	    std::cout<<"t="<<ht<<"; w="<<hw<<std::endl;
+	    }*/
       
     }
 
+    
+
+ std::unique_ptr<TH2F> HitsX(new TH2F("HitsForXt","HitsForXt",340,0,340,9600,0,9600));
+    std::unique_ptr<TH2F> HitsU(new TH2F("HitsForUt","HitsForUt",340,0,340,9600,0,9600));
+    std::unique_ptr<TH2F> HitsV(new TH2F("HitsForVt","HitsForVt",340,0,340,9600,0,9600));
+
+     std::unique_ptr<TH2F> Hits(new TH2F("Hits","Hits",340,0,340,9600,0,9600));
+     
+    if(xHits.size()>0){
+    
+	  for(CP::THitSelection::iterator h = xHits.begin();h!=xHits.end();++h){
+	    double ht=((*h)->GetTime()+1.6*unit::ms)/(500*unit::ns);
+	    double hw=CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId());
+	    HitsX->Fill(hw,ht);
+	  }
+	
+      
+
+      HitsX->Draw();
+      gPad->Print("plots/XHits_trans.C");
+    }
+
+      if(uHits.size()>0){
+     
+	  for(CP::THitSelection::iterator h = uHits.begin();h!=uHits.end();++h){
+	    double ht=((*h)->GetTime()+1.6*unit::ms)/(500*unit::ns);
+	    double hw=CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId());
+	    HitsU->Fill(hw,ht);
+
+	  
+	
+      }
+
+      HitsU->Draw();
+      gPad->Print("plots/UHits_trans.C");
+    }
+
+        if(vHits.size()>0){
+     
+	  for(CP::THitSelection::iterator h = vHits.begin();h!=vHits.end();++h){
+	    double ht=((*h)->GetTime()+1.6*unit::ms)/(500*unit::ns);
+	    double hw=CP::GeomId::Captain::GetWireNumber((*h)->GetGeomId());
+	    HitsV->Fill(hw,ht);
+	
+      }
+ 
+      HitsV->Draw();
+      gPad->Print("plots/VHits_trans.C");
+    }
 
    
    
@@ -555,6 +625,6 @@ CP::THitTransfer::Process(const CP::TAlgorithmResult& wires,
     // if (used->size() > 0) result->AddHits(used.release());
      if (clustered->size() > 0) result->AddHits(clustered.release());
     result->AddResultsContainer(final.release());
-
+    
     return result;
 }
