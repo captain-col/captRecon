@@ -34,7 +34,7 @@ std::string toString(int i)
   return s.str();
 }
 
-int CheckObjectPlaneT(const CP::THandle<CP::TReconTrack>& obj){
+int CheckObjectPlaneT(const CP::THandle<CP::TReconCluster>& obj){
     
  
   CP::THandle<CP::THitSelection> hits = obj->GetHits();
@@ -43,14 +43,13 @@ int CheckObjectPlaneT(const CP::THandle<CP::TReconTrack>& obj){
   if (plane == CP::GeomId::Captain::kXPlane) {
     return 1;
   }
-  else if (plane == CP::GeomId::Captain::kUPlane) {
+  if (plane == CP::GeomId::Captain::kUPlane) {
     return 2;
   }
-  else if (plane == CP::GeomId::Captain::kVPlane) {
+  if (plane == CP::GeomId::Captain::kVPlane) {
     return 3;
   }
 
-  else return -1;
 }
 
 
@@ -75,7 +74,7 @@ bool CheckPosition(TVector3 s, TVector3 f, TVector3 posX){
   if(posX.Z()<s.Z() && posX.Z()>f.Z()) return true;
   return false;
 }
-int WireDir( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReconTrack> trackU,CP::THandle<CP::TReconTrack> trackV){
+int WireDir( CP::THandle<CP::TReconCluster> trackX, CP::THandle<CP::TReconCluster> trackU,CP::THandle<CP::TReconCluster> trackV){
   
   CP::THandle<CP::THitSelection> hitX = trackX->GetHits();
   CP::THandle<CP::THitSelection> hitU = trackU->GetHits();
@@ -141,7 +140,7 @@ int nWireX=nWire.size();
   return 9999;
 }
 
-double MaxZ(CP::THandle<CP::TReconTrack> track){
+double MaxZ(CP::THandle<CP::TReconCluster> track){
   CP::THandle<CP::THitSelection> hits = track->GetHits();
   double maxZ=-99999;
   for (CP::THitSelection::iterator h = (*hits).begin();
@@ -152,7 +151,7 @@ double MaxZ(CP::THandle<CP::TReconTrack> track){
   return maxZ;
 }
 
-double MinZ(CP::THandle<CP::TReconTrack> track){
+double MinZ(CP::THandle<CP::TReconCluster> track){
   CP::THandle<CP::THitSelection> hits = track->GetHits();
   double minZ=99999;
   for (CP::THitSelection::iterator h = (*hits).begin();
@@ -165,34 +164,19 @@ double MinZ(CP::THandle<CP::TReconTrack> track){
 
 struct CompTracks{
 
-    CompTracks(double maxZX, double minZX){this->maxZX=maxZX;this->minZX=minZX;}
+  CompTracks(double maxZX, double minZX){this->maxZX=maxZX;this->minZX=minZX;}
 
-    bool operator()(const CP::THandle<CP::TReconTrack>& lhs, const CP::THandle<CP::TReconTrack>& rhs)
-    {
-	double l=abs(MaxZ(lhs)-maxZX)+abs(MinZ(lhs)-minZX);
-	double r=abs(MaxZ(rhs)-maxZX)+abs(MinZ(rhs)-minZX);
-	return l<r;}
+  bool operator()(const CP::THandle<CP::TReconCluster>& lhs, const CP::THandle<CP::TReconCluster>& rhs)
+  {
+    double l=abs(MaxZ(lhs)-maxZX)+abs(MinZ(lhs)-minZX);
+    double r=abs(MaxZ(rhs)-maxZX)+abs(MinZ(rhs)-minZX);
+    return l<r;}
   
-    double maxZX;
-    double minZX;
+  double maxZX;
+  double minZX;
 };
 
-struct CompWeightedTracks{
-
-    CompWeightedTracks(double maxZX, double minZX, double maxClusterSize){this->maxZX=maxZX;this->minZX=minZX;this->maxClusterSize=maxClusterSize;}
-
-    bool operator()(const CP::THandle<CP::TReconTrack>& lhs, const CP::THandle<CP::TReconTrack>& rhs)
-    {
-	double l=(abs(MaxZ(lhs)-maxZX)+abs(MinZ(lhs)-minZX)) / (lhs->GetHits()->size()/maxClusterSize);
-	double r=(abs(MaxZ(rhs)-maxZX)+abs(MinZ(rhs)-minZX)) / (rhs->GetHits()->size()/maxClusterSize);
-	return l<r;}
-  
-    double maxZX;
-    double minZX;
-    double maxClusterSize;
-};
-
-bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReconTrack> trackU, CP::THandle<CP::TReconTrack> trackV,CP::TReconObjectContainer& match3,int trackNum){
+bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconCluster> trackX, CP::THandle<CP::TReconCluster> trackU, CP::THandle<CP::TReconCluster> trackV,CP::TReconObjectContainer& match3,int trackNum){
 
   
   CP::THandle<CP::THitSelection> hitX_t = trackX->GetHits();
@@ -336,7 +320,7 @@ bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::
   int dir=WireDir(trackX,trackU,trackV);
 
 
-  std::cout<<"dir="<<dir<<std::endl;
+  //std::cout<<"dir="<<dir<<std::endl;
   std::sort((*hitX).begin(),(*hitX).end(),CompHitsW);
   if(dir==0){
     std::sort((*hitU).begin(),(*hitU).end(),CompHitsW);
@@ -389,6 +373,9 @@ bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::
 
   int minSepar = std::min(nWireX,nWireU);
   minSepar = std::min(nWireV,minSepar);
+  
+ 
+ 
 
 
   if(minSepar>3) minSepar/=2;
@@ -397,8 +384,9 @@ bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::
   if(minSepar > 100){minSepar/=10;}
   int nparts=minSepar;
   CP::TReconObjectContainer writableClusters;
+  CP::THitSelection hitsfortrack;
  
-
+  //std::cout<<"nparts="<<nparts<<std::endl;
 
   int counterX=(int)(*hitX).size()/minSepar;
   int nMissedX = (*hitX).size()-counterX*minSepar;
@@ -410,7 +398,7 @@ bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::
   //********************************************************************************
   //Main algorithm: it takes parts of tracks and apply HitConnector to them / optionally it can just create all possible hits from given sets
   //********************************************************************************
-  for(int l=0;l<nparts;++l){
+  for(std::size_t l=0;l<nparts;++l){
 
     CP::THitSelection writableHits;
     CP::THitSelection inHitsX;
@@ -422,43 +410,43 @@ bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::
     CP::THandle<CP::THitSelection> inHitsVH(new CP::THitSelection);
     // std::cout<<"l part="<<l<<std::endl;
 
-    for(int j=l*counterX; j<counterX*(l+1) ; ++j){
+    for(std::size_t j=l*counterX; j<counterX*(l+1) ; ++j){
       //std::cout<<"j part="<<j<<std::endl;
       inHitsX.push_back((*hitX)[j]);
       inHitsXH->push_back((*hitX)[j]);
     }
-    for(int j=l*counterU; j<counterU*(l+1) ; ++j){
+    for(std::size_t j=l*counterU; j<counterU*(l+1) ; ++j){
       inHitsU.push_back((*hitU)[j]);
       inHitsUH->push_back((*hitU)[j]);
     }
-    for(int j=l*counterV; j<counterV*(l+1) ; ++j){
+    for(std::size_t j=l*counterV; j<counterV*(l+1) ; ++j){
       inHitsV.push_back((*hitV)[j]);
       inHitsVH->push_back((*hitV)[j]);
     }
     if(l==(nparts-1)){
       if(nMissedX>0){
 	int bound = (*hitX).size()-nMissedX;
-	for(size_t j=bound; j<(*hitX).size() ; ++j){
+	for(int j=bound; j<(*hitX).size() ; ++j){
 	  inHitsX.push_back((*hitX)[j]);
 	  inHitsXH->push_back((*hitX)[j]);
 	}
       }
       if(nMissedU>0){
 	int bound = (*hitU).size()-nMissedU;
-	for(size_t j=bound; j<(*hitU).size() ; ++j){
+	for(int j=bound; j<(*hitU).size() ; ++j){
 	  inHitsU.push_back((*hitU)[j]);
 	  inHitsUH->push_back((*hitU)[j]);
 	}
       }
       if(nMissedV>0){
 	int bound = (*hitV).size()-nMissedV;
-	for(size_t j=bound; j<(*hitV).size() ; ++j){
+	for(int j=bound; j<(*hitV).size() ; ++j){
 	  inHitsV.push_back((*hitV)[j]);
 	  inHitsVH->push_back((*hitV)[j]);
 	}
       }     
     }
-
+   
 #define Hit_Con_Alg
 #ifdef Hit_Con_Alg
     writableHits = HitConnector3D(inHitsXH,inHitsUH,inHitsVH);
@@ -520,20 +508,23 @@ bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::
       if(writableHits.size()>0){
 	CP::THandle<CP::TReconCluster> wcl = CreateCluster("fortrack",writableHits.begin(),writableHits.end());
 	writableClusters.push_back(wcl);
-
+	//for(CP::THitSelection::iterator wh=writableHits.begin();wh!=writableHits.end();)
+	// {hitsfortrack.push_back(*wh);}
       }
     }
-    writableHits.clear();
+     writableHits.clear();
   }
 
   //********************************************************************************
   //From CLusters, formed in previos algorithm we form  track
   //********************************************************************************
 
-  if(writableClusters.size()>0){
+   if(writableClusters.size()>0){
+  // if(hitsfortrack.size()>0){
    
     CP::THandle<CP::TReconTrack> track(new CP::TReconTrack);
     track= CreateTrackFromClusters("TTracking3D",writableClusters.begin(), writableClusters.end());
+    //  track= CreateTrackFromHits("TTracking3D",hitsfortrack.begin(), hitsfortrack.end());
 
     if(track){
       match3.push_back(track);
@@ -545,7 +536,7 @@ bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::
   
 }
 
-bool CP::TTracking3D::Assemble2DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReconTrack> trackU,CP::TReconObjectContainer& match2,int trackNum, int planeComb){
+bool CP::TTracking3D::Assemble2DTrack( CP::THandle<CP::TReconCluster> trackX, CP::THandle<CP::TReconCluster> trackU,CP::TReconObjectContainer& match2,int trackNum, int planeComb){
 
   //********************************************************************************
   //Algorithm follows the same logic as Assemble 3D, so check the other one for more detailed comments
@@ -675,7 +666,7 @@ bool CP::TTracking3D::Assemble2DTrack( CP::THandle<CP::TReconTrack> trackX, CP::
   int nMissedU = (*hitU).size()-counterU*minSepar;
 
 
-  for(int l=0;l<nparts;++l){
+  for(std::size_t l=0;l<nparts;++l){
 
     CP::THitSelection writableHits;
     CP::THitSelection inHitsX;
@@ -686,12 +677,12 @@ bool CP::TTracking3D::Assemble2DTrack( CP::THandle<CP::TReconTrack> trackX, CP::
  
  
 
-    for(int j=l*counterX; j<counterX*(l+1) ; ++j){
+    for(std::size_t j=l*counterX; j<counterX*(l+1) ; ++j){
    
       inHitsX.push_back((*hitX)[j]);
       inHitsXH->push_back((*hitX)[j]);
     }
-    for(int j=l*counterU; j<counterU*(l+1) ; ++j){
+    for(std::size_t j=l*counterU; j<counterU*(l+1) ; ++j){
       inHitsU.push_back((*hitU)[j]);
       inHitsUH->push_back((*hitU)[j]);
     }
@@ -699,14 +690,14 @@ bool CP::TTracking3D::Assemble2DTrack( CP::THandle<CP::TReconTrack> trackX, CP::
     if(l==(nparts-1)){
       if(nMissedX>0){
 	int bound = (*hitX).size()-nMissedX;
-	for(size_t j=bound; j<(*hitX).size() ; ++j){
+	for(int j=bound; j<(*hitX).size() ; ++j){
 	  inHitsX.push_back((*hitX)[j]);
 	  inHitsXH->push_back((*hitX)[j]);
 	}
       }
       if(nMissedU>0){
 	int bound = (*hitU).size()-nMissedU;
-	for(size_t j=bound; j<(*hitU).size() ; ++j){
+	for(int j=bound; j<(*hitU).size() ; ++j){
 	  inHitsU.push_back((*hitU)[j]);
 	  inHitsUH->push_back((*hitU)[j]);
 	}
@@ -789,7 +780,7 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
     
     CP::TReconObjectContainer::iterator trX = tracksX.begin();
     while(trX != tracksX.end()) {
-      CP::THandle<CP::TReconTrack> trackX = *trX;
+      CP::THandle<CP::TReconCluster> trackX = *trX;
 
       CP::THandle<CP::THitSelection> hitX_t = trackX->GetHits();
 
@@ -806,34 +797,18 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
       int ntracks=0;
       double xuDiff=0;
       double xvDiff=0;
-      //double uvDiff=0;
+      double uvDiff=0;
       if(tracksU.size()>0){
 
-	  double maxSize = 0.0;
-	  for (size_t i_t = 0; i_t < tracksU.size(); i_t++) {
-	      CP::THandle<CP::TReconTrack> t = tracksU[i_t];
-	      if (t->GetHits()->size() > maxSize)
-		  maxSize = t->GetHits()->size();
-	  }
-	  
-	  //std::sort(tracksU.begin(),tracksU.end(),CompWeightedTracks(maxZX,minZX,maxSize));
-	  std::sort(tracksU.begin(),tracksU.end(),CompTracks(maxZX,minZX));
-	  ntracks++;
-	  xuDiff=abs(maxZX-MaxZ(tracksU[0]))+abs(minZX-MinZ(tracksU[0]));
+	std::sort(tracksU.begin(),tracksU.end(),CompTracks(maxZX,minZX));
+	ntracks++;
+	xuDiff=abs(maxZX-MaxZ(tracksU[0]))+abs(minZX-MinZ(tracksU[0]));
       }
       if(tracksV.size()>0){
 
-	  double maxSize = 0.0;
-	  for (size_t i_t = 0; i_t < tracksV.size(); i_t++) {
-	      CP::THandle<CP::TReconTrack> t = tracksV[i_t];
-	      if (t->GetHits()->size() > maxSize)
-		  maxSize = t->GetHits()->size();
-	  }
-	  
-	  //std::sort(tracksV.begin(),tracksV.end(),CompWeightedTracks(maxZX,minZX,maxSize));
-	  std::sort(tracksV.begin(),tracksV.end(),CompTracks(maxZX,minZX));
-	  xvDiff=abs(maxZX-MaxZ(tracksV[0]))+abs(minZX-MinZ(tracksV[0]));
-	  ntracks++;
+	std::sort(tracksV.begin(),tracksV.end(),CompTracks(maxZX,minZX));
+	xvDiff=abs(maxZX-MaxZ(tracksV[0]))+abs(minZX-MinZ(tracksV[0]));
+	ntracks++;
       }
       if(ntracks==2){
 	//Turned ou that this dis should be 0 , otherwise nothing works :/ 
@@ -877,7 +852,7 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
   if(tracksX.size()>0 && tracksU.size()>0) {
     for (CP::TReconObjectContainer::iterator trX = tracksX.begin();
 	 trX != tracksX.end(); ) {
-      CP::THandle<CP::TReconTrack> trackX = *trX;
+      CP::THandle<CP::TReconCluster> trackX = *trX;
       double maxZX=MaxZ(trackX);
       double minZX=MinZ(trackX);
       double xuDiff=0;
@@ -901,14 +876,14 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
   if(tracksX.size()>0 && tracksV.size()>0) {
     for (CP::TReconObjectContainer::iterator trX = tracksX.begin();
 	 trX != tracksX.end(); ) {
-      CP::THandle<CP::TReconTrack> trackX = *trX;
+      CP::THandle<CP::TReconCluster> trackX = *trX;
       double maxZX=MaxZ(trackX);
       double minZX=MinZ(trackX);
-      //double xvDiff=0;
+      double xvDiff=0;
       if(tracksV.size()>0){
 	std::sort(tracksV.begin(),tracksV.end(),CompTracks(maxZX,minZX));
 	double xvDiff=abs(maxZX-MaxZ(tracksV[0]))+abs(minZX-MinZ(tracksV[0]));
-	std::cout<<"xuDiff="<<xvDiff<<std::endl;
+	std::cout<<"xvDiff="<<xvDiff<<std::endl;
 	if(xvDiff<distCut)
 	  {
 	    if(Assemble2DTrack(trackX,tracksV[0],match2,trackNum,1)){
@@ -925,10 +900,10 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
   
 
   
-  /* if(tracksU.size()>0 && tracksV.size()>0) {
+   if(tracksU.size()>0 && tracksV.size()>0) {
      for (CP::TReconObjectContainer::iterator trU = tracksU.begin();
        trU != tracksU.end(); ) {
-    CP::THandle<CP::TReconTrack> trackU = *trU;
+    CP::THandle<CP::TReconCluster> trackU = *trU;
     double maxZU=MaxZ(trackU);
     double minZU=MinZ(trackU);
     double uvDiff=0;
@@ -949,7 +924,7 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
       }else++trU;
     }else ++trU;
    }
- }*/
+ }
   
   
 }
@@ -996,18 +971,8 @@ CP::TTracking3D::Process(const CP::TAlgorithmResult& input,
 
 
 
+  CP::THandle<CP::THitSelection> TotalHits = GetEvent().Get<CP::THitSelection>("~/hits/drift");
 
-  CP::THandle<CP::THitSelection> allInputHits = GetEvent().Get<CP::THitSelection>("~/hits/drift");
-  THitSelection *tmpHits = new THitSelection("drift","Hit Handles");
-
-  for (CP::THitSelection::iterator h = allInputHits->begin(); 
-       h != allInputHits->end(); ++h) {
-      if ((*h)->GetCharge() > CP::TRuntimeParameters::Get().GetParameterD("captRecon.hitTransfer.minCharge"))
-	  tmpHits->push_back((*h));
-  }     
-  
-  CP::THandle<CP::THitSelection> TotalHits(tmpHits);  
-  
   CP::THitSelection xHits;
   CP::THitSelection vHits;
   CP::THitSelection uHits;
@@ -1116,21 +1081,42 @@ CP::TTracking3D::Process(const CP::TAlgorithmResult& input,
     
   for (CP::TReconObjectContainer::iterator tr = inputObjects->begin();
        tr != inputObjects->end(); ++tr) {
-    CP::THandle<CP::TReconTrack> track = *tr;
+    CP::THandle<CP::TReconCluster> track = *tr;
     if (!track) {
       final->push_back(*tr);
       continue;
     }
+    if((int)track->GetHits()->size()<5)continue;
+
+    CP::THandle<CP::THitSelection> hits = track->GetHits();
+    std::set<int> nWire;
+    for(CP::THitSelection::iterator h = (*hits).begin() ; h!=(*hits).end();++h)
+    {
+      nWire.insert(CP::GeomId::Captain::GetWireNumber((*h)->GetConstituent()->GetGeomId()));
+    }
+
+    // std::cout<<"wires="<<nWire.size()<<"; hits="<<hits->size()<<std::endl;
+    // std::cout<<"ratio="<<((double)hits->size())/((double)nWire.size())<<std::endl;
+    if(((double)hits->size())/((double)nWire.size())>2)continue;
+  
+
+    
     int plane = CheckObjectPlaneT(track);
+    
     if(plane==1){
+      // std::cout<<"Xplane"<<std::endl;
       tracksX.push_back(*tr);}
     else if(plane==2){
+      //   std::cout<<"Uplane"<<std::endl;
       tracksU.push_back(*tr);}
     else if(plane==3){
+      //   std::cout<<"Vplane"<<std::endl;
       tracksV.push_back(*tr);}
     else{std::cout<<"PLANEDEFININGFORCLUSTERSDOESNOTWORK"<<std::endl;}
   }
 
+  std::cout<<"2DtracksForMerge: X="<<tracksX.size()<<"; U="<<tracksU.size()<<" ;V="<<tracksV.size()<<std::endl;
+  
   CP::TReconObjectContainer match3;
   CP::TReconObjectContainer match2;
   CP::TReconObjectContainer used_clusters;
@@ -1166,14 +1152,14 @@ CP::TTracking3D::Process(const CP::TAlgorithmResult& input,
   std::string plotName3= "check/check_run_"+toString(evRun)+"_event_"+toString(evNum)+".pdf)";
 
   fHitsX->SetTitle("XHits");
-  fHitsX->Draw("AP");
-  fHitsX->GetXaxis()->SetTitle("Wire#");
-  fHitsX->GetYaxis()->SetTitle("Samples");
-  gPad->Print(plotName1.c_str());
-  fHitsU->SetTitle("UHits");
+fHitsX->Draw("AP");
+ fHitsX->GetXaxis()->SetTitle("Wire#");
+ fHitsX->GetYaxis()->SetTitle("Samples");
+ gPad->Print(plotName1.c_str());
+ fHitsU->SetTitle("UHits");
   fHitsU->Draw("AP");
   fHitsU->GetXaxis()->SetTitle("Wire#");
-  fHitsU->GetYaxis()->SetTitle("Samples");
+ fHitsU->GetYaxis()->SetTitle("Samples");
   gPad->Print(plotName2.c_str());
   fHitsV->SetTitle("VHits");
   fHitsV->Draw("AP");
@@ -1182,8 +1168,7 @@ CP::TTracking3D::Process(const CP::TAlgorithmResult& input,
   gPad->Print(plotName3.c_str());
 
   //delete c2;
-
-  
+ 
 
   result->AddResultsContainer(match3Tr.release());
   result->AddResultsContainer(match2Tr.release());

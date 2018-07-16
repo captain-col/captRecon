@@ -5,6 +5,7 @@
 #include <TAlgorithmResult.hxx>
 #include <THandle.hxx>
 #include <TReconTrack.hxx>
+#include <TReconCluster.hxx>
 
 #include "TH2F.h"
 #include "TGraph.h"
@@ -30,11 +31,11 @@ public:
             const CP::TAlgorithmResult& input1 = CP::TAlgorithmResult::Empty,
             const CP::TAlgorithmResult& input2 = CP::TAlgorithmResult::Empty);
 
-  bool Assemble3DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReconTrack> trackU, CP::THandle<CP::TReconTrack> trackV,CP::TReconObjectContainer& match3,int trackNum);
+  bool Assemble3DTrack( CP::THandle<CP::TReconCluster> trackX, CP::THandle<CP::TReconCluster> trackU, CP::THandle<CP::TReconCluster> trackV,CP::TReconObjectContainer& match3,int trackNum);
 
   void FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP::TReconObjectContainer& tracksU,CP::TReconObjectContainer& tracksV,CP::TReconObjectContainer& match3,CP::TReconObjectContainer& match2);
 
-  bool Assemble2DTrack( CP::THandle<CP::TReconTrack> trackX, CP::THandle<CP::TReconTrack> trackU,CP::TReconObjectContainer& match2,int trackNum,int planeComb);
+  bool Assemble2DTrack( CP::THandle<CP::TReconCluster> trackX, CP::THandle<CP::TReconCluster> trackU,CP::TReconObjectContainer& match2,int trackNum,int planeComb);
   
 
 private:
