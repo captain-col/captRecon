@@ -297,8 +297,10 @@ CP::TTracking2D::Process(const CP::TAlgorithmResult& input,
 	}
       }
 
+#ifdef DEBUG_HISTOGRAMS
       HitsX->Draw();
       gPad->Print("plots/XHits.C");
+#endif
     }
 
       if(tracksU->size()>0){
@@ -314,8 +316,10 @@ CP::TTracking2D::Process(const CP::TAlgorithmResult& input,
 	}
       }
 
+#ifdef DEBUG_HISTOGRAMS
       HitsU->Draw();
       gPad->Print("plots/UHits.C");
+#endif
     }
 
         if(tracksV->size()>0){
@@ -331,8 +335,10 @@ CP::TTracking2D::Process(const CP::TAlgorithmResult& input,
 	}
       }
  
+#ifdef DEBUG_HISTOGRAMS
       HitsV->Draw();
       gPad->Print("plots/VHits.C");
+#endif
     }
 
     

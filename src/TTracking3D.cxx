@@ -50,6 +50,7 @@ int CheckObjectPlaneT(const CP::THandle<CP::TReconCluster>& obj){
     return 3;
   }
 
+  return -1;
 }
 
 
@@ -216,9 +217,11 @@ bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconCluster> trackX, CP
     CP::THandle<CP::THit> ch=(*h)->GetConstituent();
     setX.insert(ch);
   }
+#ifdef DEBUG_HISTOGRAMS
   HitsX->Draw();
   std::string nameX="plots/XHits_3D_"+toString(trackNum)+".C";
   gPad->Print(nameX.c_str());
+#endif
 
   TVectorD xTVX(xCoordX.size(),&xCoordX[0]);
   TVectorD yTVX(yCoordX.size(),&yCoordX[0]);
@@ -238,10 +241,13 @@ bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconCluster> trackX, CP
     CP::THandle<CP::THit> ch=(*h)->GetConstituent();
     setU.insert(ch);
   }
+
+#ifdef DEBUG_HISTOGRAMS
   HitsU->Draw();
   std::string nameU="plots/UHits_3D_"+toString(trackNum)+".C";
   gPad->Print(nameU.c_str());
-
+#endif
+  
   TVectorD xTVU(xCoordU.size(),&xCoordU[0]);
   TVectorD yTVU(yCoordU.size(),&yCoordU[0]);
   xAxisU3T.ResizeTo(xTVU);
@@ -261,10 +267,12 @@ bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconCluster> trackX, CP
     CP::THandle<CP::THit> ch=(*h)->GetConstituent();
     setV.insert(ch);
   }
+#ifdef DEBUG_HISTOGRAMS
   HitsV->Draw();
   std::string nameV="plots/VHits_3D_"+toString(trackNum)+".C";
   gPad->Print(nameV.c_str());
-
+#endif
+  
   TVectorD xTVV(xCoordV.size(),&xCoordV[0]);
   TVectorD yTVV(yCoordV.size(),&yCoordV[0]);
   xAxisV3T.ResizeTo(xTVV);
@@ -571,10 +579,11 @@ bool CP::TTracking3D::Assemble2DTrack( CP::THandle<CP::TReconCluster> trackX, CP
       setX.insert(ch);
     }
 
+#ifdef DEBUG_HISTOGRAMS
   HitsX->Draw();
   std::string nameX="plots/XHits_2D_"+toString(trackNum)+".C";
   gPad->Print(nameX.c_str());
-
+#endif
     TVectorD xTVX(xCoordX.size(),&xCoordX[0]);
   TVectorD yTVX(yCoordX.size(),&yCoordX[0]);
   xAxisX2T.ResizeTo(xTVX);
@@ -596,10 +605,12 @@ bool CP::TTracking3D::Assemble2DTrack( CP::THandle<CP::TReconCluster> trackX, CP
       setU.insert(ch);
     }
 
+#ifdef DEBUG_HISTOGRAMS
   HitsU->Draw();
   std::string nameU="plots/UHits_2D_"+toString(trackNum)+".C";
   gPad->Print(nameU.c_str());
-
+#endif
+  
   TVectorD xTVU(xCoordU.size(),&xCoordU[0]);
   TVectorD yTVU(yCoordU.size(),&yCoordU[0]);
   xAxisU2T.ResizeTo(xTVU);
@@ -1145,6 +1156,7 @@ CP::TTracking3D::Process(const CP::TAlgorithmResult& input,
     }
   
 
+#ifdef DEBUG_HISTOGRAMS
   int evNum=GetEvent().GetEventId();
   int evRun=GetEvent().GetRunId();
   std::string plotName1= "check/check_run_"+toString(evRun)+"_event_"+toString(evNum)+".pdf(";
@@ -1166,7 +1178,8 @@ fHitsX->Draw("AP");
   fHitsV->GetXaxis()->SetTitle("Wire#");
   fHitsV->GetYaxis()->SetTitle("Samples");
   gPad->Print(plotName3.c_str());
-
+#endif
+  
   //delete c2;
  
 

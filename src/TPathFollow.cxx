@@ -512,8 +512,10 @@ CP::TPathFollow::Process(const CP::TAlgorithmResult& input,
       ++coll;
     }
 
+#ifdef DEBUG_HISTOGRAMS
     HitsX->Draw("COLZ");
     gPad->Print("plots/XHits_pf.C");
+#endif
   }
 
   if(clustersU_pf->size()>0){
@@ -540,8 +542,10 @@ CP::TPathFollow::Process(const CP::TAlgorithmResult& input,
       ++coll;
     }
 
+#ifdef DEBUG_HISTOGRAMS
     HitsU->Draw("COLZ");
     gPad->Print("plots/UHits_pf.C");
+#endif
   }
 
   if(clustersV_pf->size()>0){
@@ -568,8 +572,10 @@ CP::TPathFollow::Process(const CP::TAlgorithmResult& input,
       ++coll;
     }
 
+#ifdef DEBUG_HISTOGRAMS
     HitsV->Draw("COLZ");
     gPad->Print("plots/VHits_pf.C");
+#endif
   }
 
 

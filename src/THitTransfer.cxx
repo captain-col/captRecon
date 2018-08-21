@@ -571,9 +571,10 @@ CP::THitTransfer::Process(const CP::TAlgorithmResult& wires,
 	  }
 	
       
-
+#ifdef DEBUG_HISTOGRAMS
       HitsX->Draw();
       gPad->Print("plots/XHits_trans.C");
+#endif
     }
 
       if(uHits.size()>0){
@@ -587,8 +588,10 @@ CP::THitTransfer::Process(const CP::TAlgorithmResult& wires,
 	
       }
 
+#ifdef DEBUG_HISTOGRAMS
       HitsU->Draw();
       gPad->Print("plots/UHits_trans.C");
+#endif
     }
 
         if(vHits.size()>0){
@@ -600,8 +603,10 @@ CP::THitTransfer::Process(const CP::TAlgorithmResult& wires,
 	
       }
  
+#ifdef DEBUG_HISTOGRAMS
       HitsV->Draw();
       gPad->Print("plots/VHits_trans.C");
+#endif
     }
 
    
