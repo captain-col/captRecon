@@ -286,7 +286,7 @@ if(FinalLine.size()==0 && LineHits.size()>0){
       }
 
       
-      std::cout<<"NClusters="<<xclusters->size()<<std::endl;
+      // std::cout<<"NClusters="<<xclusters->size()<<std::endl;
      
       CaptNamedLog("TClusterXHits",
 		   "With " << xclusters->size() << " clusters_xh");
@@ -409,7 +409,7 @@ if(FinalLine.size()==0 && LineHits.size()>0){
       }
 
       
-      std::cout<<"NClusters="<<uclusters->size()<<std::endl;
+ // std::cout<<"NClusters="<<uclusters->size()<<std::endl;
      
       CaptNamedLog("TClusterUHits",
 		   "With " << uclusters->size() << " clusters_uh");
@@ -532,7 +532,7 @@ if(FinalLine.size()>finallinecut){
       }
     }
       }
-      std::cout<<"NClusters="<<vclusters->size()<<std::endl;
+       // std::cout<<"NClusters="<<vclusters->size()<<std::endl;
 	
      
       CaptNamedLog("TClusterVHits",

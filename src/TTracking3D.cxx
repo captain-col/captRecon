@@ -318,7 +318,7 @@ bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconCluster> trackX, CP
 
 
   
-  std::cout<<"#XHits="<<hitX->size()<<"; #UHis="<<hitU->size()<<"; #VHits="<<hitV->size()<<std::endl;
+  // std::cout<<"#XHits="<<hitX->size()<<"; #UHis="<<hitU->size()<<"; #VHits="<<hitV->size()<<std::endl;
 
 
   //********************************************************************************
@@ -496,7 +496,7 @@ bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconCluster> trackX, CP
     }
 #endif
   
-    std::cout<<"#3DHits="<<writableHits.size()<<std::endl;
+    // std::cout<<"#3DHits="<<writableHits.size()<<std::endl;
  
     if(writableHits.size()>0){
 
@@ -824,7 +824,7 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
       if(ntracks==2){
 	//Turned ou that this dis should be 0 , otherwise nothing works :/ 
 	double uvDiff=0;//abs(MaxZ(tracksV[0])-MaxZ(tracksU[0]))+abs(MinZ(tracksV[0])-MinZ(tracksU[0]));
-        std::cout<<"uvDiff="<<uvDiff<<"; xuDiff="<<xuDiff<<"; xvDiff="<<xvDiff<<std::endl;
+        // std::cout<<"uvDiff="<<uvDiff<<"; xuDiff="<<xuDiff<<"; xvDiff="<<xvDiff<<std::endl;
 	if(uvDiff<distCut && xuDiff<distCut && xvDiff<distCut)
 	  {
 	    if(Assemble3DTrack(trackX,tracksU[0],tracksV[0],match3,trackNum)){
@@ -836,7 +836,7 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
 	  }else ++trX;
       }
       if(ntracks==1 && xvDiff==0 && tracksU.size()>0){
-	std::cout<<"xuDiff="<<xuDiff<<std::endl;
+          // std::cout<<"xuDiff="<<xuDiff<<std::endl;
 	if(xuDiff<distCut )
 	  {
 	    if(Assemble2DTrack(trackX,tracksU[0],match2,trackNum,0)){ 
@@ -847,7 +847,7 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
 	  }else ++trX;
       }
       if(ntracks==1 && xuDiff==0 && tracksV.size()>0){
-	std::cout<<"xvDiff="<<xvDiff<<std::endl;
+          // std::cout<<"xvDiff="<<xvDiff<<std::endl;
 	if(xvDiff<distCut )
 	  {
 	    if(Assemble2DTrack(trackX,tracksV[0],match2,trackNum,1)){ 
@@ -872,7 +872,7 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
 
 	std::sort(tracksU.begin(),tracksU.end(),CompTracks(maxZX,minZX));
 	xuDiff=abs(maxZX-MaxZ(tracksU[0]))+abs(minZX-MinZ(tracksU[0]));
-	std::cout<<"xuDiff="<<xuDiff<<std::endl;
+	// std::cout<<"xuDiff="<<xuDiff<<std::endl;
 	if(xuDiff<distCut )
 	  {
 	    if(Assemble2DTrack(trackX,tracksU[0],match2,trackNum,0)){ 
@@ -894,7 +894,7 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
       if(tracksV.size()>0){
 	std::sort(tracksV.begin(),tracksV.end(),CompTracks(maxZX,minZX));
 	double xvDiff=abs(maxZX-MaxZ(tracksV[0]))+abs(minZX-MinZ(tracksV[0]));
-	std::cout<<"xvDiff="<<xvDiff<<std::endl;
+	// std::cout<<"xvDiff="<<xvDiff<<std::endl;
 	if(xvDiff<distCut)
 	  {
 	    if(Assemble2DTrack(trackX,tracksV[0],match2,trackNum,1)){
@@ -921,7 +921,7 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
     if(tracksV.size()>0){
        std::sort(tracksV.begin(),tracksV.end(),CompTracks(maxZU,minZU));
     double uvDiff=abs(maxZU-MaxZ(tracksV[0]))+abs(minZU-MinZ(tracksV[0]));
-  std::cout<<"uvDiff="<<uvDiff<<std::endl;
+    // std::cout<<"uvDiff="<<uvDiff<<std::endl;
     if(uvDiff<distCut)
       { 
 	if(Assemble2DTrack(trackU,tracksV[0],match2,trackNum,2)){
@@ -1123,17 +1123,19 @@ CP::TTracking3D::Process(const CP::TAlgorithmResult& input,
     else if(plane==3){
       //   std::cout<<"Vplane"<<std::endl;
       tracksV.push_back(*tr);}
-    else{std::cout<<"PLANEDEFININGFORCLUSTERSDOESNOTWORK"<<std::endl;}
+    else{
+        // std::cout<<"PLANEDEFININGFORCLUSTERSDOESNOTWORK"<<std::endl;
+    }
   }
 
-  std::cout<<"2DtracksForMerge: X="<<tracksX.size()<<"; U="<<tracksU.size()<<" ;V="<<tracksV.size()<<std::endl;
+  // std::cout<<"2DtracksForMerge: X="<<tracksX.size()<<"; U="<<tracksU.size()<<" ;V="<<tracksV.size()<<std::endl;
   
   CP::TReconObjectContainer match3;
   CP::TReconObjectContainer match2;
   CP::TReconObjectContainer used_clusters;
   FindTrackCandidates(tracksX,tracksU,tracksV,match3,match2);
-  std::cout<<"MATCH3.size()="<<match3.size()<<std::endl;
-  std::cout<<"MATCH2.size()="<<match2.size()<<std::endl;
+  // std::cout<<"MATCH3.size()="<<match3.size()<<std::endl;
+  // std::cout<<"MATCH2.size()="<<match2.size()<<std::endl;
   std::unique_ptr<CP::TReconObjectContainer> 
     match3Tr(new CP::TReconObjectContainer("match3Tr"));
   std::unique_ptr<CP::TReconObjectContainer> 

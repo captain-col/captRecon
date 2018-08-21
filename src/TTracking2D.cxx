@@ -204,7 +204,7 @@ CP::TTracking2D::Process(const CP::TAlgorithmResult& input,
 	    // std::cout<<"RatioU="<<ratio<<std::endl;
 	    if(ratio<fXZRatio){
 	      CP::THandle<CP::THitSelection> hft = cluster->GetHits();
-	      std::cout<<"hitsfortrack="<<hft->size()<<std::endl;
+	      // std::cout<<"hitsfortrack="<<hft->size()<<std::endl;
 	      if((*hft).size()>2){
 		CP::THandle<CP::TReconTrack> track ;
 		if(useAxis[0]==1){
@@ -250,7 +250,7 @@ CP::TTracking2D::Process(const CP::TAlgorithmResult& input,
 	    //std::cout<<"RatioV="<<ratio<<std::endl;
 	    if(ratio<fXZRatio){
 	      CP::THandle<CP::THitSelection> hft = cluster->GetHits();
-	      std::cout<<"hitsfortrack="<<hft->size()<<std::endl;
+	      // std::cout<<"hitsfortrack="<<hft->size()<<std::endl;
 	      if((*hft).size()>2){
 		CP::THandle<CP::TReconTrack> track ;
 		if(useAxis[0]==1){
