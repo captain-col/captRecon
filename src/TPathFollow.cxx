@@ -63,6 +63,7 @@ double GetDistPath(double x0, double y0, std::pair<double,double> line)
       return 3;
     }
 
+    return -1;
   }
 
 CP::TReconObjectContainer PathReCluster(CP::TReconObjectContainer& clusters, CP::THitSelection& unclusteredHits, int dir){
@@ -315,7 +316,9 @@ CP::TPathFollow::Process(const CP::TAlgorithmResult& input,
 	  clustersU.push_back(*cl);}
 	else if(plane==3){
 	  clustersV.push_back(*cl);}
-	else{std::cout<<"PLANEDEFININGFORCLUSTERSDOESNOTWORK"<<std::endl;}
+	else{
+            std::cout<<"PLANEDEFININGFORCLUSTERSDOESNOTWORK"<<std::endl;
+        }
     }
     
 	// CP::THandle<CP::THitSelection> allDriftHits = GetEvent().Get<CP::THitSelection>("~/fits/TCaptainRecon/THitTransfer/final");
