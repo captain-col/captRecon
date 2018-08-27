@@ -919,7 +919,7 @@ CP::TSplitTracks::Process(const CP::TAlgorithmResult& input,
                     }
                     trackClusters.push_back(c);
                 }
-                std::cout << "Track from clusters" << std::endl;
+                // std::cout << "Track from clusters" << std::endl;
                 fitTrack = CP::CreateTrackFromClusters("splitTracks",
                                                        trackClusters.begin(),
                                                        trackClusters.end());

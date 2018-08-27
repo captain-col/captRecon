@@ -50,6 +50,7 @@ int CheckObjectPlaneT(const CP::THandle<CP::TReconCluster>& obj){
     return 3;
   }
 
+  return -1;
 }
 
 
@@ -216,9 +217,11 @@ bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconCluster> trackX, CP
     CP::THandle<CP::THit> ch=(*h)->GetConstituent();
     setX.insert(ch);
   }
+#ifdef DEBUG_HISTOGRAMS
   HitsX->Draw();
   std::string nameX="plots/XHits_3D_"+toString(trackNum)+".C";
   gPad->Print(nameX.c_str());
+#endif
 
   TVectorD xTVX(xCoordX.size(),&xCoordX[0]);
   TVectorD yTVX(yCoordX.size(),&yCoordX[0]);
@@ -238,10 +241,13 @@ bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconCluster> trackX, CP
     CP::THandle<CP::THit> ch=(*h)->GetConstituent();
     setU.insert(ch);
   }
+
+#ifdef DEBUG_HISTOGRAMS
   HitsU->Draw();
   std::string nameU="plots/UHits_3D_"+toString(trackNum)+".C";
   gPad->Print(nameU.c_str());
-
+#endif
+  
   TVectorD xTVU(xCoordU.size(),&xCoordU[0]);
   TVectorD yTVU(yCoordU.size(),&yCoordU[0]);
   xAxisU3T.ResizeTo(xTVU);
@@ -261,10 +267,12 @@ bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconCluster> trackX, CP
     CP::THandle<CP::THit> ch=(*h)->GetConstituent();
     setV.insert(ch);
   }
+#ifdef DEBUG_HISTOGRAMS
   HitsV->Draw();
   std::string nameV="plots/VHits_3D_"+toString(trackNum)+".C";
   gPad->Print(nameV.c_str());
-
+#endif
+  
   TVectorD xTVV(xCoordV.size(),&xCoordV[0]);
   TVectorD yTVV(yCoordV.size(),&yCoordV[0]);
   xAxisV3T.ResizeTo(xTVV);
@@ -310,7 +318,7 @@ bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconCluster> trackX, CP
 
 
   
-  std::cout<<"#XHits="<<hitX->size()<<"; #UHis="<<hitU->size()<<"; #VHits="<<hitV->size()<<std::endl;
+  // std::cout<<"#XHits="<<hitX->size()<<"; #UHis="<<hitU->size()<<"; #VHits="<<hitV->size()<<std::endl;
 
 
   //********************************************************************************
@@ -488,7 +496,7 @@ bool CP::TTracking3D::Assemble3DTrack( CP::THandle<CP::TReconCluster> trackX, CP
     }
 #endif
   
-    std::cout<<"#3DHits="<<writableHits.size()<<std::endl;
+    // std::cout<<"#3DHits="<<writableHits.size()<<std::endl;
  
     if(writableHits.size()>0){
 
@@ -571,10 +579,11 @@ bool CP::TTracking3D::Assemble2DTrack( CP::THandle<CP::TReconCluster> trackX, CP
       setX.insert(ch);
     }
 
+#ifdef DEBUG_HISTOGRAMS
   HitsX->Draw();
   std::string nameX="plots/XHits_2D_"+toString(trackNum)+".C";
   gPad->Print(nameX.c_str());
-
+#endif
     TVectorD xTVX(xCoordX.size(),&xCoordX[0]);
   TVectorD yTVX(yCoordX.size(),&yCoordX[0]);
   xAxisX2T.ResizeTo(xTVX);
@@ -596,10 +605,12 @@ bool CP::TTracking3D::Assemble2DTrack( CP::THandle<CP::TReconCluster> trackX, CP
       setU.insert(ch);
     }
 
+#ifdef DEBUG_HISTOGRAMS
   HitsU->Draw();
   std::string nameU="plots/UHits_2D_"+toString(trackNum)+".C";
   gPad->Print(nameU.c_str());
-
+#endif
+  
   TVectorD xTVU(xCoordU.size(),&xCoordU[0]);
   TVectorD yTVU(yCoordU.size(),&yCoordU[0]);
   xAxisU2T.ResizeTo(xTVU);
@@ -813,7 +824,7 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
       if(ntracks==2){
 	//Turned ou that this dis should be 0 , otherwise nothing works :/ 
 	double uvDiff=0;//abs(MaxZ(tracksV[0])-MaxZ(tracksU[0]))+abs(MinZ(tracksV[0])-MinZ(tracksU[0]));
-        std::cout<<"uvDiff="<<uvDiff<<"; xuDiff="<<xuDiff<<"; xvDiff="<<xvDiff<<std::endl;
+        // std::cout<<"uvDiff="<<uvDiff<<"; xuDiff="<<xuDiff<<"; xvDiff="<<xvDiff<<std::endl;
 	if(uvDiff<distCut && xuDiff<distCut && xvDiff<distCut)
 	  {
 	    if(Assemble3DTrack(trackX,tracksU[0],tracksV[0],match3,trackNum)){
@@ -825,7 +836,7 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
 	  }else ++trX;
       }
       if(ntracks==1 && xvDiff==0 && tracksU.size()>0){
-	std::cout<<"xuDiff="<<xuDiff<<std::endl;
+          // std::cout<<"xuDiff="<<xuDiff<<std::endl;
 	if(xuDiff<distCut )
 	  {
 	    if(Assemble2DTrack(trackX,tracksU[0],match2,trackNum,0)){ 
@@ -836,7 +847,7 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
 	  }else ++trX;
       }
       if(ntracks==1 && xuDiff==0 && tracksV.size()>0){
-	std::cout<<"xvDiff="<<xvDiff<<std::endl;
+          // std::cout<<"xvDiff="<<xvDiff<<std::endl;
 	if(xvDiff<distCut )
 	  {
 	    if(Assemble2DTrack(trackX,tracksV[0],match2,trackNum,1)){ 
@@ -861,7 +872,7 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
 
 	std::sort(tracksU.begin(),tracksU.end(),CompTracks(maxZX,minZX));
 	xuDiff=abs(maxZX-MaxZ(tracksU[0]))+abs(minZX-MinZ(tracksU[0]));
-	std::cout<<"xuDiff="<<xuDiff<<std::endl;
+	// std::cout<<"xuDiff="<<xuDiff<<std::endl;
 	if(xuDiff<distCut )
 	  {
 	    if(Assemble2DTrack(trackX,tracksU[0],match2,trackNum,0)){ 
@@ -883,7 +894,7 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
       if(tracksV.size()>0){
 	std::sort(tracksV.begin(),tracksV.end(),CompTracks(maxZX,minZX));
 	double xvDiff=abs(maxZX-MaxZ(tracksV[0]))+abs(minZX-MinZ(tracksV[0]));
-	std::cout<<"xvDiff="<<xvDiff<<std::endl;
+	// std::cout<<"xvDiff="<<xvDiff<<std::endl;
 	if(xvDiff<distCut)
 	  {
 	    if(Assemble2DTrack(trackX,tracksV[0],match2,trackNum,1)){
@@ -910,7 +921,7 @@ void CP::TTracking3D::FindTrackCandidates(CP::TReconObjectContainer& tracksX,CP:
     if(tracksV.size()>0){
        std::sort(tracksV.begin(),tracksV.end(),CompTracks(maxZU,minZU));
     double uvDiff=abs(maxZU-MaxZ(tracksV[0]))+abs(minZU-MinZ(tracksV[0]));
-  std::cout<<"uvDiff="<<uvDiff<<std::endl;
+    // std::cout<<"uvDiff="<<uvDiff<<std::endl;
     if(uvDiff<distCut)
       { 
 	if(Assemble2DTrack(trackU,tracksV[0],match2,trackNum,2)){
@@ -1112,17 +1123,19 @@ CP::TTracking3D::Process(const CP::TAlgorithmResult& input,
     else if(plane==3){
       //   std::cout<<"Vplane"<<std::endl;
       tracksV.push_back(*tr);}
-    else{std::cout<<"PLANEDEFININGFORCLUSTERSDOESNOTWORK"<<std::endl;}
+    else{
+        // std::cout<<"PLANEDEFININGFORCLUSTERSDOESNOTWORK"<<std::endl;
+    }
   }
 
-  std::cout<<"2DtracksForMerge: X="<<tracksX.size()<<"; U="<<tracksU.size()<<" ;V="<<tracksV.size()<<std::endl;
+  // std::cout<<"2DtracksForMerge: X="<<tracksX.size()<<"; U="<<tracksU.size()<<" ;V="<<tracksV.size()<<std::endl;
   
   CP::TReconObjectContainer match3;
   CP::TReconObjectContainer match2;
   CP::TReconObjectContainer used_clusters;
   FindTrackCandidates(tracksX,tracksU,tracksV,match3,match2);
-  std::cout<<"MATCH3.size()="<<match3.size()<<std::endl;
-  std::cout<<"MATCH2.size()="<<match2.size()<<std::endl;
+  // std::cout<<"MATCH3.size()="<<match3.size()<<std::endl;
+  // std::cout<<"MATCH2.size()="<<match2.size()<<std::endl;
   std::unique_ptr<CP::TReconObjectContainer> 
     match3Tr(new CP::TReconObjectContainer("match3Tr"));
   std::unique_ptr<CP::TReconObjectContainer> 
@@ -1145,6 +1158,7 @@ CP::TTracking3D::Process(const CP::TAlgorithmResult& input,
     }
   
 
+#ifdef DEBUG_HISTOGRAMS
   int evNum=GetEvent().GetEventId();
   int evRun=GetEvent().GetRunId();
   std::string plotName1= "check/check_run_"+toString(evRun)+"_event_"+toString(evNum)+".pdf(";
@@ -1166,7 +1180,8 @@ fHitsX->Draw("AP");
   fHitsV->GetXaxis()->SetTitle("Wire#");
   fHitsV->GetYaxis()->SetTitle("Samples");
   gPad->Print(plotName3.c_str());
-
+#endif
+  
   //delete c2;
  
 

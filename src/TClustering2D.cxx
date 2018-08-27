@@ -286,7 +286,7 @@ if(FinalLine.size()==0 && LineHits.size()>0){
       }
 
       
-      std::cout<<"NClusters="<<xclusters->size()<<std::endl;
+      // std::cout<<"NClusters="<<xclusters->size()<<std::endl;
      
       CaptNamedLog("TClusterXHits",
 		   "With " << xclusters->size() << " clusters_xh");
@@ -409,7 +409,7 @@ if(FinalLine.size()==0 && LineHits.size()>0){
       }
 
       
-      std::cout<<"NClusters="<<uclusters->size()<<std::endl;
+ // std::cout<<"NClusters="<<uclusters->size()<<std::endl;
      
       CaptNamedLog("TClusterUHits",
 		   "With " << uclusters->size() << " clusters_uh");
@@ -532,7 +532,7 @@ if(FinalLine.size()>finallinecut){
       }
     }
       }
-      std::cout<<"NClusters="<<vclusters->size()<<std::endl;
+       // std::cout<<"NClusters="<<vclusters->size()<<std::endl;
 	
      
       CaptNamedLog("TClusterVHits",
@@ -569,8 +569,10 @@ if(FinalLine.size()>finallinecut){
       ++coll;
     }
 
+#ifdef DEBUG_HISTOGRAMS
     HitsX->Draw("COLZ");
     gPad->Print("plots/XHits_cl.C");
+#endif
   }
 
   if(uclusters->size()>0){
@@ -589,8 +591,10 @@ if(FinalLine.size()>finallinecut){
       ++coll;
     }
     
+#ifdef DEBUG_HISTOGRAMS
     HitsU->Draw("COLZ");
     gPad->Print("plots/UHits_cl.C");
+#endif
   }
 
   if(vclusters->size()>0){
@@ -609,14 +613,18 @@ if(FinalLine.size()>finallinecut){
       coll++;
     }
  
+#ifdef DEBUG_HISTOGRAMS
     HitsV->Draw("COLZ");
     gPad->Print("plots/VHits_cl.C");
+#endif
   }    
    
-distance->Draw();
-    gPad->Print("plots/distance.C");
-    distance2D->Draw("COLZ");
-    gPad->Print("plots/distance2D.C");
+#ifdef DEBUG_HISTOGRAMS
+  distance->Draw();
+  gPad->Print("plots/distance.C");
+  distance2D->Draw("COLZ");
+  gPad->Print("plots/distance2D.C");
+#endif
   result->AddResultsContainer(xclusters.release());
   result->AddResultsContainer(uclusters.release());
   result->AddResultsContainer(vclusters.release());

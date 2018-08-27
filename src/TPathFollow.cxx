@@ -63,6 +63,7 @@ double GetDistPath(double x0, double y0, std::pair<double,double> line)
       return 3;
     }
 
+    return -1;
   }
 
 CP::TReconObjectContainer PathReCluster(CP::TReconObjectContainer& clusters, CP::THitSelection& unclusteredHits, int dir){
@@ -315,7 +316,9 @@ CP::TPathFollow::Process(const CP::TAlgorithmResult& input,
 	  clustersU.push_back(*cl);}
 	else if(plane==3){
 	  clustersV.push_back(*cl);}
-	else{std::cout<<"PLANEDEFININGFORCLUSTERSDOESNOTWORK"<<std::endl;}
+	else{
+            std::cout<<"PLANEDEFININGFORCLUSTERSDOESNOTWORK"<<std::endl;
+        }
     }
     
 	// CP::THandle<CP::THitSelection> allDriftHits = GetEvent().Get<CP::THitSelection>("~/fits/TCaptainRecon/THitTransfer/final");
@@ -338,11 +341,11 @@ CP::TPathFollow::Process(const CP::TAlgorithmResult& input,
 	      }
 	      
 	      
-	std::cout<<"Start: clusters="<<clustersX.size()<<"; unusedHits="<<unclusteredHits.size()<<std::endl;
+              // std::cout<<"Start: clusters="<<clustersX.size()<<"; unusedHits="<<unclusteredHits.size()<<std::endl;
 	clustersX=PathReCluster(clustersX,unclusteredHits,0);
-	std::cout<<"AfterForwardPath: clusters="<<clustersX.size()<<"; unusedHits="<<unclusteredHits.size()<<std::endl;
+	// std::cout<<"AfterForwardPath: clusters="<<clustersX.size()<<"; unusedHits="<<unclusteredHits.size()<<std::endl;
         clustersX=PathReCluster(clustersX,unclusteredHits,1);
-	std::cout<<"AfterBackwardPath: clusters="<<clustersX.size()<<"; unusedHits="<<unclusteredHits.size()<<std::endl;
+	// std::cout<<"AfterBackwardPath: clusters="<<clustersX.size()<<"; unusedHits="<<unclusteredHits.size()<<std::endl;
 	for(CP::TReconObjectContainer::iterator cl = clustersX.begin();cl!=clustersX.end();++cl){
 	   CP::THandle<CP::THitSelection> clHits = (*cl)->GetHits();
 	 std::sort(clHits->begin(),clHits->end(),[](const CP::THandle<CP::THit> lh,const CP::THandle<CP::THit> rh){
@@ -391,11 +394,11 @@ CP::TPathFollow::Process(const CP::TAlgorithmResult& input,
 		  unclusteredHits.push_back(*ha);
 		}
 	      }
-	std::cout<<"Start: clustersU="<<clustersU.size()<<"; unusedHits="<<unclusteredHits.size()<<std::endl;
+              // std::cout<<"Start: clustersU="<<clustersU.size()<<"; unusedHits="<<unclusteredHits.size()<<std::endl;
 	clustersU=PathReCluster(clustersU,unclusteredHits,0);
-	std::cout<<"AfterForwardPath: clustersU="<<clustersU.size()<<"; unusedHits="<<unclusteredHits.size()<<std::endl;
+	// std::cout<<"AfterForwardPath: clustersU="<<clustersU.size()<<"; unusedHits="<<unclusteredHits.size()<<std::endl;
         clustersU=PathReCluster(clustersU,unclusteredHits,1);
-	std::cout<<"AfterBackwardPath: clusters="<<clustersU.size()<<"; unusedHits="<<unclusteredHits.size()<<std::endl;
+	// std::cout<<"AfterBackwardPath: clusters="<<clustersU.size()<<"; unusedHits="<<unclusteredHits.size()<<std::endl;
 	for(CP::TReconObjectContainer::iterator cl = clustersU.begin();cl!=clustersU.end();++cl){
 	  
 	   CP::THandle<CP::THitSelection> clHits = (*cl)->GetHits();
@@ -448,11 +451,11 @@ CP::TPathFollow::Process(const CP::TAlgorithmResult& input,
 		}
 	      }
 	  
-	std::cout<<"Start: clustersV="<<clustersV.size()<<"; unusedHits="<<unclusteredHits.size()<<std::endl;
+              // std::cout<<"Start: clustersV="<<clustersV.size()<<"; unusedHits="<<unclusteredHits.size()<<std::endl;
 	clustersV=PathReCluster(clustersV,unclusteredHits,0);
-	std::cout<<"AfterForwardPath: clustersV="<<clustersV.size()<<"; unusedHits="<<unclusteredHits.size()<<std::endl;
+	// std::cout<<"AfterForwardPath: clustersV="<<clustersV.size()<<"; unusedHits="<<unclusteredHits.size()<<std::endl;
         clustersV=PathReCluster(clustersV,unclusteredHits,1);
-	std::cout<<"AfterBackwardPath: clustersV="<<clustersV.size()<<"; unusedHits="<<unclusteredHits.size()<<std::endl;
+	// std::cout<<"AfterBackwardPath: clustersV="<<clustersV.size()<<"; unusedHits="<<unclusteredHits.size()<<std::endl;
 	for(CP::TReconObjectContainer::iterator cl = clustersV.begin();cl!=clustersV.end();++cl){
 	  CP::THandle<CP::THitSelection> clHits = (*cl)->GetHits();
 	  // std::cout<<clHits->size()<<std::endl;
@@ -512,8 +515,10 @@ CP::TPathFollow::Process(const CP::TAlgorithmResult& input,
       ++coll;
     }
 
+#ifdef DEBUG_HISTOGRAMS
     HitsX->Draw("COLZ");
     gPad->Print("plots/XHits_pf.C");
+#endif
   }
 
   if(clustersU_pf->size()>0){
@@ -540,8 +545,10 @@ CP::TPathFollow::Process(const CP::TAlgorithmResult& input,
       ++coll;
     }
 
+#ifdef DEBUG_HISTOGRAMS
     HitsU->Draw("COLZ");
     gPad->Print("plots/UHits_pf.C");
+#endif
   }
 
   if(clustersV_pf->size()>0){
@@ -568,8 +575,10 @@ CP::TPathFollow::Process(const CP::TAlgorithmResult& input,
       ++coll;
     }
 
+#ifdef DEBUG_HISTOGRAMS
     HitsV->Draw("COLZ");
     gPad->Print("plots/VHits_pf.C");
+#endif
   }
 
 
